@@ -3,7 +3,7 @@
  * Plugin Name: WPVibe Direct MCP
  * Plugin URI:  https://github.com/salman0butt/wpvibe-direct-mcp
  * Description: Adds a self-hosted MCP endpoint to WPVibe, reusing WPVibe's protected REST tools without the hosted WPVibe MCP gateway.
- * Version:     1.2.0
+ * Version:     1.3.0
  * Author:      Community build
  * License:     GPL-2.0-or-later
  * Requires at least: 6.0
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPVDMCP_VERSION', '1.2.0' );
+define( 'WPVDMCP_VERSION', '1.3.0' );
 define( 'WPVDMCP_FILE', __FILE__ );
 define( 'WPVDMCP_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -28,6 +28,7 @@ require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-parity-fields.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-parity-skills.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-parity-insights.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-parity.php';
+require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-mcp-app-transport.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-tools.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-server.php';
 require_once WPVDMCP_DIR . 'includes/class-wpvdmcp-admin.php';
@@ -47,6 +48,7 @@ add_action( 'plugins_loaded', function() {
 
 add_action( 'plugins_loaded', function() {
 	WPVDMCP_Parity::bootstrap();
+	WPVDMCP_MCP_App_Transport::bootstrap();
 	WPVDMCP_Server::instance();
 	WPVDMCP_Upload::instance();
 	if ( is_admin() ) {

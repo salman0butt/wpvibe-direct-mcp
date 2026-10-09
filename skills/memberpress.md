@@ -1,0 +1,3 @@
+# MemberPress
+
+Start with `discover_abilities` for `memberpress`; current MemberPress AI Foundation exposes members, memberships, subscriptions, transactions, rules, coupons and reports. Inspect `get_ability_info` and read existing memberships/rules before writes. Use `run_ability` when the installed AI Foundation exposes the needed write and its connected-app setting allows it. On older installs where a write is not an Ability, use only documented MemberPress Developer Tools/public REST endpoints through hardened `rest_api_write`; never touch private tables directly. Re-read the membership/rule/subscription and, for access changes, verify the protected page logged-out.

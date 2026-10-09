@@ -1,0 +1,3 @@
+# Sugar Calendar
+
+Start with `discover_abilities` for Sugar Calendar and inspect the installed schemas with `get_ability_info`; the public WPVibe compatibility checks currently expose calendar/event commands on supported versions. Prefer readonly abilities to list calendars, events and date ranges before attempting changes. Only call `run_ability` for event/calendar writes that the installed plugin actually advertises, and preserve timezone, start/end, recurrence and calendar assignment fields not requested by the user. Treat deletions and attendee-facing changes as approval-worthy even if an old plugin version under-annotates them. If no write Ability is exposed, do not guess Sugar Calendar tables or post meta; use documented public APIs only.

@@ -1,0 +1,3 @@
+# Amelia / Booking for Appointments and Events Calendar
+
+Start with `discover_abilities` for the `amelia` namespace. Read services, employees, customers, events, appointments and availability before scheduling anything. Use `get_ability_info` to get required IDs/date formats and `run_ability` for service/customer/event/appointment writes. Confirm the exact customer, service, employee, local time and availability immediately before booking; cancellation or booking changes can be consequential, so surface the intended record and honor approval annotations. Re-read the appointment/event after mutation and never infer identities from names when stable IDs are available.

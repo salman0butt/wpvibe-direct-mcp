@@ -1,0 +1,3 @@
+# Duplicator
+
+Call `discover_abilities` for Duplicator and inspect `get_ability_info`; current compatibility exposes listing backups, starting a backup and polling its status. Before risky site work, prefer a full backup rather than database-only when files/uploads/plugins/themes may change. Use `run_ability` to start the backup with a clear reason, then poll status until complete/failed/cancelled instead of assuming the initial response means a usable backup exists. Do not claim restore/delete/download capabilities when the installed ability set does not expose them. Check free-space/error state and report the backup scope clearly.

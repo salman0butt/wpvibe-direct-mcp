@@ -1,0 +1,3 @@
+# Smash Balloon
+
+First call `discover_abilities` for the Smash Balloon/Instagram Feed namespace exposed by the installed Pro plugin, then inspect `get_ability_info` for exact schemas and write annotations. Read feeds, connected accounts and current styling before changing anything. Use `run_ability` for feed creation/restyling/highlights/refresh settings, keeping writes narrowly scoped and approval-aware. After changes, read the feed again and inspect the rendered page to confirm the expected feed/style is actually served. Never fabricate connected-account credentials or edit plugin storage directly.

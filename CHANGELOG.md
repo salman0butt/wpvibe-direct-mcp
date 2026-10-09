@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 - 2026-10-10
+- Re-audited the live WPVibe Features page, Tools Reference, current Works-with-AI library, and official WPVibe 1.20.3 GitHub source from zero assumptions.
+- Added every missing audited public/hosted tool name: `audit_page`, `rest_api_write`, `save_skill`, `connect_site`, `list_sites`, `remove_site`, `get_profile`, `start_fleet_job`, `show_fleet_dashboard`, and `use_usage_reset`.
+- Added fail-closed user-owned provider adapters for hosted account/fleet/usage tools instead of fabricating WPVibe cloud state.
+- Added native MCP Apps inline approval and upload panels (`ui://` resources, `text/html;profile=mcp-app`) with opaque one-use approval tokens and browser fallbacks.
+- Added JavaScript browser preference for `get_page_html`, provider-backed screenshots, an approval-gated SeedProd compile flow, and exact `rest_api_write` schema hardening.
+- Extended Saved Skills with descriptions and bounded text reference files.
+- Added a machine-readable reference parity manifest covering audited tools, MCP options, the current Works-with-AI/Cookbook integration set, Direct extensions, and every upstream REST route classified as model-facing or deliberately internal.
+- Expanded current skill coverage for Elementor 4.3, Divi/Divi 5, SeedProd, the live Works-with-AI library, and every current cookbook plugin/page-builder/theme filter, including FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, and the current builder/theme surfaces; also retained a generic Abilities-first plugin workflow for future compliant plugins.
+- Expanded parity tests to cover exact public tool names, provider boundaries, MCP Apps, inline approval replay protection, screenshots, Saved Skill references, internal routes, current plugin skills, and release metadata.
+
 ## 1.2.0 - 2026-10-09
 - Added persistent WPVibe editable fields, groups, and settings with 13 upstream field types, safe setting-type restrictions, native registry replay, and one-time browser approvals.
 - Added recursive Gutenberg schema validation plus approval-gated `save_validated_blocks`, covering installed core, Kadence, GenerateBlocks, and other registered blocks.

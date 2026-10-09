@@ -2,7 +2,7 @@
 
 ## Audited baseline
 
-Direct MCP 1.2.0 is audited against:
+Direct MCP 1.3.0 is audited against:
 
 - official WPVibe WordPress plugin 1.20.3;
 - upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6` from 2026-10-06;
@@ -28,7 +28,7 @@ Requires WordPress 6.9+ and the `/wp-abilities/v1/abilities` REST namespace. If 
 
 ### WPVibe 1.20-era contracts
 
-1.2.0 understands current fields such as:
+1.3.0 understands current fields such as:
 
 - file `scope` and wp-content diagnostic reads;
 - `list_files.directory`;
@@ -66,3 +66,7 @@ Direct MCP does not override WordPress/WPVibe file-edit policy. If WPVibe refuse
 ## Hosted vs direct
 
 The official open-source WPVibe repository documents itself as the WordPress-side component while the hosted gateway/account/tool registration lives at wpvibe.ai. Direct MCP replaces only the transport/account dependency needed for one site; it does not recreate account/fleet/plan/cloud services.
+
+## 1.3.0 reference audit
+
+The 1.3.0 pass compares Direct MCP against the live WPVibe Features page, public Tools Reference, current Works-with-AI compatibility pages, and every REST-registering class in upstream WPVibe 1.20.3. Exact hosted tool names are present as provider-backed adapters where no single-site local equivalent exists. Internal control-plane routes (authorization, approved execution, builder login, detached jobs, self-update and connection challenges) are deliberately not exposed directly to the model.

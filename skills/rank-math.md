@@ -1,0 +1,3 @@
+# Rank Math SEO
+
+Use `discover_abilities` for the `rank-math` namespace first; Rank Math 1.0.279+ exposes site audit, settings, sitemap/reporting and post SEO reads through WordPress Abilities. Inspect `get_ability_info` before each call and use `run_ability` with the declared schema. Prefer read-only audit and settings reads before fixes. Preserve existing exclusion lists and unrelated settings when a write replaces a collection. For per-post SEO metadata not covered by an ability, use only Rank Math's documented/public WordPress route or registered meta path, never raw private-table guesses. Re-read live metadata/sitemap state after changes.

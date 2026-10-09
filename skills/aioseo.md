@@ -1,0 +1,3 @@
+# All in One SEO (AIOSEO)
+
+Begin with `discover_abilities` for AIOSEO and inspect every chosen operation with `get_ability_info`. Current AIOSEO 5 exposes SEO titles/descriptions, focus keyphrases, social text, noindex/robots work and audits; Pro can add redirects, 404 and Search Statistics capabilities. Use readonly abilities to inventory current state before calling `run_ability` for changes, preserve unrelated SEO fields, and require approval whenever the ability/tool classifies the action as destructive. Verify the saved SEO fields and the rendered canonical/robots/schema result after every write instead of assuming a successful response means the frontend changed.

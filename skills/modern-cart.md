@@ -1,0 +1,3 @@
+# Modern Cart
+
+Call `discover_abilities` for `moderncart` and inspect the exact schema with `get_ability_info`. Read current settings/options/status before updating settings or completing onboarding. Reset-to-default operations can discard configuration, so show the affected setting groups before calling `run_ability` and honor write/destructive approval metadata. Cart-summary reads depend on the current WooCommerce session, so do not generalize one visitor's cart to all users. After any settings write, re-read the settings and inspect the storefront/cart UI to confirm the change. Never manipulate Modern Cart options directly when an ability exists.

@@ -1,0 +1,3 @@
+# LifterLMS
+
+Begin with `discover_abilities` to see what the installed LifterLMS version exposes; if it registers no suitable ability, use only its documented public APIs and existing WordPress/WPVibe tools. Read course/lesson/access-plan/enrollment state before changing structure or pricing. Use `get_ability_info` plus `run_ability` for available operations, keeping enrollments, completions and pricing writes explicit and approval-aware. Build courses as drafts where possible, then verify section/lesson ordering, access plans, membership auto-enrollment and student progress by reading the resulting state rather than relying on one write response.

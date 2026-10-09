@@ -1,0 +1,3 @@
+# Pagelayer
+
+Start with `discover_abilities` for the `pagelayer-widgets` namespace. Use readonly widget/schema/style/example abilities to understand valid node shapes before constructing or editing layouts. Call `get_ability_info` for every write and `run_ability` only with registered attributes and nesting rules; do not guess Pagelayer's private serialized page format. Build or change small sections at a time, then re-read the page structure and inspect rendered HTML/browser output. Preserve responsive/style properties you did not intend to change and surface plugin validation errors rather than forcing a write.

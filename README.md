@@ -6,23 +6,25 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## Release
 
-- Direct MCP: **1.2.0**
+- Direct MCP: **1.3.0**
 - Audited WPVibe release: **1.20.3**
 - Audited upstream commit: **`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`** (2026-10-06)
 - WordPress: 6.0+; Abilities tools require WordPress 6.9+
 - PHP: 7.4+
 - MCP: modern `2026-07-28` plus legacy 2025/2024 compatibility
 
-## What 1.2.0 adds
+## What 1.3.0 adds
 
-- Everything from 1.1.0: modern MCP compatibility, current WPVibe 1.20.3 file/theme contracts, Abilities, native builders, secure device uploads, WPCode dormant snippets, hardened REST, and operation receipts.
-- Persistent WPVibe editable fields/groups/settings replayed through upstream native APIs, including all 13 post-field types.
-- Recursive Gutenberg block-schema validation and an approval-gated validated-content save path; third-party blocks such as Kadence and GenerateBlocks are validated from the installed registry rather than hard-coded guesses.
-- Local saved skills with create/update/delete approvals, versions, immutable built-ins, and storage limits.
-- Safe Media Library inspection plus optional bounded PDF text extraction through a user-owned provider.
-- Site intelligence, builder/theme/block capability detection, WPVibe live-reload status, and a read-only SEO HTML audit.
-- User-owned provider hooks for Lighthouse/PageSpeed-style audits, stock-image search, and real JS/browser rendering. Direct MCP never embeds WPVibe private cloud credentials.
-- Expanded workflow skills for Kadence, GeneratePress, GenerateBlocks, editable fields, block validation, PDF/media, saved skills, live reload, performance audits, and image search.
+- Exhaustive public-reference parity against the live WPVibe Features/Tools Reference pages and official `awesomemotive/wpvibe-ai-mcp` 1.20.3 source.
+- Exact public/hosted tool names that were previously absent: `audit_page`, `rest_api_write`, `save_skill`, `connect_site`, `list_sites`, `remove_site`, `get_profile`, `start_fleet_job`, `show_fleet_dashboard`, and `use_usage_reset`.
+- Hosted account/fleet tools fail closed unless a **user-owned provider** is configured; Direct MCP never fabricates WPVibe account, billing, fleet, or usage state.
+- Native MCP Apps approval and image-upload panels using `ui://` resources and `text/html;profile=mcp-app`, while retaining secure browser-link fallbacks for clients without MCP Apps.
+- A reference-parity manifest that records every audited public tool, MCP protocol option, Direct extension, and upstream REST route intentionally kept internal.
+- JavaScript-rendered `get_page_html` through an optional browser provider, provider-backed screenshots/Lighthouse/stock search, and an approval-gated SeedProd compile workflow that consumes WPVibe's one-time builder-login primitive without exposing it to the model.
+- Saved Skills now support one-line descriptions plus bounded text reference files, matching the public WPVibe saved-skill model.
+- Current builder/workflow playbooks strengthened for Elementor 4.3 Abilities, Divi/Divi 5 Theme Builder multi-value meta, and SeedProd compile behavior.
+- Explicit current Works-with-AI/cookbook playbooks for Rank Math, AIOSEO, SEOPress, Yoast, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, and Kadence, plus a generic Abilities-first plugin skill for future compliant plugins.
+- Everything added in 1.2.0 remains: editable fields, validated Gutenberg writes, local Saved Skills CRUD, PDF/media intelligence, site intelligence/live reload, SEO audit, and provider-backed external services.
 
 ## Media uploads
 
@@ -59,9 +61,9 @@ Direct MCP stays thin by design:
 - **Direct MCP owns transport/auth.** It provides MCP JSON-RPC, a directly managed bearer token, local capability discovery, browser upload tickets, and Direct-MCP browser approvals for non-readonly Abilities.
 - **Feature detection wins over version coupling.** Route-backed tools are listed only when the corresponding WordPress/WPVibe REST route exists.
 
-## Hosted WPVibe features intentionally not cloned
+## Hosted-service boundary
 
-The hosted product includes account identity and site connection management, cloud stock-image search, plan/usage controls, fleet orchestration, saved account skills, PageSpeed/Lighthouse-style cloud work, and richer MCP App UI panels. Those are not equivalent to one directly connected WordPress site, and 1.2.0 does not return fake placeholder data for them. Where a safe local analogue makes sense, 1.2.0 exposes a user-owned provider hook instead.
+Direct MCP exposes the **exact audited hosted tool names** for account/site registry, fleet and usage-reset workflows, but it does not clone WPVibe's private cloud database or credentials. Those tools require a user-owned provider and otherwise return `provider_unavailable`. Stock search, browser rendering, screenshots and Lighthouse-style audits follow the same fail-closed provider model. MCP Apps approval/upload panels are implemented locally and do not require WPVibe's hosted UI.
 
 See `docs/PARITY.md` for the complete matrix.
 
@@ -85,6 +87,8 @@ Run:
 
 ```bash
 php tests/run.php
+php tests/parity-run.php
+php tests/reference-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 

@@ -1,0 +1,3 @@
+# Yoast SEO
+
+Use `discover_abilities` for the `yoast-seo` namespace and inspect `get_ability_info` before execution. Current public WPVibe compatibility data shows score/readability abilities; treat availability as dynamic because Yoast can add more abilities over time. Use `run_ability` only with the registered schema and annotations. If the requested action is not represented by an installed ability, use documented public WordPress/meta integrations only and explain the limitation instead of inventing private-indexable fields. Re-read score/readability output and live metadata after any related content change.

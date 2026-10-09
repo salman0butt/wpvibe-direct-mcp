@@ -1,0 +1,3 @@
+# WPCode
+
+Start with `discover_abilities` for the `wpcode` namespace. Current verified WPCode abilities are read-oriented: list snippets, detect snippet errors, read error logs, search the WPCode library and read settings. Inspect them with `get_ability_info` and call them with `run_ability`. For a new or edited PHP/JS/CSS snippet, use Direct MCP `code_snippet` instead of writing WPCode storage yourself: the WPVibe path is approval-gated and saves executable snippets disabled. Do not enable/disable a snippet through guessed storage; activation remains a human/upstream-approved action. After the user enables code, re-run WPCode error detection and inspect the affected page before calling the change clean.

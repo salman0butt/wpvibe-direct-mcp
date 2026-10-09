@@ -1,0 +1,3 @@
+# Charitable
+
+Use `discover_abilities` for Charitable before planning. Read campaign, donation and donor state with the available readonly abilities, inspect exact input/permission metadata via `get_ability_info`, then use `run_ability` for supported campaign or offline-donation changes. Keep money/campaign identifiers explicit and do not infer donor identity from names alone. Treat destructive/write annotations as authoritative for approval. Verify created/updated campaigns or donations by reading them back and compare aggregate fundraising reports where relevant; never write Charitable tables or serialized options directly.

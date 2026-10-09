@@ -1,0 +1,3 @@
+# Product Feed PRO by AdTribes
+
+Use `discover_abilities` for the `adtribes` namespace, then `get_ability_info` for exact feed/channel/schedule schemas. Read feeds and statistics before changing configuration. Use `run_ability` for create/update/regenerate/schedule/tracking operations, preserving existing filters/mappings and avoiding destructive delete unless explicitly requested and approved by the declared annotation. Feed generation may be asynchronous, so verify status/file statistics after regeneration rather than assuming success. Treat feed URLs and merchant/tracking identifiers as operational data and never invent unsupported channel settings.

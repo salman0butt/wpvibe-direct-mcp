@@ -7,9 +7,10 @@ From the plugin root:
 ```bash
 php tests/run.php
 php tests/parity-run.php
+php tests/reference-run.php
 ```
 
-Current 1.2.0 verification runs 26 legacy tests plus 14 parity tests (40 total). It covers:
+Current 1.3.0 verification runs 26 legacy tests + 14 core parity tests + 21 reference parity tests (61 total). It covers:
 
 ### MCP transport
 
@@ -65,6 +66,21 @@ Current 1.2.0 verification runs 26 legacy tests plus 14 parity tests (40 total).
 - file-backed skill loading;
 - compatibility summary hosted-only boundary;
 - secret-free admin status snapshot.
+
+
+### Exhaustive reference parity
+
+- every audited public WPVibe tool name plus `use_usage_reset`;
+- exact aliases (`audit_page`, `rest_api_write`, `save_skill`) and fail-closed hosted-provider tools;
+- MCP Apps resources, tool metadata, opaque inline-approval token, decision replay rejection, and browser fallback;
+- JavaScript browser preference/fallback for `get_page_html`;
+- SeedProd compile approval/provider flow with builder-login secret redaction;
+- provider-backed screenshots;
+- Saved Skill descriptions/reference files;
+- upstream infrastructure routes classified as internal, not model tools;
+- Divi Theme Builder multi-value meta guidance and Elementor 4.3 whole-settings warning;
+- current Works-with-AI and cookbook plugin/page-builder/theme playbook manifest plus generic Abilities-first fallback;
+- 1.3.0 release metadata.
 
 ## PHP syntax verification
 

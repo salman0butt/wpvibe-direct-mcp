@@ -1,0 +1,3 @@
+# Abilities-first plugin workflow
+
+Start with `discover_abilities` and filter by the installed plugin namespace/category instead of guessing private option names. Read `get_ability_info` before execution so input schemas, readonly/destructive annotations, and permissions drive the plan. Run readonly abilities first, show proposed mutations, then call `run_ability` for writes and honor Direct MCP approval when required. If a plugin exposes no Abilities, fall back only to its documented public REST API or existing WordPress/WPVibe tools; never reverse-engineer serialized private storage. Verify every mutation by reading the affected plugin/site state afterward.

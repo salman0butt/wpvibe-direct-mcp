@@ -1,7 +1,3 @@
-# Woocommerce
+# WooCommerce
 
-Discover WooCommerce routes and schemas before writes. Preserve IDs, SKUs, variations, taxonomies, currency, stock rules, and order/customer data. Test bulk changes on a small sample, avoid destructive operations without explicit approval, and never expose sensitive customer data unnecessarily.
-
-## Workflow
-
-Inspect current state first, make the smallest supported change, verify the result, and preserve WordPress/WPVibe capability and approval checks.
+Start with `discover_abilities` for WooCommerce operations exposed by the installed version, and inspect them with `get_ability_info`. Use `run_ability` when it is the plugin-native path; otherwise use WooCommerce REST endpoints through hardened `rest_api` / `rest_api_write` (`/wc/v3/...`) so stock, prices, orders and caches follow WooCommerce hooks. Read products/orders before writes, preserve categories, images, attributes and variation data not being changed, use batch endpoints for bounded catalog work, and create/import products as drafts when review is required. Never issue refunds, permanently delete products/orders, or send customer-visible notes/emails without explicit intent and approval. Re-read every changed resource and report IDs, status and important totals.

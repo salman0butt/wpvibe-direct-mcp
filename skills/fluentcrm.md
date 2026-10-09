@@ -1,0 +1,3 @@
+# FluentCRM
+
+Start with `discover_abilities` and inspect the current FluentCRM abilities with `get_ability_info` rather than assuming automation schemas. Read tags, lists, sequences/automations and the target contacts before mutation. For a welcome or follow-up drip, build the sequence in a reviewable inactive/draft state when supported, keep delays and exit conditions explicit, and never enroll an unintended audience. For contact routing, verify existing tags/lists first so the workflow is idempotent. Execute supported operations with `run_ability`; otherwise use only documented FluentCRM public APIs through `rest_api_write`. Re-read the automation, steps, audience filters and activation state before reporting success.

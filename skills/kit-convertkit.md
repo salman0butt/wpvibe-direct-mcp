@@ -1,0 +1,3 @@
+# Kit / ConvertKit
+
+Use `discover_abilities` for the `kit` namespace and inspect `get_ability_info`; the plugin exposes a broad set of block, form, account/settings and content-restriction operations. Read account/settings/forms/tags/products before writes. Use `run_ability` with exact schemas for inserting/updating Kit blocks, defaults or restrictions, and preserve unrelated post content/settings. Treat plugin-reported write/destructive annotations as authoritative. After changes, re-read the corresponding ability and inspect the WordPress post/page rendering. Never place Kit API credentials in chat, saved skills or Direct MCP options.

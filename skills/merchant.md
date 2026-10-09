@@ -1,0 +1,3 @@
+# Merchant for WooCommerce
+
+Start with `discover_abilities` for Merchant and inspect every write schema with `get_ability_info`. Inventory active promotions and the WooCommerce products/categories they target before creating a campaign, bundle, spending goal, volume discount, size chart or swatch rule. Keep new promotions disabled until the user explicitly asks to activate them, and detect overlapping dates/rules before saving. Use `run_ability` for supported Merchant actions; if an installed version lacks an Ability, fall back only to documented public APIs rather than private options. After changes, re-read the campaign configuration and, where practical, verify the affected WooCommerce product/cart behavior without placing a real order.

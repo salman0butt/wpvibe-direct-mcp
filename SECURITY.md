@@ -79,6 +79,16 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 
 For vulnerabilities in this Direct MCP bridge, report them privately to the repository owner rather than opening a public exploit issue. For vulnerabilities in official WPVibe itself, follow WPVibe's published security-contact process.
 
-## Optional external providers (1.2.0)
+## Optional external providers (1.3.0)
 
 `page_audit`, `search_images`, `render_browser`, and PDF text extraction are disabled unless the site owner supplies a provider via the documented WordPress filters. Direct MCP stores no WPVibe cloud credential and does not claim these providers are WPVibe-hosted services. Provider operators are responsible for outbound-network policy, credentials, rate limits, data handling, and licensing.
+
+## MCP Apps security
+
+Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
+
+The MCP App HTML currently imports the official `@modelcontextprotocol/ext-apps` browser client from a version-pinned `esm.sh` URL. The app CSP allows that resource domain; production operators with stricter supply-chain policies should proxy/vendor an audited copy before enabling inline apps in a locked-down environment.
+
+## Hosted/provider boundary
+
+Account/site registry, fleet, usage reset, stock search, Lighthouse, screenshots, browser rendering and SeedProd browser automation do not silently call WPVibe private infrastructure. They fail closed unless a site owner configures a provider. Provider code is responsible for its own network egress, credential storage, SSRF policy, retention and licensing.

@@ -18,6 +18,7 @@ final class WPVDMCP_Approvals {
 			'owner_user_id' => $owner,
 			'operation' => sanitize_key( $operation ),
 			'payload_hash' => self::payload_hash( $payload ),
+			'display_payload' => self::display_payload( $payload ),
 			'summary' => self::truncate( sanitize_text_field( $summary ), 500 ),
 			'status' => 'pending',
 			'created_at' => time(),
@@ -115,6 +116,7 @@ final class WPVDMCP_Approvals {
 			'status' => $record['status'],
 			'operation' => $record['operation'],
 			'summary' => $record['summary'],
+			'display_payload' => isset( $record['display_payload'] ) ? $record['display_payload'] : array(),
 			'expires_at' => $record['expires_at'],
 			'approval_url' => admin_url( 'admin.php?page=wpvibe-direct-mcp&approval=' . rawurlencode( $record['id'] ) ),
 		);
@@ -122,6 +124,26 @@ final class WPVDMCP_Approvals {
 
 	private static function truncate( $value, $length ) {
 		return function_exists( 'mb_substr' ) ? mb_substr( (string) $value, 0, $length ) : substr( (string) $value, 0, $length );
+	}
+
+	private static function display_payload( $value, $depth = 0 ) {
+		if ( $depth > 5 ) { return '[TRUNCATED]'; }
+		if ( is_array( $value ) ) {
+			$out = array(); $count = 0;
+			foreach ( $value as $key => $item ) {
+				if ( $count++ >= 50 ) { $out['__truncated__'] = true; break; }
+				$key_text = is_string( $key ) ? $key : (string) $key;
+				if ( preg_match( '/pass(word)?|secret|token|cookie|authorization|api[_-]?key|credential/i', $key_text ) ) {
+					$out[ $key ] = '[REDACTED]';
+				} else {
+					$out[ $key ] = self::display_payload( $item, $depth + 1 );
+				}
+			}
+			return $out;
+		}
+		if ( is_object( $value ) ) { return self::display_payload( (array) $value, $depth + 1 ); }
+		if ( is_string( $value ) ) { return self::truncate( $value, 2000 ); }
+		return is_scalar( $value ) || null === $value ? $value : '[UNSUPPORTED]';
 	}
 
 	private static function key( $id ) {

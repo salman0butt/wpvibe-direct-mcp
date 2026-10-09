@@ -1,0 +1,3 @@
+# Easy Digital Downloads
+
+Use `discover_abilities` for EDD and inspect `get_ability_info` before every call. Prefer readonly sales/order/customer/log/store audits before writes. For products and discounts, create drafts/inactive records first when the ability supports it, preserve price/file structures you are not changing, and use `run_ability` with approval according to its annotations. Do not invent refund or variable-price actions when they are absent from the installed ability set. Verify products/discounts/orders by reading them back and, for customer support operations, confirm receipt/download log state after execution.

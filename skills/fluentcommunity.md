@@ -1,0 +1,3 @@
+# FluentCommunity
+
+Start with `discover_abilities` for the installed FluentCommunity namespace, then inspect schemas and permissions with `get_ability_info`. Read existing spaces, privacy/access settings, roles and memberships before creating or changing a community space so names and access rules are not duplicated. Use `run_ability` for supported writes and keep new spaces private/draft when that state exists until the user reviews membership and visibility. Treat invitations, member removals and privacy changes as sensitive even when a plugin annotation is incomplete; summarize the affected audience first. If no suitable Ability exists, use only documented public endpoints and verify the resulting space, permissions and frontend visibility after the change.

@@ -1,0 +1,3 @@
+# OptinMonster companion workflow
+
+OptinMonster is a two-connector workflow, not a WordPress Abilities workflow. Use WPVibe/Direct MCP to read the WordPress page, create or edit the surrounding content, inspect page IDs and manage documented per-page WordPress settings. Use OptinMonster’s own MCP connector for campaign creation, campaign copy, display rules and account-side activation. Do not pretend `discover_abilities` will expose OptinMonster campaigns and do not store OptinMonster account credentials in WordPress or saved skills. When changing a WordPress-side exclusion or embed, read the current page/settings first, make the narrowest change, then verify the page and ask the OptinMonster connector to confirm the campaign/rule state separately.

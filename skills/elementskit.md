@@ -1,0 +1,3 @@
+# ElementsKit
+
+Use `discover_abilities` for the `elementskit` namespace and inspect `get_ability_info` before each operation. Read installed widgets, templates, menus and custom widgets first. Use `run_ability` for ElementsKit widget/template insertion, header/footer creation, custom widgets and mega menus according to the registered schema. Because these operations compose Elementor documents, also respect Elementor's own document/atomic schemas and verify the saved page/template in Elementor plus rendered output. Never write `_elementor_data` or ElementsKit menu metadata generically when a native ability is available.

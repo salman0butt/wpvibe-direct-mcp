@@ -1,0 +1,3 @@
+# Botiga
+
+Treat Botiga as a WordPress theme plus WooCommerce workflow. Inspect the active theme, current Customizer/theme mods, WooCommerce pages and existing block markup before changing storefront presentation. Use documented WordPress/WooCommerce REST, safe WP-CLI theme-mod/option commands, and `validate_blocks` / `save_validated_blocks` for block-based shop or landing pages; never guess private serialized theme settings. Preserve unrelated theme mods and create content pages as drafts for review. For product-card, mini-cart, search and single-product changes, verify both the stored setting and rendered storefront output, including mobile width where a browser provider is available.

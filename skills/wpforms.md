@@ -1,0 +1,3 @@
+# WPForms
+
+Start with `discover_abilities` to detect any current WPForms abilities; when none cover the task, use only documented WPForms/WordPress public APIs or WPVibe-safe content tools rather than editing serialized form storage blindly. For form creation/migration, inventory fields, notifications, confirmations and every embed first. Keep new forms unpublished/unembedded until structure and notification recipients are checked. For entry analysis, treat submitted data as sensitive and return only what the user requested. Verify deliverability configuration, embeds and frontend rendering after changes, and do not expose entry secrets in logs or saved skills.

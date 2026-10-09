@@ -1,0 +1,3 @@
+# PushEngage
+
+Start with `discover_abilities` for the `pushengage` namespace and inspect each schema with `get_ability_info`. Read connection health, auto-push content types, segments and analytics before mutation. Sending a notification is irreversible to subscribers: show the exact title/message first and call `run_ability` only after the user-approved workflow; Direct MCP will enforce any destructive annotation. Respect current PushEngage limits and https image requirements exposed by the plugin. Re-read send/analytics or settings state after changes, and never expose debug-log secrets in summaries.
