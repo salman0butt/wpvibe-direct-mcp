@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 - 2026-10-09
+- Audited against WPVibe 1.20.3 at upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+- Added modern MCP `2026-07-28` discovery/version handling while retaining legacy initialize compatibility.
+- Added first-class WordPress Abilities discovery/info/run with annotation-aware methods and browser approvals for writes.
+- Added current WPVibe file/theme schemas, operation receipts, WPCode dormant snippets, and native Elementor, Beaver Builder, Bricks, and Breakdance tools.
+- Added secure `request_upload` / `check_upload` browser transfer for device/chat attachments with expiring one-time hashed tickets and WPVibe SVG sanitization.
+- Hardened generic REST access, added response limits/field selection, and kept credential/authentication routes blocked.
+- Added a file-backed 25-skill catalog, expanded wp-admin compatibility/status UI, and corrected plugin repository metadata.
+- Added dependency-free protocol/security/capability tests and compatibility/security documentation.
+
 ## 1.0.4
 - Fixed Streamable HTTP notification handling: accepted JSON-RPC notifications now return HTTP 202 Accepted with no body, as required by MCP.
 - Fixed notification-only JSON-RPC batches to return HTTP 202 instead of 204.

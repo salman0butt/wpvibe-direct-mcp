@@ -6,6 +6,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class WPVDMCP_Server {
 	private static $instance;
 	private $authenticated_user = 0;
+	private $modern_request = false;
+
+	const MODERN_PROTOCOL = '2026-07-28';
+	const LEGACY_PROTOCOL = '2025-11-25';
+
+	public static function supported_protocol_versions() {
+		return array( self::MODERN_PROTOCOL, self::LEGACY_PROTOCOL, '2025-06-18', '2025-03-26', '2024-11-05' );
+	}
 
 	public static function instance() {
 		if ( ! self::$instance ) {
@@ -69,7 +77,7 @@ final class WPVDMCP_Server {
 	public function options() {
 		$response = new WP_REST_Response( null, 204 );
 		$response->header( 'Allow', 'POST, GET, OPTIONS' );
-		$response->header( 'Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, MCP-Protocol-Version, MCP-Session-Id, X-WPVibe-Direct-Token' );
+		$response->header( 'Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Method, Mcp-Name, MCP-Session-Id, X-WPVibe-Direct-Token' );
 		$response->header( 'Access-Control-Allow-Methods', 'POST, GET, OPTIONS' );
 		$response->header( 'Access-Control-Max-Age', '600' );
 		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
@@ -109,9 +117,18 @@ final class WPVDMCP_Server {
 		if ( ! is_array( $payload ) ) {
 			return $this->rpc_error( null, -32700, 'Invalid JSON-RPC payload.', 400 );
 		}
+
+		$http_version = trim( (string) $request->get_header( 'mcp-protocol-version' ) );
+
 		if ( isset( $payload[0] ) ) {
 			$responses = array();
 			foreach ( $payload as $item ) {
+				$protocol_error = $this->validate_protocol( $item, $http_version, null );
+				if ( $protocol_error ) {
+					$responses[] = $protocol_error;
+					continue;
+				}
+				$this->modern_request = $this->is_modern_rpc( $item, $http_version );
 				$result = $this->process_rpc( $item );
 				if ( null !== $result ) {
 					$responses[] = $result;
@@ -119,8 +136,69 @@ final class WPVDMCP_Server {
 			}
 			return $responses ? rest_ensure_response( $responses ) : new WP_REST_Response( null, 202 );
 		}
+
+		$protocol_error = $this->validate_protocol( $payload, $http_version, $request );
+		if ( $protocol_error ) {
+			return new WP_REST_Response( $protocol_error, 400 );
+		}
+		$this->modern_request = $this->is_modern_rpc( $payload, $http_version );
 		$result = $this->process_rpc( $payload );
 		return null === $result ? new WP_REST_Response( null, 202 ) : rest_ensure_response( $result );
+	}
+
+	private function protocol_version_from_rpc( $rpc, $http_version = '' ) {
+		$params = isset( $rpc['params'] ) && is_array( $rpc['params'] ) ? $rpc['params'] : array();
+		$meta = isset( $params['_meta'] ) && is_array( $params['_meta'] ) ? $params['_meta'] : array();
+		$body_version = isset( $meta['io.modelcontextprotocol/protocolVersion'] ) ? (string) $meta['io.modelcontextprotocol/protocolVersion'] : '';
+		return $body_version ? $body_version : (string) $http_version;
+	}
+
+	private function is_modern_rpc( $rpc, $http_version = '' ) {
+		return self::MODERN_PROTOCOL === $this->protocol_version_from_rpc( $rpc, $http_version );
+	}
+
+	private function validate_protocol( $rpc, $http_version = '', $request = null ) {
+		if ( ! is_array( $rpc ) ) {
+			return $this->rpc_error_array( null, -32600, 'Invalid Request.' );
+		}
+		$params = isset( $rpc['params'] ) && is_array( $rpc['params'] ) ? $rpc['params'] : array();
+		$meta = isset( $params['_meta'] ) && is_array( $params['_meta'] ) ? $params['_meta'] : array();
+		$body_version = isset( $meta['io.modelcontextprotocol/protocolVersion'] ) ? (string) $meta['io.modelcontextprotocol/protocolVersion'] : '';
+		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
+
+		if ( $body_version && $http_version && $body_version !== $http_version ) {
+			return $this->rpc_error_array( $id, -32020, 'MCP protocol header does not match request metadata.', array( 'header' => $http_version, 'metadata' => $body_version ) );
+		}
+
+		$requested = $body_version ? $body_version : (string) $http_version;
+		if ( $requested && ! in_array( $requested, self::supported_protocol_versions(), true ) ) {
+			return $this->rpc_error_array( $id, -32022, 'Unsupported protocol version', array( 'supported' => self::supported_protocol_versions(), 'requested' => $requested ) );
+		}
+
+		// MCP 2026-07-28 Streamable HTTP routes every request by headers. Validate
+		// the standard headers against the JSON-RPC body instead of trusting them.
+		if ( self::MODERN_PROTOCOL === $requested && $request ) {
+			$method = isset( $rpc['method'] ) ? (string) $rpc['method'] : '';
+			$header_method = trim( (string) $request->get_header( 'mcp-method' ) );
+			if ( '' === $header_method || $header_method !== $method ) {
+				return $this->rpc_error_array( $id, -32020, 'MCP routing header does not match the request body.', array( 'header' => 'Mcp-Method', 'expected' => $method, 'received' => $header_method ) );
+			}
+			$expected_name = '';
+			if ( isset( $params['name'] ) && is_scalar( $params['name'] ) ) {
+				$expected_name = (string) $params['name'];
+			} elseif ( isset( $params['uri'] ) && is_scalar( $params['uri'] ) ) {
+				$expected_name = (string) $params['uri'];
+			} elseif ( isset( $params['taskId'] ) && is_scalar( $params['taskId'] ) ) {
+				$expected_name = (string) $params['taskId'];
+			}
+			if ( '' !== $expected_name ) {
+				$header_name = trim( (string) $request->get_header( 'mcp-name' ) );
+				if ( '' === $header_name || $header_name !== $expected_name ) {
+					return $this->rpc_error_array( $id, -32020, 'MCP name header does not match the request body.', array( 'header' => 'Mcp-Name', 'expected' => $expected_name, 'received' => $header_name ) );
+				}
+			}
+		}
+		return null;
 	}
 
 	private function process_rpc( $rpc ) {
@@ -129,15 +207,28 @@ final class WPVDMCP_Server {
 		$params = isset( $rpc['params'] ) && is_array( $rpc['params'] ) ? $rpc['params'] : array();
 		$is_notification = ! array_key_exists( 'id', $rpc );
 
-		if ( 'initialize' === $method ) {
+		if ( 'server/discover' === $method ) {
 			return $this->rpc_result( $id, array(
-				'protocolVersion' => isset( $params['protocolVersion'] ) ? (string) $params['protocolVersion'] : '2025-03-26',
-				'capabilities' => array(
-					'tools' => array( 'listChanged' => false ),
-					'prompts' => array( 'listChanged' => false ),
-					'resources' => array( 'subscribe' => false, 'listChanged' => false ),
-				),
-				'serverInfo' => array( 'name' => 'wpvibe-direct-mcp', 'version' => WPVDMCP_VERSION ),
+				'resultType' => 'complete',
+				'supportedVersions' => self::supported_protocol_versions(),
+				'capabilities' => $this->server_capabilities( true ),
+				'_meta' => array( 'io.modelcontextprotocol/serverInfo' => $this->server_info() ),
+				'instructions' => 'Use read-first workflows. Preview draft-theme changes and request explicit approval before publishing.',
+				'ttlMs' => 300000,
+				'cacheScope' => 'private',
+			) );
+		}
+		if ( 'initialize' === $method ) {
+			if ( $this->modern_request ) {
+				return $this->rpc_error_array( $id, -32601, 'Method not found: initialize' );
+			}
+			$requested = isset( $params['protocolVersion'] ) ? (string) $params['protocolVersion'] : '';
+			$legacy = array_slice( self::supported_protocol_versions(), 1 );
+			$negotiated = in_array( $requested, $legacy, true ) ? $requested : self::LEGACY_PROTOCOL;
+			return $this->rpc_result( $id, array(
+				'protocolVersion' => $negotiated,
+				'capabilities' => $this->server_capabilities( false ),
+				'serverInfo' => $this->server_info(),
 				'instructions' => 'Use read-first workflows. Preview draft-theme changes and request explicit approval before publishing.',
 			) );
 		}
@@ -145,10 +236,13 @@ final class WPVDMCP_Server {
 			return null;
 		}
 		if ( 'ping' === $method ) {
+			if ( $this->modern_request ) {
+				return $this->rpc_error_array( $id, -32601, 'Method not found: ping' );
+			}
 			return $this->rpc_result( $id, (object) array() );
 		}
 		if ( 'tools/list' === $method ) {
-			return $this->rpc_result( $id, array( 'tools' => WPVDMCP_Tools::definitions() ) );
+			return $this->rpc_result( $id, $this->list_result( 'tools', WPVDMCP_Tools::definitions() ) );
 		}
 		if ( 'tools/call' === $method ) {
 			$name = isset( $params['name'] ) ? sanitize_key( $params['name'] ) : '';
@@ -172,7 +266,7 @@ final class WPVDMCP_Server {
 			foreach ( WPVDMCP_Tools::skills() as $name => $instructions ) {
 				$prompts[] = array( 'name' => $name, 'description' => 'WordPress workflow skill: ' . str_replace( '-', ' ', $name ), 'arguments' => array() );
 			}
-			return $this->rpc_result( $id, array( 'prompts' => $prompts ) );
+			return $this->rpc_result( $id, $this->list_result( 'prompts', $prompts ) );
 		}
 		if ( 'prompts/get' === $method ) {
 			$name = isset( $params['name'] ) ? sanitize_key( $params['name'] ) : '';
@@ -183,12 +277,40 @@ final class WPVDMCP_Server {
 			return $this->rpc_result( $id, array( 'description' => $name, 'messages' => array( array( 'role' => 'user', 'content' => array( 'type' => 'text', 'text' => $skills[ $name ] ) ) ) ) );
 		}
 		if ( 'resources/list' === $method ) {
-			return $this->rpc_result( $id, array( 'resources' => array() ) );
+			return $this->rpc_result( $id, $this->list_result( 'resources', array() ) );
 		}
 		if ( $is_notification ) {
 			return null;
 		}
 		return $this->rpc_error_array( $id, -32601, 'Method not found: ' . $method );
+	}
+
+	private function server_info() {
+		return array(
+			'name' => 'wpvibe-direct-mcp',
+			'version' => WPVDMCP_VERSION,
+			'description' => 'Self-hosted MCP bridge for the WPVibe WordPress plugin.',
+			'websiteUrl' => 'https://github.com/salman0butt/wpvibe-direct-mcp',
+		);
+	}
+
+	private function server_capabilities( $modern ) {
+		if ( $modern ) {
+			return array( 'tools' => (object) array(), 'prompts' => (object) array(), 'resources' => (object) array() );
+		}
+		return array(
+			'tools' => array( 'listChanged' => false ),
+			'prompts' => array( 'listChanged' => false ),
+			'resources' => array( 'subscribe' => false, 'listChanged' => false ),
+		);
+	}
+
+	private function list_result( $key, $items ) {
+		$result = array( $key => $items );
+		if ( $this->modern_request ) {
+			$result = array_merge( array( 'resultType' => 'complete', 'ttlMs' => 300000, 'cacheScope' => 'private' ), $result );
+		}
+		return $result;
 	}
 
 	private function authenticate( $request ) {
@@ -242,7 +364,7 @@ final class WPVDMCP_Server {
 		$summary = array();
 		foreach ( array( 'path', 'command', 'post_id', 'id', 'target_type', 'theme_name', 'title', 'skill' ) as $key ) {
 			if ( isset( $args[ $key ] ) && is_scalar( $args[ $key ] ) ) {
-				$summary[ $key ] = mb_substr( (string) $args[ $key ], 0, 180 );
+				$summary[ $key ] = self::truncate( (string) $args[ $key ], 180 );
 			}
 		}
 		array_unshift( $log, array(
@@ -251,12 +373,20 @@ final class WPVDMCP_Server {
 			'tool' => $name,
 			'success' => (bool) $success,
 			'summary' => $summary,
-			'message' => mb_substr( (string) $message, 0, 300 ),
+			'message' => self::truncate( (string) $message, 300 ),
 		) );
 		update_option( 'wpvdmcp_activity', array_slice( $log, 0, 50 ), false );
 	}
 
 	private function rpc_result( $id, $result ) {
+		if ( $this->modern_request && is_array( $result ) ) {
+			if ( ! isset( $result['_meta'] ) || ! is_array( $result['_meta'] ) ) {
+				$result['_meta'] = array();
+			}
+			if ( ! isset( $result['_meta']['io.modelcontextprotocol/serverInfo'] ) ) {
+				$result['_meta']['io.modelcontextprotocol/serverInfo'] = $this->server_info();
+			}
+		}
 		return array( 'jsonrpc' => '2.0', 'id' => $id, 'result' => $result );
 	}
 	private function rpc_error_array( $id, $code, $message, $data = null ) {
@@ -267,4 +397,8 @@ final class WPVDMCP_Server {
 	private function rpc_error( $id, $code, $message, $status ) {
 		return new WP_REST_Response( $this->rpc_error_array( $id, $code, $message ), $status );
 	}
+	private static function truncate( $value, $length ) {
+		return function_exists( 'mb_substr' ) ? mb_substr( (string) $value, 0, $length ) : substr( (string) $value, 0, $length );
+	}
+
 }

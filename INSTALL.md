@@ -1,16 +1,37 @@
-# WPVibe Direct MCP setup
+# Installation and Client Setup
 
-1. Keep the official **WPVibe** plugin installed and active.
-2. Upload and activate `wpvibe-direct-mcp`.
-3. Open **WPVibe → Direct MCP** in wp-admin.
-4. Generate a token and copy it immediately.
-5. Configure the MCP client with the endpoint shown in wp-admin and this header:
+## Requirements
+
+- WordPress 6.0 or newer.
+- PHP 7.4 or newer.
+- Official WPVibe plugin (`vibe-ai`) active for route-backed WordPress tools.
+- WordPress 6.9+ for the Abilities API tools.
+- HTTPS strongly recommended.
+
+## Install
+
+1. Install and activate WPVibe.
+2. Upload the `wpvibe-direct-mcp` folder or install the release ZIP from **Plugins → Add New → Upload Plugin**.
+3. Activate **WPVibe Direct MCP**.
+4. Open **WPVibe → Direct MCP** (or **Direct MCP** if WPVibe's menu is unavailable).
+5. Confirm the compatibility table detects the expected WPVibe version, route-backed tools, builders, and media support.
+6. Generate a token. Copy it once; the plaintext token is deliberately not stored.
+
+## Preferred MCP configuration
+
+Endpoint:
+
+```text
+https://example.com/wp-json/wpvibe-direct/v1/mcp
+```
+
+HTTP header:
 
 ```text
 Authorization: Bearer YOUR_TOKEN
 ```
 
-Example configuration:
+Generic client shape:
 
 ```json
 {
@@ -25,10 +46,33 @@ Example configuration:
 }
 ```
 
-The hosted WPVibe connection is not required for this direct endpoint. The official WPVibe plugin remains responsible for its protected REST operations, capability checks, theme sandbox, PHP linting, WP-CLI allowlist, Elementor integration, and audit log.
+## Query-token compatibility
 
-For clients that cannot send HTTP headers, wp-admin has an optional query-token mode. It is disabled by default because URLs are more likely to be logged.
+For MCP clients that cannot send an Authorization header:
 
+```text
+https://example.com/wp-json/wpvibe-direct/v1/mcp?token=YOUR_TOKEN
+```
 
-## Health check
-Use `/wp-json/wpvibe-direct/v1/health?token=YOUR_TOKEN` in a browser. The MCP endpoint itself intentionally returns HTTP 405 to GET requests because this server is stateless and does not expose standalone SSE.
+This is compatibility behavior, not the preferred authentication method. URLs are commonly recorded by reverse proxies, browser history, analytics, support screenshots, and server logs. Rotate the token from wp-admin after any suspected exposure.
+
+## Health endpoint
+
+Authenticated diagnostics:
+
+```text
+https://example.com/wp-json/wpvibe-direct/v1/health
+```
+
+It returns Direct MCP/WPVibe versions and endpoint metadata. It never returns the access token/hash.
+
+## Updating from 1.0.4
+
+1. Keep your current token if you want existing clients to continue connecting; 1.1.0 preserves the authentication formats.
+2. Replace the plugin folder/ZIP and reactivate if WordPress asks.
+3. Open **WPVibe → Direct MCP** and verify detected capabilities.
+4. Re-open the MCP client so it refreshes its tool list.
+5. Prefer Bearer authentication if you previously used a URL token.
+6. Use `request_upload` for local/chat attachments; the old `upload_media` remains the public-URL import tool.
+
+The 1.1.0 release is additive for existing tool names. New route-backed tools appear only when the installed WordPress/WPVibe combination supports them.

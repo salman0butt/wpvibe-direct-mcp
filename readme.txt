@@ -2,7 +2,7 @@
 Contributors: community
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.0.4
+Stable tag: 1.1.0
 License: GPLv2 or later
 
 Adds a self-hosted MCP transport to the WPVibe WordPress plugin.
@@ -11,7 +11,7 @@ Adds a self-hosted MCP transport to the WPVibe WordPress plugin.
 
 WPVibe Direct MCP keeps WPVibe's existing WordPress-side safety and tool layer, but lets an MCP client connect directly to your WordPress installation instead of routing through the hosted WPVibe MCP gateway.
 
-It dynamically exposes only the WPVibe routes available on the site, including theme file tools, draft-theme preview and publishing, content search/edit, allowlisted WP-CLI emulation, media imports, rendered HTML, audit logs, Elementor tools, arbitrary capability-checked WordPress REST routes, route discovery, and original workflow skills supplied by this bridge.
+It dynamically exposes only the WPVibe routes available on the site, including theme file tools, draft-theme preview and publishing, content search/edit, allowlisted WP-CLI emulation, public-URL and device/browser media uploads, rendered HTML, audit logs, WordPress Abilities, native Elementor/Beaver/Bricks/Breakdance tools, capability-checked WordPress REST routes, route discovery, browser approvals, and original workflow skills supplied by this bridge.
 
 == Installation ==
 
