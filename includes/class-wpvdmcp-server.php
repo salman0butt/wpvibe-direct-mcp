@@ -43,6 +43,9 @@ final class WPVDMCP_Server {
 			),
 		) );
 
+		// Keep browser diagnostics separate from the MCP transport endpoint.
+		// The Streamable HTTP specification requires a non-streaming MCP GET
+		// request to return 405 rather than ordinary JSON.
 		register_rest_route( 'wpvibe-direct/v1', '/health', array(
 			array(
 				'methods' => 'GET',
@@ -51,6 +54,7 @@ final class WPVDMCP_Server {
 			),
 		) );
 	}
+
 
 	public function stream_get() {
 		$response = new WP_REST_Response( array(
@@ -201,11 +205,18 @@ final class WPVDMCP_Server {
 		if ( ! $token ) {
 			$token = trim( (string) $request->get_header( 'x-wpvibe-direct-token' ) );
 		}
+		// Read URL authentication strictly from the query string. Using get_param() can
+		// be shadowed by a same-named JSON body parameter in some MCP clients.
 		$query_params = $request->get_query_params();
 		$query_token  = isset( $query_params['token'] ) ? trim( (string) $query_params['token'] ) : '';
 		if ( ! $query_token && isset( $query_params['access_token'] ) ) {
 			$query_token = trim( (string) $query_params['access_token'] );
 		}
+
+		// Query-string tokens are always accepted when present. This is required for
+		// ChatGPT's "No authentication" custom MCP mode, which cannot attach a
+		// custom Authorization header. Bearer and X-WPVibe-Direct-Token headers
+		// remain preferred for clients that support them.
 		if ( ! $token && $query_token ) {
 			$token = $query_token;
 		}
