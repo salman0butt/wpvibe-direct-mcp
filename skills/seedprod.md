@@ -1,7 +1,5 @@
-# Seedprod
+# SeedProd
 
-Discover current public REST/Abilities support before editing. SeedProd may require its builder to compile stored JSON into frontend HTML, so a generic meta write can be incomplete. Prefer public/native save flows and verify the rendered page after any change.
+Detect SeedProd and discover its public REST routes or WordPress Abilities before editing. Prefer plugin-supported create/update/save operations because SeedProd may compile stored builder data into frontend output; a raw post-meta or database write can leave caches, generated CSS, or internal indexes inconsistent. Never guess private serialized schemas.
 
-## Workflow
-
-Inspect current state first, make the smallest supported change, verify the result, and preserve WordPress/WPVibe capability and approval checks.
+Inspect the existing landing page first, preserve responsive settings, global design tokens, form/integration identifiers, access controls, and publication state. Use standard WordPress REST only for fields SeedProd exposes safely. After supported changes, verify rendered HTML and the public/preview URL. If no native/public save surface exists, restrict Direct MCP to read/discovery or surrounding theme/content work.

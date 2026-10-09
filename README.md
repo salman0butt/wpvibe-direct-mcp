@@ -6,24 +6,23 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## Release
 
-- Direct MCP: **1.1.0**
+- Direct MCP: **1.2.0**
 - Audited WPVibe release: **1.20.3**
 - Audited upstream commit: **`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`** (2026-10-06)
 - WordPress: 6.0+; Abilities tools require WordPress 6.9+
 - PHP: 7.4+
 - MCP: modern `2026-07-28` plus legacy 2025/2024 compatibility
 
-## What 1.1.0 adds
+## What 1.2.0 adds
 
-- Modern MCP `server/discover`, stateless per-request protocol metadata, routing-header validation, cache hints, legacy `initialize` fallback, batches/notifications, prompts, and tools.
-- Current WPVibe file/theme contracts including scoped reads, `expected_source_hash`, Site Editor `saved_customizations`, and current draft publish semantics.
-- First-class WordPress Abilities discovery/info/run with annotation-aware GET/POST/DELETE execution and Direct-MCP browser approvals for writes.
-- Native route-backed Elementor, Beaver Builder, Bricks, and Breakdance tools when the installed WPVibe version exposes them.
-- Safe WPCode `code_snippet` support through WPVibe's dormant snippet route; executable code is not silently activated.
-- Generic WordPress REST access with GET/POST/PUT/PATCH/DELETE, structured parameters/body, response field selection, bounded output, and credential-route blocking.
-- Secure device/chat attachment transfer through `request_upload` + `check_upload` when an MCP client cannot send file bytes.
-- File-backed workflow skills with version metadata.
-- Expanded compatibility/admin diagnostics and a browser approval page.
+- Everything from 1.1.0: modern MCP compatibility, current WPVibe 1.20.3 file/theme contracts, Abilities, native builders, secure device uploads, WPCode dormant snippets, hardened REST, and operation receipts.
+- Persistent WPVibe editable fields/groups/settings replayed through upstream native APIs, including all 13 post-field types.
+- Recursive Gutenberg block-schema validation and an approval-gated validated-content save path; third-party blocks such as Kadence and GenerateBlocks are validated from the installed registry rather than hard-coded guesses.
+- Local saved skills with create/update/delete approvals, versions, immutable built-ins, and storage limits.
+- Safe Media Library inspection plus optional bounded PDF text extraction through a user-owned provider.
+- Site intelligence, builder/theme/block capability detection, WPVibe live-reload status, and a read-only SEO HTML audit.
+- User-owned provider hooks for Lighthouse/PageSpeed-style audits, stock-image search, and real JS/browser rendering. Direct MCP never embeds WPVibe private cloud credentials.
+- Expanded workflow skills for Kadence, GeneratePress, GenerateBlocks, editable fields, block validation, PDF/media, saved skills, live reload, performance audits, and image search.
 
 ## Media uploads
 
@@ -62,7 +61,7 @@ Direct MCP stays thin by design:
 
 ## Hosted WPVibe features intentionally not cloned
 
-The hosted product includes account identity and site connection management, cloud stock-image search, plan/usage controls, fleet orchestration, saved account skills, PageSpeed/Lighthouse-style cloud work, and richer MCP App UI panels. Those are not equivalent to one directly connected WordPress site, and 1.1.0 does not return fake placeholder data for them.
+The hosted product includes account identity and site connection management, cloud stock-image search, plan/usage controls, fleet orchestration, saved account skills, PageSpeed/Lighthouse-style cloud work, and richer MCP App UI panels. Those are not equivalent to one directly connected WordPress site, and 1.2.0 does not return fake placeholder data for them. Where a safe local analogue makes sense, 1.2.0 exposes a user-owned provider hook instead.
 
 See `docs/PARITY.md` for the complete matrix.
 

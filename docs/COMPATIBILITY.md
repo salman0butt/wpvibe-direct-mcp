@@ -2,7 +2,7 @@
 
 ## Audited baseline
 
-Direct MCP 1.1.0 was audited against:
+Direct MCP 1.2.0 is audited against:
 
 - official WPVibe WordPress plugin 1.20.3;
 - upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6` from 2026-10-06;
@@ -28,7 +28,7 @@ Requires WordPress 6.9+ and the `/wp-abilities/v1/abilities` REST namespace. If 
 
 ### WPVibe 1.20-era contracts
 
-1.1.0 understands current fields such as:
+1.2.0 understands current fields such as:
 
 - file `scope` and wp-content diagnostic reads;
 - `list_files.directory`;

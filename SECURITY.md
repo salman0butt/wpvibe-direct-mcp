@@ -78,3 +78,7 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 ## Reporting security issues
 
 For vulnerabilities in this Direct MCP bridge, report them privately to the repository owner rather than opening a public exploit issue. For vulnerabilities in official WPVibe itself, follow WPVibe's published security-contact process.
+
+## Optional external providers (1.2.0)
+
+`page_audit`, `search_images`, `render_browser`, and PDF text extraction are disabled unless the site owner supplies a provider via the documented WordPress filters. Direct MCP stores no WPVibe cloud credential and does not claim these providers are WPVibe-hosted services. Provider operators are responsible for outbound-network policy, credentials, rate limits, data handling, and licensing.

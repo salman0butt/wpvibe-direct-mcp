@@ -242,12 +242,13 @@ final class WPVDMCP_Server {
 			return $this->rpc_result( $id, (object) array() );
 		}
 		if ( 'tools/list' === $method ) {
-			return $this->rpc_result( $id, $this->list_result( 'tools', WPVDMCP_Tools::definitions() ) );
+			$defs = class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity::merge_definitions( WPVDMCP_Tools::definitions() ) : WPVDMCP_Tools::definitions();
+			return $this->rpc_result( $id, $this->list_result( 'tools', $defs ) );
 		}
 		if ( 'tools/call' === $method ) {
 			$name = isset( $params['name'] ) ? sanitize_key( $params['name'] ) : '';
 			$args = isset( $params['arguments'] ) && is_array( $params['arguments'] ) ? $params['arguments'] : array();
-			$result = WPVDMCP_Tools::execute( $name, $args );
+			$result = class_exists( 'WPVDMCP_Parity' ) && WPVDMCP_Parity::handles( $name ) ? WPVDMCP_Parity::execute( $name, $args ) : WPVDMCP_Tools::execute( $name, $args );
 			$this->log_call( $name, $args, ! is_wp_error( $result ), is_wp_error( $result ) ? $result->get_error_message() : '' );
 			if ( is_wp_error( $result ) ) {
 				$data = $result->get_error_data();
@@ -263,14 +264,14 @@ final class WPVDMCP_Server {
 		}
 		if ( 'prompts/list' === $method ) {
 			$prompts = array();
-			foreach ( WPVDMCP_Tools::skills() as $name => $instructions ) {
+			foreach ( class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity::skill_instructions() : WPVDMCP_Tools::skills() as $name => $instructions ) {
 				$prompts[] = array( 'name' => $name, 'description' => 'WordPress workflow skill: ' . str_replace( '-', ' ', $name ), 'arguments' => array() );
 			}
 			return $this->rpc_result( $id, $this->list_result( 'prompts', $prompts ) );
 		}
 		if ( 'prompts/get' === $method ) {
 			$name = isset( $params['name'] ) ? sanitize_key( $params['name'] ) : '';
-			$skills = WPVDMCP_Tools::skills();
+			$skills = class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity::skill_instructions() : WPVDMCP_Tools::skills();
 			if ( ! isset( $skills[ $name ] ) ) {
 				return $this->rpc_error_array( $id, -32602, 'Unknown prompt.' );
 			}

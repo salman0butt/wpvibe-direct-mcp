@@ -1,7 +1,5 @@
-# Divi
+# Divi / Divi 5
 
-First discover any Divi-provided REST or Abilities APIs on the installed version. Prefer those public/native paths. If no safe site-local save API exists, limit Direct MCP to normal WordPress content/theme operations instead of reverse-engineering proprietary builder storage.
+Start with `integration_capabilities`, REST discovery, and Abilities discovery. Prefer public/native Divi APIs if the installed version exposes them. Divi content can involve builder-specific structures and compiled output, so do not reverse-engineer undocumented serialized storage or overwrite builder meta with guessed JSON. When no safe native save API exists, limit changes to ordinary WordPress fields, public plugin APIs, or theme files in WPVibe's draft sandbox.
 
-## Workflow
-
-Inspect current state first, make the smallest supported change, verify the result, and preserve WordPress/WPVibe capability and approval checks.
+Preserve module hierarchy, responsive settings, dynamic content, Theme Builder assignments, global presets, and shortcodes that you did not intentionally change. Verify frontend rendered HTML after a supported mutation. If a task requires proprietary builder storage that the installed Divi version does not expose safely, report that capability boundary instead of pretending the write succeeded.

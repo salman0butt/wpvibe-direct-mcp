@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 - 2026-10-09
+- Added persistent WPVibe editable fields, groups, and settings with 13 upstream field types, safe setting-type restrictions, native registry replay, and one-time browser approvals.
+- Added recursive Gutenberg schema validation plus approval-gated `save_validated_blocks`, covering installed core, Kadence, GenerateBlocks, and other registered blocks.
+- Added persistent local saved-skill CRUD with immutable built-ins, size/count limits, versions, and approval-gated mutations.
+- Added safe Media Library inspection and bounded optional PDF text extraction through a user-owned provider/filter without exposing filesystem paths.
+- Added site intelligence, integration detection, WPVibe live-reload capability reporting, and read-only SEO auditing.
+- Added provider-backed `page_audit`, `search_images`, and `render_browser` tools so self-hosted operators can supply Lighthouse, stock-image, and JS-browser services without embedding WPVibe private cloud credentials.
+- Added Kadence, GeneratePress, GenerateBlocks, editable-fields, block-validation, saved-skills, PDF/media, site-intelligence, live-reload, Lighthouse, and image-search skills.
+- Expanded parity tests from 26 to 40 cases and kept hosted account/billing/fleet/private-cloud features explicitly outside the single-site bridge.
+
 ## 1.1.0 - 2026-10-09
 - Audited against WPVibe 1.20.3 at upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 - Added modern MCP `2026-07-28` discovery/version handling while retaining legacy initialize compatibility.

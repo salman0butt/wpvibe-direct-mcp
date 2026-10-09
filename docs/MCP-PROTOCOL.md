@@ -1,6 +1,6 @@
 # MCP Protocol Compatibility
 
-Direct MCP 1.1.0 serves two MCP eras from the same stateless WordPress REST endpoint.
+Direct MCP 1.2.0 serves two MCP eras from the same stateless WordPress REST endpoint.
 
 ## Modern: 2026-07-28
 

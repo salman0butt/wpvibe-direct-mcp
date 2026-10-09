@@ -1,7 +1,5 @@
 # Theme Redesign
 
-Create a draft theme before file edits. Inspect only relevant files with list_files, read_file, search_files, and get_file_outline. Make small edits, preserve WordPress hooks and dynamic data, then inspect rendered HTML and the preview URL. Publish only after explicit user approval of the preview.
+Begin with `site_intelligence`, `site_info`, and `integration_capabilities`, then create a WPVibe draft theme before filesystem edits. Inspect only relevant files with `list_files`, `read_file`, `search_files`, and `get_file_outline`. Preserve WordPress hooks, template hierarchy, dynamic data, accessibility landmarks, responsive behavior, and existing design tokens. Prefer surgical edits over whole-file rewrites and use registered editable fields for content surfaces that clients should be able to change later.
 
-## Workflow
-
-Inspect current state first, make the smallest supported change, verify the result, and preserve WordPress/WPVibe capability and approval checks.
+For block content, validate registered schemas before writes. For builder pages, use native detected routes rather than editing proprietary storage. Check rendered HTML, preview the draft at desktop/mobile widths, and review PHP/CSS/JS changes for regressions. Publish only after the reviewed preview and explicit approval; when Site Editor customizations exist, choose the current WPVibe `saved_customizations` behavior deliberately.

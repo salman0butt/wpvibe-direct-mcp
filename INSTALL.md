@@ -68,11 +68,11 @@ It returns Direct MCP/WPVibe versions and endpoint metadata. It never returns th
 
 ## Updating from 1.0.4
 
-1. Keep your current token if you want existing clients to continue connecting; 1.1.0 preserves the authentication formats.
+1. Keep your current token if you want existing clients to continue connecting; 1.2.0 preserves the authentication formats.
 2. Replace the plugin folder/ZIP and reactivate if WordPress asks.
 3. Open **WPVibe → Direct MCP** and verify detected capabilities.
 4. Re-open the MCP client so it refreshes its tool list.
 5. Prefer Bearer authentication if you previously used a URL token.
 6. Use `request_upload` for local/chat attachments; the old `upload_media` remains the public-URL import tool.
 
-The 1.1.0 release is additive for existing tool names. New route-backed tools appear only when the installed WordPress/WPVibe combination supports them.
+The 1.2.0 release is additive for existing tool names. New route-backed tools appear only when the installed WordPress/WPVibe combination supports them.

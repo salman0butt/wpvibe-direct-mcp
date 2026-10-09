@@ -1,7 +1,5 @@
-# Gutenberg
+# Gutenberg / Block Editor
 
-Edit block content as valid block markup, not arbitrary HTML fragments. Read the current post first, preserve block comments/attributes, and use surgical content edits for small changes. Create content as draft unless publication is explicitly requested.
+Treat the installed block registry as the schema authority. Read the current post before editing, preserve block comments and nested relationships, and never invent third-party attributes from memory. Build or parse the complete block tree and run `validate_blocks` in strict mode. Fix unknown block names plus registered attribute type/enum errors before writing. Use `save_validated_blocks` for post-content changes so validation happens before the REST mutation and the write is covered by a one-time browser approval.
 
-## Workflow
-
-Inspect current state first, make the smallest supported change, verify the result, and preserve WordPress/WPVibe capability and approval checks.
+For reusable patterns, templates, navigation, or global styles, first discover the relevant WordPress REST routes or Abilities and preserve existing theme.json/global-style semantics. Create drafts unless publication is explicitly requested, inspect rendered HTML after meaningful changes, and avoid converting blocks to generic HTML when the installed block is still available.

@@ -6,9 +6,10 @@ From the plugin root:
 
 ```bash
 php tests/run.php
+php tests/parity-run.php
 ```
 
-Current 1.1.0 suite covers:
+Current 1.2.0 verification runs 26 legacy tests plus 14 parity tests (40 total). It covers:
 
 ### MCP transport
 
