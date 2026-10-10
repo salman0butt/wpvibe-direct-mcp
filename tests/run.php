@@ -174,7 +174,28 @@ test_case('write ability requires browser approval then executes POST once', fun
     assert_true(is_wp_error($replay),'approval replay rejected');
 });
 
-test_case('destructive ability uses DELETE after approval', function () {
+test_case('idempotent destructive ability uses DELETE after approval', function () {
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if($route==='/wp-abilities/v1/abilities/demo/remove'){
+            return new WP_REST_Response(array('name'=>'demo/remove','meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>true))),200);
+        }
+        if($route==='/wp-abilities/v1/abilities/demo/remove/run'){
+            return new WP_REST_Response(array('method'=>$r->get_param('_method')),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+    $first=WPVDMCP_Tools::execute('run_ability',array('name'=>'demo/remove','input'=>array('id'=>7)));
+    WPVDMCP_Approvals::approve($first['approval_id'],1);
+    $second=WPVDMCP_Tools::execute('run_ability',array('name'=>'demo/remove','input'=>array('id'=>7),'approval_id'=>$first['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+    assert_same('DELETE',$second['data']['method'] ?? null,'idempotent destructive uses DELETE');
+});
+
+
+test_case('non-idempotent destructive ability uses POST after approval', function () {
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $GLOBALS['wp_current_user']=1;
     $GLOBALS['rest_dispatch_callback']=function($r){
@@ -191,7 +212,7 @@ test_case('destructive ability uses DELETE after approval', function () {
     WPVDMCP_Approvals::approve($first['approval_id'],1);
     $second=WPVDMCP_Tools::execute('run_ability',array('name'=>'demo/remove','input'=>array('id'=>7),'approval_id'=>$first['approval_id']));
     unset($GLOBALS['rest_dispatch_callback']);
-    assert_same('DELETE',$second['data']['method'] ?? null,'destructive uses DELETE');
+    assert_same('POST',$second['data']['method'] ?? null,'non-idempotent destructive uses POST');
 });
 
 
