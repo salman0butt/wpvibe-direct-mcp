@@ -1,35 +1,53 @@
-name: Release 1.3.0
+name: Release
 
 on:
-  workflow_run:
-    workflows: ["PHP parity checks"]
-    types: [completed]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Plugin version to release, for example 1.4.0'
+        required: true
+        type: string
+      target_sha:
+        description: 'Exact 40-character commit SHA that already passed parity CI'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   release:
-    if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main') ||
-      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      VERSION: 1.3.0
-      TAG: v1.3.0
-      ARCHIVE: wpvibe-direct-mcp-1.3.0.zip
-      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      VERSION: ${{ inputs.version }}
+      TARGET_SHA: ${{ inputs.target_sha }}
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Checkout verified main commit
+      - name: Validate release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Invalid version: $VERSION" >&2; exit 1; }
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "target_sha must be an exact lowercase 40-character commit SHA" >&2; exit 1; }
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          echo "ARCHIVE=wpvibe-direct-mcp-$VERSION.zip" >> "$GITHUB_ENV"
+
+      - name: Checkout exact verified commit
         uses: actions/checkout@v4
         with:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
+
+      - name: Verify target belongs to main history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=500
+          git merge-base --is-ancestor "$TARGET_SHA" origin/main || {
+            echo "Refusing to release $TARGET_SHA because it is not in main history." >&2
+            exit 1
+          }
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -41,9 +59,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^ \* Version:[[:space:]]+1\.3\.0$' wpvibe-direct-mcp.php
-          grep -Eq "define\([[:space:]]*'WPVDMCP_VERSION',[[:space:]]*'1\.3\.0'[[:space:]]*\)" wpvibe-direct-mcp.php
-          grep -Eq '^Stable tag:[[:space:]]+1\.3\.0$' readme.txt
+          VERSION_RE="${VERSION//./\\.}"
+          grep -Eq "^ \* Version:[[:space:]]+$VERSION_RE$" wpvibe-direct-mcp.php
+          grep -Eq "define\([[:space:]]*'WPVDMCP_VERSION',[[:space:]]*'$VERSION_RE'[[:space:]]*\)" wpvibe-direct-mcp.php
+          grep -Eq "^Stable tag:[[:space:]]+$VERSION_RE$" readme.txt
+
+      - name: Require successful parity CI for target
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/php-parity.yml/runs?head_sha=$TARGET_SHA&status=completed&per_page=20")"
+          python3 - "$TARGET_SHA" <<'PY' <<<"$RUNS"
+          import json, sys
+          target = sys.argv[1]
+          data = json.load(sys.stdin)
+          good = [r for r in data.get('workflow_runs', []) if r.get('head_sha') == target and r.get('conclusion') == 'success']
+          if not good:
+              raise SystemExit(f'No successful PHP parity checks run found for exact target {target}')
+          print('Verified CI run:', good[0].get('html_url'))
+          PY
 
       - name: PHP syntax validation
         shell: bash
@@ -113,16 +147,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > release-notes.md <<'EOF'
-          ## WPVibe Direct MCP 1.3.0
+          cat > release-notes.md <<EOF
+          ## WPVibe Direct MCP $VERSION
 
-          - Completes the audited WPVibe 1.20.3 public/reference tool surface for Direct MCP.
-          - Adds exact public aliases plus fail-closed provider-backed hosted account/fleet/usage tools.
-          - Adds MCP Apps approval/upload resources, screenshot/browser provider support, SeedProd compile flow, richer saved skills, and the machine-readable parity manifest.
-          - Expands current Works-with-AI/plugin playbooks and reference regression coverage.
-          - Keeps hosted/private WPVibe services explicit rather than fabricating cloud state locally.
+          Release built from exact commit \`$TARGET_SHA\` after successful PHP parity CI.
 
-          Verification: legacy, parity, and reference suites pass; release ZIP is re-tested after extraction; all PHP files are syntax checked before publication.
+          Verification: PHP syntax validation, legacy tests, parity tests, reference/runtime parity tests, release ZIP integrity, and extracted-ZIP re-tests all pass before publication.
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
