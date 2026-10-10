@@ -143,7 +143,7 @@ jobs:
             echo "## WPVibe Direct MCP $VERSION"
             echo
             awk -v version="$VERSION" '
-              $0 == "## " version " - 2026-10-10" { printing=1; next }
+              index($0, "## " version " ") == 1 { printing=1; next }
               printing && /^## / { exit }
               printing { print }
             ' CHANGELOG.md
