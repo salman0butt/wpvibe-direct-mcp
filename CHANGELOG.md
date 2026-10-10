@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 - 2026-10-10
+- Fixed WordPress Abilities REST method selection: readonly abilities use `GET`, destructive+idempotent abilities use `DELETE`, and every other mutation (including destructive non-idempotent abilities) uses `POST`.
+- Added regression coverage for both idempotent and non-idempotent destructive abilities so Elementor/plugin mutations cannot silently regress to the wrong HTTP method.
+- Re-audited the current WPVibe website/docs and official WPVibe 1.20.3 source; public tool-name coverage and the model-facing/internal REST route classification remain complete for that upstream commit.
+- Expanded the Elementor 4.3+/WordPress 6.9+ playbooks to cover the current Abilities-first page-development workflow, Atomic Editor capability boundaries, whole-object settings writes, global classes/variables/default styles, preview/publish/live verification, native Elementor fallback, and Elementor Pro Theme Builder reuse.
+- Hardened release automation so patch releases derive their version/tag/archive from plugin metadata instead of attempting to reuse a previous immutable tag.
+
 ## 1.3.0 - 2026-10-10
 - Re-audited the live WPVibe Features page, Tools Reference, current Works-with-AI library, and official WPVibe 1.20.3 GitHub source from zero assumptions.
 - Added every missing audited public/hosted tool name: `audit_page`, `rest_api_write`, `save_skill`, `connect_site`, `list_sites`, `remove_site`, `get_profile`, `start_fleet_job`, `show_fleet_dashboard`, and `use_usage_reset`.
