@@ -398,7 +398,8 @@ final class WPVDMCP_Tools {
 		$annotations = isset( $ability['meta']['annotations'] ) && is_array( $ability['meta']['annotations'] ) ? $ability['meta']['annotations'] : array();
 		$readonly = ! empty( $annotations['readonly'] );
 		$destructive = ! empty( $annotations['destructive'] );
-		$method = $destructive ? 'DELETE' : ( $readonly ? 'GET' : 'POST' );
+		$idempotent = ! empty( $annotations['idempotent'] );
+		$method = $readonly ? 'GET' : ( $destructive && $idempotent ? 'DELETE' : 'POST' );
 		$input = array_key_exists( 'input', $args ) ? $args['input'] : null;
 		$approval_payload = array( 'name' => $name, 'input' => $input, 'method' => $method );
 
