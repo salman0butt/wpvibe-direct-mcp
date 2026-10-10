@@ -1,69 +1,87 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-10**. Direct MCP release: **1.3.0**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-10**. Latest published Direct MCP release: **1.3.0**. This branch adds **unreleased runtime parity hardening** on top of 1.3.0. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 
-This audit compares four independent surfaces: the live WPVibe Features page, the public Tools Reference, the current Works-with-AI compatibility library, and every upstream source file that registers a `wpvibe/v1` REST route. “Covered” never means a fake cloud response: hosted account/fleet state is provider-backed and fails closed when no provider is configured.
+This audit compares the live WPVibe Features page, public docs/safety guidance, Works-with-AI compatibility pages, current Elementor compatibility page, and the official `awesomemotive/wpvibe-ai-mcp` source. “Covered” never means a fabricated cloud response: hosted account/fleet/browser/audit state remains provider-backed and fails closed when no user-owned provider is configured.
+
+## Runtime classes
+
+| Surface | Direct MCP status | Runtime behavior |
+|---|---|---|
+| WordPress/site info | Native | Installed WPVibe routes and WordPress permissions |
+| File/theme operations | Native | WPVibe sandbox, PHP checks, draft-theme concurrency/safety |
+| Generic REST reads | Local/native | Direct bridge, destination WordPress permission callbacks preserved |
+| Generic REST writes | **Direct Worker replacement** | One-time payload-bound Direct approval unless WPVibe dangerous bypass is enabled, then normal WordPress REST dispatch |
+| WordPress Abilities | Local/native | Runtime discovery/info/run; non-read operations approval-gated unless bypass is enabled |
+| Destructive/idempotent Ability | Local/native | `DELETE` after approval |
+| Destructive/non-idempotent Ability | Local/native | `POST` after approval, matching WordPress core |
+| WP-CLI/SQL | **Direct Worker replacement** | `/cli/run` remains WPVibe's classifier; approval-required work binds the exact operation/dry-run snapshot and executes locally through `WPVibe_CLI::run_approved()` after approval |
+| WPCode snippets | **Direct Worker replacement** | `WPVibe_Code_Snippet::handle(..., true)` locally; proof credentials are never forged and snippets stay dormant |
+| WAF-sensitive code payloads | Direct extension | `call_armored` strict-base64 JSON object retry; decoded call goes through the same normal public tool, approval, and capability gates |
+| Hosted account/site registry | Provider-backed | Exact public tool names, no fake WPVibe cloud state |
+| Fleet/usage/profile | Provider-backed | User-owned provider required |
+| Browser render/screenshots/Lighthouse/stock search/PDF text | Provider-backed | User-owned provider required |
+| SeedProd browser compile | Provider-backed + native primitive | Approval-gated trusted browser provider consumes one-time builder login internally; credential is never returned to the model |
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.3.0 |
-|---|---|
-| `connect_site` | Provider-backed exact name; no fake WPVibe cloud registry |
-| `list_sites` | Provider-backed exact name |
-| `site_info` | Native WPVibe route |
-| `remove_site` | Provider-backed exact name |
-| `rest_api` | Hardened local/native REST bridge |
-| `rest_api_write` | Write-only hardened alias |
-| `upload_media` | Native WPVibe route |
-| `request_upload`, `check_upload` | Local one-time media ticket + inline MCP App/browser fallback |
-| `search_images` | User-owned stock-image provider |
-| `discover_abilities`, `get_ability_info`, `run_ability` | WordPress Abilities API |
-| draft/theme/file tools | Native WPVibe routes, current 1.20.3 contracts |
-| `run_wp_cli` | Native WPVibe PHP dispatcher/approval receipts |
-| `get_page_html` | JS browser provider when configured; native rendered-HTML fallback |
-| `navigate` | Native WPVibe route |
-| `load_skill` | Built-in + local saved skill catalog |
-| `save_skill` | Exact alias to approval-gated local skill create/update |
-| `code_snippet` | Native dormant WPCode route; no silent activation |
-| `show_approval_panel`, `check_approval_status` | Native Direct approval state + MCP App/browser UI |
-| `audit_page` | User-owned Lighthouse/PageSpeed provider |
-| `get_profile` | Provider-backed exact hosted name |
-| `start_fleet_job`, `show_fleet_dashboard` | Provider-backed exact hosted names |
-| `use_usage_reset` | Provider-backed exact hosted name |
+The audited public WPVibe names remain exposed: `connect_site`, `list_sites`, `site_info`, `remove_site`, `rest_api`, `rest_api_write`, `upload_media`, `request_upload`, `check_upload`, `search_images`, `discover_abilities`, `get_ability_info`, `run_ability`, draft/theme/file tools, `run_wp_cli`, `get_page_html`, `navigate`, `load_skill`, `save_skill`, `code_snippet`, approval tools, `audit_page`, profile/fleet tools, and `use_usage_reset`.
 
-`reference_parity_manifest` returns the machine-readable audited list and implementation class for every reference tool.
+`reference_parity_manifest` is the machine-readable source of truth for each tool's implementation class: `native_route`, `local_equivalent`, `worker_replaced`, or `provider_backed`.
 
-## Features-page parity
+## Features/options coverage
 
-- **Full REST API:** covered through `rest_api` / `rest_api_write` with credential-route blocking and bounded responses.
-- **WP-CLI:** delegated to the installed WPVibe command dispatcher; `wp_cli_status` is the runtime source of truth because WPVibe’s advertised command count changes as releases add commands.
-- **Theme Builder + Draft/Preview/Publish:** covered with classic-theme scaffold, isolated draft, preview, publish/delete and current Site Editor customization handling.
-- **Site Intelligence:** environment/integration diagnostics plus upstream site-health/performance data when present; browser-rendered HTML when a provider exists.
-- **Lighthouse:** `audit_page`/`page_audit` via user-owned provider.
-- **Plugin Abilities:** discover/info/run with annotation-aware GET/POST/DELETE and approval for writes/destructive operations.
-- **Images & Media:** native URL import, one-time device/chat upload, SVG sanitizer path, stock search provider, safe Media Library/PDF inspection.
-- **Live Reload:** native `/wpvibe/v1/last-change` status/change lookup and navigation; builder edit sessions remain protected upstream.
-- **Saved Skills:** local CRUD, versions, one-line descriptions and bounded text reference files.
-- **Interactive Panels:** MCP Apps approval/upload `ui://` resources plus secure browser fallbacks.
-- **Validated Block Output:** recursive installed-block schema validation before `save_validated_blocks` mutations.
-- **Bulk Operations & SQL:** installed WPVibe WP-CLI dispatcher, including approval/dry-run semantics and read-only SQL rules.
-- **Safe Code Snippets:** dormant WPCode creation/update only; activation stays human/upstream-approved.
-- **Every Site You Manage:** exact account/fleet tool names are provider-backed; Direct MCP does not clone WPVibe’s private cloud registry.
-- **Editable Fields:** persistent field/group/setting declarations replay through WPVibe’s native field registry, covering all 13 upstream post-field types and native meta/settings UI/REST exposure.
+- **Full REST API:** reads are direct; writes are payload-bound and approval-gated unless the site owner explicitly enables WPVibe's dangerous approval bypass. Direct blocks authentication/proof/worker control-plane routes.
+- **WP-CLI:** the installed WPVibe dispatcher is authoritative. `wp_cli_status` and `run_wp_cli help` are used for runtime command discovery instead of a hardcoded marketing count. Destructive commands preserve WPVibe's dry-run/drift checks through its native `run_approved()` executor.
+- **SQL/bulk operations:** read-only database commands stay under WPVibe's rules; writes follow its destructive classifier and the Direct approval handoff. WPVibe's hard blocks remain hard blocks even when bypass is enabled.
+- **Theme Builder + Draft/Preview/Publish:** classic scaffold, isolated draft, preview, publish/delete, source-hash checks, and Site Editor customization handling remain native WPVibe behavior.
+- **Site Intelligence:** environment/integration diagnostics plus upstream health/performance data when present.
+- **Lighthouse/PageSpeed:** provider-backed `audit_page`/`page_audit`.
+- **Plugin Abilities:** runtime discover/info/run with WordPress-core GET/POST/DELETE semantics and Direct approvals for all non-read calls unless bypass is on.
+- **Images & Media:** native public URL import, one-time device/chat upload, SVG sanitizer path, stock provider, Media Library/PDF inspection.
+- **Live Reload:** native `/last-change` status/change lookup and navigation; builder sessions retain upstream reload protections.
+- **Saved Skills:** local CRUD, versions, descriptions and bounded text references.
+- **Interactive Panels:** MCP Apps approval/upload resources plus secure browser fallbacks.
+- **Validated Block Output:** recursive installed-block schema validation before Gutenberg writes.
+- **Safe Code Snippets:** native WPVibe dormant handler is called locally; activation remains a human wp-admin action even with approval bypass enabled.
+- **Every Site You Manage:** exact account/fleet tool names are provider-backed; Direct does not clone WPVibe's private cloud registry.
+- **Editable Fields:** persistent field/group/setting declarations replay through WPVibe native field APIs, covering all 13 upstream post-field types and the supported setting subset.
+- **WAF resilience:** `call_armored` provides a bounded retry for hosts that reject raw PHP/JS/CSS/SQL in the incoming MCP body; decoding never bypasses the target tool's normal safety path.
 
-## Builder/workflow parity
+## Elementor end-to-end contract
 
-- Elementor: native WPVibe routes plus Elementor 4.3+ Abilities-first workflow, including whole-settings replacement warnings.
+Current WPVibe verification on 2026-10-10 reports Elementor **4.3.3**, WordPress **6.9+**, and **26 verified abilities**. Direct MCP uses runtime discovery rather than copying that list into a brittle fixed implementation.
+
+### Modern Elementor 4.3+
+
+1. `site_info` / integration inspection.
+2. `discover_abilities` for the installed `elementor/*` namespace.
+3. `get_ability_info` before every write; use the installed schemas/resources.
+4. Read page structure/settings before mutation.
+5. Create draft pages, build compositions, manage elements, variables/classes/default styles and other capabilities only when the installed ability exists.
+6. Treat Atomic Editor feature-gate errors as prerequisites. Do not fall back to guessed private Elementor data.
+7. `elementor/update-page-settings` is whole-object replacement: read, preserve unrelated settings, mutate the requested field, send the complete safe object.
+8. Set WordPress page templates through WordPress/native page-template paths, not through Elementor page settings.
+9. Treat global variables/classes/default styles as site-wide changes.
+10. Re-read after writes. If publishing is requested, publish through the installed ability/native path, then verify preview/live rendered output because autosaves and Elementor caches can leave the live page different from the write response.
+
+### Native compatibility fallback
+
+When current Elementor Abilities are unavailable but WPVibe's native integration exists, Direct exposes `elementor_widgets`, `elementor_schema`, `elementor_style_schema`, `elementor_save_page`, and `elementor_save_template`. These native paths are preferred over generic `_elementor_data` writes.
+
+Elementor Pro features are runtime-discovered when installed; Direct does not claim Pro-only headers/footers/templates/components on a free installation.
+
+## Other builder/workflow parity
+
 - Gutenberg: installed block schemas + validated save path.
-- SeedProd: Abilities/public data writes plus approval-gated browser compile using upstream one-time builder login; raw login URL is never returned to the model.
-- Divi / Divi 5: surgical content edits trigger upstream Divi refresh hooks; Theme Builder linkage uses audited multi-value `post meta add/delete` rather than destructive row replacement.
-- Beaver Builder, Bricks, Breakdance: native upstream save/read/schema routes when installed.
-- Kadence, GeneratePress/GP Premium, GenerateBlocks, WPBakery and Classic Themes: dedicated playbooks using public/native structures rather than guessed private serialization.
-- SEO audit, design, site setup and editable-fields playbooks remain available.
+- SeedProd: public/native data writes plus approval-gated browser compile.
+- Divi / Divi 5: surgical content writes preserve upstream refresh hooks; Theme Builder linkage uses audited multi-value meta guidance.
+- Beaver Builder, Bricks, Breakdance: native upstream schema/read/save routes when installed.
+- Kadence, GeneratePress/GP Premium, GenerateBlocks, WPBakery and Classic Themes: dedicated playbooks use public/native structures rather than guessed proprietary serialization.
 
-## Current Works-with-AI playbooks
+## Current Works-with-AI / cookbook playbooks
 
-Direct MCP ships explicit playbooks for: Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, and Kadence. The machine-readable `works_with_ai_integrations` manifest pins this complete audited set. `abilities-plugin` is the generic fallback for newly compliant plugins: discover installed abilities, inspect schemas/annotations, execute through `run_ability`, and never guess private storage. OptinMonster is intentionally documented as a companion-connector workflow because the current WPVibe reference does not expose it through WordPress Abilities; Botiga is a theme workflow rather than an Abilities provider.
+Direct MCP ships explicit playbooks for Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, Kadence, plus a generic Abilities-first workflow for newly compliant plugins.
 
 ## MCP protocol/options parity
 
@@ -71,17 +89,14 @@ Direct MCP ships explicit playbooks for: Rank Math, AIOSEO, SEOPress, Yoast SEO,
 - Legacy 2025/2024 initialize/ping compatibility.
 - Tools, prompts and resources primitives.
 - MCP Apps extension with `text/html;profile=mcp-app` resources/read.
-- Stateless Streamable-HTTP JSON; no standalone SSE/session store.
+- Stateless Streamable-HTTP JSON.
 - Bearer, `X-WPVibe-Direct-Token`, and query-token compatibility authentication.
+- Bounded `call_armored` WAF retry extension.
 
 ## Upstream routes intentionally kept internal
 
-These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/ping`, `/health`, `/connection-check-challenge`, `/audit-log/record`, `/cli/run-approved`, `/authorize`, `/authorize/preflight`, `/connection-status`, `/op-proof/check`, `/code-snippet` approved path, `/builder-login`, `/detached/run`, `/self-update/health`, and `/self-update/run`. The model uses safe higher-level tools instead; for example SeedProd compile consumes `/builder-login` internally and redacts its one-time credential.
-
-## Direct extensions beyond the public named surface
-
-`site_intelligence`, `live_reload_status`, `get_last_change`, `integration_capabilities`, `inspect_media`, `seo_audit`, `validate_blocks`, `save_validated_blocks`, editable-field registration tools, saved-skill CRUD, `seedprod_compile_page`, `screenshot_page`, `render_browser`, `page_audit`, `wp_cli_status`, `check_operation_receipt`, and `reference_parity_manifest` provide safe local equivalents or diagnostics without pretending they are separately named WPVibe hosted tools.
+Infrastructure/control-plane primitives stay non-model-facing: `/ping`, `/health`, `/connection-check-challenge`, `/classic-theme-safety`, `/draft-theme/compile-sources`, `/audit-log/record`, `/cli/run-approved`, `/authorize`, `/authorize/preflight`, `/connection-status`, `/op-proof/check`, approved `/code-snippet`, `/builder-login`, `/detached/run`, and self-update routes. Direct uses safe higher-level adapters where necessary; it never exposes Worker proof credentials.
 
 ## Validation boundary
 
-Automated protocol/unit/security/contract coverage proves the Direct code paths and reference manifest. A disposable real WordPress site is still required for destructive/manual E2E acceptance across actual installed builder/plugin versions; production is not used for that verification.
+Automated protocol/unit/security/contract tests prove Direct MCP routing, approvals, worker replacements, manifest classification and feature contracts. They do **not** prove that a specific WordPress host, Elementor installation, cache stack, page builder or WAF behaves correctly in reality. Final acceptance still requires the disposable-site checklist in `docs/TESTING.md`. Production/client sites are not used for destructive acceptance testing.
