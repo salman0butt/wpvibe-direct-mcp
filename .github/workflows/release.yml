@@ -1,4 +1,4 @@
-name: Release 1.3.0
+name: Release
 
 on:
   workflow_run:
@@ -18,9 +18,6 @@ jobs:
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      VERSION: 1.3.0
-      TAG: v1.3.0
-      ARCHIVE: wpvibe-direct-mcp-1.3.0.zip
       TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       GH_TOKEN: ${{ github.token }}
 
@@ -31,21 +28,46 @@ jobs:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
 
+      - name: Resolve and verify release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n "s/.*define( 'WPVDMCP_VERSION', '\([^']*\)' ).*/\1/p" wpvibe-direct-mcp.php | head -n1)"
+          if [ -z "$VERSION" ]; then
+            echo "Could not resolve WPVDMCP_VERSION" >&2
+            exit 1
+          fi
+          HEADER_VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' wpvibe-direct-mcp.php | head -n1)"
+          STABLE_TAG="$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n1)"
+          if [ "$HEADER_VERSION" != "$VERSION" ] || [ "$STABLE_TAG" != "$VERSION" ]; then
+            echo "Version metadata mismatch: constant=$VERSION header=$HEADER_VERSION stable=$STABLE_TAG" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          echo "ARCHIVE=wpvibe-direct-mcp-$VERSION.zip" >> "$GITHUB_ENV"
+
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            EXISTING_SHA="$(git rev-list -n1 "v$VERSION")"
+            if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
+              echo "Version $VERSION is already released at $EXISTING_SHA; current main $TARGET_SHA is not a new release."
+              echo "release_needed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "release_needed=true" >> "$GITHUB_OUTPUT"
+
       - name: Set up PHP
+        if: steps.meta.outputs.release_needed == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
 
-      - name: Verify version metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -Eq '^ \* Version:[[:space:]]+1\.3\.0$' wpvibe-direct-mcp.php
-          grep -Eq "define\([[:space:]]*'WPVDMCP_VERSION',[[:space:]]*'1\.3\.0'[[:space:]]*\)" wpvibe-direct-mcp.php
-          grep -Eq '^Stable tag:[[:space:]]+1\.3\.0$' readme.txt
-
       - name: PHP syntax validation
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -54,6 +76,7 @@ jobs:
           done < <(find . -type f -name '*.php' -not -path './.git/*' -print0)
 
       - name: Run all test suites
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -62,6 +85,7 @@ jobs:
           php tests/reference-run.php
 
       - name: Build release archive
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -78,6 +102,7 @@ jobs:
           sha256sum "dist/$ARCHIVE" | tee "dist/$ARCHIVE.sha256"
 
       - name: Verify extracted archive
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -92,10 +117,10 @@ jobs:
           done < <(find . -type f -name '*.php' -print0)
 
       - name: Verify or create immutable tag
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --tags --force
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             EXISTING_SHA="$(git rev-list -n1 "$TAG")"
             if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
@@ -110,20 +135,21 @@ jobs:
           fi
 
       - name: Publish GitHub Release
+        if: steps.meta.outputs.release_needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat > release-notes.md <<'EOF'
-          ## WPVibe Direct MCP 1.3.0
-
-          - Completes the audited WPVibe 1.20.3 public/reference tool surface for Direct MCP.
-          - Adds exact public aliases plus fail-closed provider-backed hosted account/fleet/usage tools.
-          - Adds MCP Apps approval/upload resources, screenshot/browser provider support, SeedProd compile flow, richer saved skills, and the machine-readable parity manifest.
-          - Expands current Works-with-AI/plugin playbooks and reference regression coverage.
-          - Keeps hosted/private WPVibe services explicit rather than fabricating cloud state locally.
-
-          Verification: legacy, parity, and reference suites pass; release ZIP is re-tested after extraction; all PHP files are syntax checked before publication.
-          EOF
+          {
+            echo "## WPVibe Direct MCP $VERSION"
+            echo
+            awk -v version="$VERSION" '
+              $0 == "## " version " - 2026-10-10" { printing=1; next }
+              printing && /^## / { exit }
+              printing { print }
+            ' CHANGELOG.md
+            echo
+            echo "Verification: legacy, parity, and reference suites pass; the release ZIP is re-tested after extraction; all PHP files are syntax checked before publication."
+          } > release-notes.md
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "dist/$ARCHIVE" "dist/$ARCHIVE.sha256" --clobber
