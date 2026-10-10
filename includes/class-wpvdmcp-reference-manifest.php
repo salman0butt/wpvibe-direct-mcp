@@ -15,14 +15,27 @@ final class WPVDMCP_Reference_Manifest {
 
 	public static function build( $hosted_provider_tools ) {
 		$provider = array_merge( $hosted_provider_tools, array( 'search_images' ) );
-		$local = array( 'audit_page','check_approval_status','check_upload','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','rest_api_write','run_ability','save_skill','show_approval_panel' );
+		$worker = array( 'rest_api_write','run_wp_cli','code_snippet' );
+		$local = array( 'audit_page','check_approval_status','check_upload','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','run_ability','save_skill','show_approval_panel' );
 		$tools = array();
 		foreach ( self::audited_tools() as $name ) {
-			$status = in_array( $name, $provider, true ) ? 'provider_backed' : ( in_array( $name, $local, true ) ? 'local_equivalent' : 'native_route' );
+			if ( in_array( $name, $provider, true ) ) {
+				$status = 'provider_backed';
+				$implementation = 'user-owned provider; no WPVibe private credentials bundled';
+			} elseif ( in_array( $name, $worker, true ) ) {
+				$status = 'worker_replaced';
+				$implementation = 'Direct MCP reproduces hosted Worker orchestration locally, then delegates to installed WPVibe/WordPress executors';
+			} elseif ( in_array( $name, $local, true ) ) {
+				$status = 'local_equivalent';
+				$implementation = 'Direct MCP safe equivalent/alias';
+			} else {
+				$status = 'native_route';
+				$implementation = 'installed WPVibe/WordPress route';
+			}
 			$tools[] = array(
 				'name' => $name,
 				'status' => $status,
-				'implementation' => 'provider_backed' === $status ? 'user-owned provider; no WPVibe private credentials bundled' : ( 'local_equivalent' === $status ? 'Direct MCP safe equivalent/alias' : 'installed WPVibe/WordPress route' ),
+				'implementation' => $implementation,
 				'source' => 'audited public WPVibe MCP surface 2026-10-10',
 			);
 		}
@@ -33,13 +46,52 @@ final class WPVDMCP_Reference_Manifest {
 			'reference_sources' => array(
 				'features' => 'https://wpvibe.ai/features/',
 				'tools_reference' => 'https://wpvibe.ai/docs/tools-reference/',
+				'dangerous_bypass' => 'https://wpvibe.ai/docs/dangerously-bypass-approvals/',
 				'cookbook' => 'https://wpvibe.ai/cookbook/',
 				'works_with_ai' => 'https://wpvibe.ai/works-with/',
+				'elementor' => 'https://wpvibe.ai/works-with/elementor/',
 				'upstream_github' => 'https://github.com/awesomemotive/wpvibe-ai-mcp/tree/8f303926ae11179e38bc0ecf2a87e3cbd18984c6',
 			),
 			'features_page' => array(
 				'full_rest_api','wp_cli','theme_builder','draft_preview_publish','site_intelligence','lighthouse','plugin_abilities','images_media',
 				'live_reload','saved_skills','interactive_panels','validated_block_output','bulk_operations_sql','safe_code_snippets','every_site','editable_fields',
+			),
+			'approval_model' => array(
+				'default' => 'approval_gated',
+				'bypass_option' => 'wpvibe_bypass_approvals',
+				'approval_gated_families' => array( 'rest_writes','plugin_ability_writes','destructive_wp_cli','sql_writes','fleet_jobs' ),
+				'hard_blocks_remain' => true,
+				'code_snippets_remain_disabled' => true,
+			),
+			'direct_worker_replacements' => array(
+				'rest_api_write' => array(
+					'mode' => 'approval_gated',
+					'notes' => 'Non-GET generic REST writes bind a one-time Direct approval to normalized method/path/query/body before native WordPress REST dispatch.',
+				),
+				'run_wp_cli' => array(
+					'mode' => 'native_run_approved',
+					'notes' => 'WPVibe /cli/run remains the classifier. Approval-required operations bind the exact operation/dry-run snapshot, then Direct calls WPVibe_CLI::run_approved locally after approval or explicit site bypass.',
+				),
+				'code_snippet' => array(
+					'mode' => 'native_dormant_handler',
+					'notes' => 'Direct invokes WPVibe_Code_Snippet::handle(..., true) locally with WPCode capability checks; no hosted op-proof credential is forged and activation is never forwarded.',
+				),
+			),
+			'wp_cli' => array(
+				'command_inventory' => 'runtime_discovery',
+				'discovery' => array( 'wp_cli_status','run_wp_cli help' ),
+				'notes' => 'Marketing command counts change across releases; the installed WPVibe dispatcher is authoritative.',
+			),
+			'elementor' => array(
+				'strategy' => 'abilities_first',
+				'min_wordpress_for_abilities' => '6.9',
+				'min_elementor_for_current_abilities' => '4.3',
+				'verified_reference_version' => '4.3.3',
+				'verified_reference_ability_count' => 26,
+				'atomic_editor_required_for_many_build_style_abilities' => true,
+				'page_settings_semantics' => 'replace_complete_object',
+				'native_fallback_tools' => array( 'elementor_widgets','elementor_schema','elementor_style_schema','elementor_save_page','elementor_save_template' ),
+				'acceptance' => array( 'discover','inspect_schema','read_current_state','write_with_approval','reread','preview','publish_when_requested','verify_live_render_and_cache' ),
 			),
 			'cookbook_integrations' => array(
 				'aioseo','charitable','duplicator','easy-digital-downloads','fluentcart','fluentcommunity','fluentcrm','lifterlms','memberpress','merchant',
@@ -65,6 +117,8 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/op-proof/check',
 				'/wpvibe/v1/code-snippet',
 				'/wpvibe/v1/builder-login',
+				'/wpvibe/v1/classic-theme-safety',
+				'/wpvibe/v1/draft-theme/compile-sources',
 				'/wpvibe/v1/detached/run',
 				'/wpvibe/v1/self-update/health',
 				'/wpvibe/v1/self-update/run',
@@ -85,7 +139,7 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/draft-theme/preview' => 'get_preview_url',
 				'/wpvibe/v1/draft-theme/publish' => 'publish_draft_theme',
 				'/wpvibe/v1/draft-theme/delete' => 'delete_draft_theme',
-				'/wpvibe/v1/cli/run' => 'run_wp_cli',
+				'/wpvibe/v1/cli/run' => 'run_wp_cli classifier; Direct local approval handoff calls native run_approved',
 				'/wpvibe/v1/cli/status' => 'wp_cli_status',
 				'/wpvibe/v1/upload-media' => 'upload_media',
 				'/wpvibe/v1/rendered-html' => 'get_page_html fallback',
@@ -109,16 +163,16 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/breakdance/get-page' => 'breakdance_get_page',
 				'/wpvibe/v1/breakdance/elements' => 'breakdance_elements',
 				'/wpvibe/v1/breakdance/save-page' => 'breakdance_save_page',
-				'/wpvibe/v1/code-snippet/dormant' => 'code_snippet',
+				'/wpvibe/v1/code-snippet/dormant' => 'code_snippet via local native dormant handler; proof route is not called by Direct',
 			),
-			'site_local_extensions' => array( 'get_last_change', 'seedprod_compile_page', 'screenshot_page', 'reference_parity_manifest' ),
+			'site_local_extensions' => array( 'get_last_change','seedprod_compile_page','screenshot_page','reference_parity_manifest','call_armored' ),
 			'mcp' => array(
 				'primary_protocol' => '2026-07-28',
 				'legacy_protocols' => array( '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05' ),
 				'transport' => 'stateless-streamable-http-json',
 				'auth' => array( 'bearer', 'x-wpvibe-direct-token', 'query-token-compatibility' ),
 				'primitives' => array( 'tools', 'prompts', 'resources' ),
-				'extensions' => array( 'mcp-apps' ),
+				'extensions' => array( 'mcp-apps','waf-safe-armored-tool-call' ),
 			),
 		);
 	}
