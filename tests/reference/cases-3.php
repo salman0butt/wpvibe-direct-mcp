@@ -50,14 +50,25 @@ parity_test('Divi and SeedProd skills describe audited native refresh and compil
     assert_true(strpos($seed['instructions']??'','builder-login')!==false,'SeedProd internal primitive documented');
 });
 
-
-
-parity_test('Elementor v4 skill prefers installed abilities and preserves whole-setting writes',function(){
+parity_test('Elementor v4 skill covers current abilities, Atomic boundaries, settings, preview and live verification',function(){
     $skill=WPVDMCP_Parity::execute('load_skill',array('skill'=>'elementor'));
     $text=$skill['instructions']??'';
     assert_true(strpos($text,'discover_abilities')!==false,'Elementor v4 abilities discovery documented');
-    assert_true(strpos($text,'update-page-settings')!==false,'Elementor whole settings ability documented');
+    foreach(array(
+        'elementor/get-page-structure','elementor/create-page','elementor/build-composition','elementor/manage-elements',
+        'elementor/update-page-settings','elementor/publish-document','elementor/create-preview-link',
+        'elementor/manage-global-variable','elementor/manage-classes','elementor/manage-default-styles',
+        'elementor/list-widget-schemas','elementor/get-widget-schema','elementor/list-components',
+        'elementor/list-dynamic-tags','elementor/list-resources','elementor/read-resource'
+    ) as $ability){
+        assert_true(strpos($text,$ability)!==false,'Elementor skill missing current ability '.$ability);
+    }
     assert_true(strpos(strtolower($text),'replaces')!==false,'Elementor replace-not-merge warning documented');
+    assert_true(strpos($text,'Atomic Editor')!==false,'Elementor Atomic capability boundary documented');
+    assert_true(strpos($text,'elementor_save_page')!==false,'Elementor native fallback documented');
+    assert_true(strpos($text,'elementor_save_template')!==false,'Elementor Pro template fallback documented');
+    assert_true(strpos($text,'get_page_html')!==false,'Elementor rendered verification documented');
+    assert_true(strpos($text,'screenshot_page')!==false,'Elementor visual verification documented');
 });
 
 parity_test('current WPVibe Works with AI plugin playbooks are all loadable',function(){
@@ -80,15 +91,13 @@ parity_test('current WPVibe Works with AI plugin playbooks are all loadable',fun
     }
 });
 
-
-parity_test('release metadata is WPVibe Direct MCP 1.3.0',function(){
+parity_test('release metadata is WPVibe Direct MCP 1.3.1',function(){
     $main=(string)file_get_contents(dirname(__DIR__,2).'/wpvibe-direct-mcp.php');
     $readme=(string)file_get_contents(dirname(__DIR__,2).'/readme.txt');
-    assert_true(strpos($main,'Version:     1.3.0')!==false,'plugin header 1.3.0');
-    assert_true(strpos($main,"WPVDMCP_VERSION', '1.3.0")!==false,'version constant 1.3.0');
-    assert_true(strpos($readme,'Stable tag: 1.3.0')!==false,'readme stable tag 1.3.0');
+    assert_true(strpos($main,'Version:     1.3.1')!==false,'plugin header 1.3.1');
+    assert_true(strpos($main,"WPVDMCP_VERSION', '1.3.1")!==false,'version constant 1.3.1');
+    assert_true(strpos($readme,'Stable tag: 1.3.1')!==false,'readme stable tag 1.3.1');
 });
-
 
 parity_test('1.3 skills identify their release source',function(){
     $catalog=WPVDMCP_Parity_Skills::extra_catalog();
