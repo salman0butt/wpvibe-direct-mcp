@@ -10,7 +10,7 @@ php tests/parity-run.php
 php tests/reference-run.php
 ```
 
-Current 1.3.0 verification runs 26 legacy tests + 14 core parity tests + 21 reference parity tests (61 total). It covers:
+Current 1.3.1 verification runs 27 legacy tests + 14 core parity tests + 21 reference parity tests (62 total). It covers:
 
 ### MCP transport
 
@@ -47,7 +47,8 @@ Current 1.3.0 verification runs 26 legacy tests + 14 core parity tests + 21 refe
 - Abilities availability;
 - readonly ability uses GET;
 - write ability needs browser approval then POST;
-- destructive ability needs approval then DELETE;
+- destructive + idempotent ability needs approval then DELETE;
+- destructive + non-idempotent ability needs approval then POST;
 - approval replay rejection.
 
 ### Device media flow
@@ -67,7 +68,6 @@ Current 1.3.0 verification runs 26 legacy tests + 14 core parity tests + 21 refe
 - compatibility summary hosted-only boundary;
 - secret-free admin status snapshot.
 
-
 ### Exhaustive reference parity
 
 - every audited public WPVibe tool name plus `use_usage_reset`;
@@ -78,9 +78,10 @@ Current 1.3.0 verification runs 26 legacy tests + 14 core parity tests + 21 refe
 - provider-backed screenshots;
 - Saved Skill descriptions/reference files;
 - upstream infrastructure routes classified as internal, not model tools;
-- Divi Theme Builder multi-value meta guidance and Elementor 4.3 whole-settings warning;
+- Divi Theme Builder multi-value meta guidance;
+- current Elementor 4.3 Abilities-first workflow, Atomic capability boundary, whole-settings replacement, native fallback, preview and live/render verification guidance;
 - current Works-with-AI and cookbook plugin/page-builder/theme playbook manifest plus generic Abilities-first fallback;
-- 1.3.0 release metadata.
+- 1.3.1 release metadata.
 
 ## PHP syntax verification
 
@@ -107,14 +108,18 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 9. Verify Site Editor `saved_customizations=set_aside` on a test block theme; repeat `keep` if relevant.
 10. Create a draft page through REST.
 11. Use `search_content` + `edit_content` on a unique match, then test no-match/multiple-match/replace-all/whole-word behavior.
-12. Run safe WP-CLI read/status.
+12. Run safe WP-CLI read/status. Treat the installed `wp_cli_status` result as source of truth rather than a marketing-page command count.
 13. Exercise a reversible WP-CLI write and an approval-required destructive command; verify upstream approval/receipt behavior.
-14. On WordPress 6.9+, discover abilities, inspect a readonly ability, run it, then test a write ability through the browser approval link.
+14. On WordPress 6.9+, discover abilities and verify all method classes: readonly GET, ordinary write POST, destructive+idempotent DELETE, and destructive+non-idempotent POST.
 15. With WPCode installed, create/update a dormant snippet and confirm it is not silently activated.
 16. Public URL media: JPG/JPEG/PNG/WebP/GIF (if site allows), safe SVG, malicious SVG, wrong MIME, redirect/private-IP cases, 403/404/429, dotted filenames, large/invalid image, title/alt/post parent.
 17. Device upload: call `request_upload`, upload a PNG through the browser page, `check_upload`, then confirm replay fails. Repeat with safe SVG; confirm malicious SVG is rejected.
-18. If installed, smoke-test Elementor, Beaver, Bricks, and Breakdance native get/schema/save routes on draft pages and verify post status/render/cache behavior.
-19. Inspect WPVibe audit log and Direct MCP activity summaries.
+18. Elementor 4.3+/WordPress 6.9+, Atomic Editor ON: discover the installed Elementor namespace; inspect widget schemas/resources; create a draft; build a composition; update/move an element; exercise page settings with a full read-modify-write object; create a preview; publish; re-read structure; verify the live rendered page and generated styles/cache.
+19. Elementor Atomic Editor OFF: verify Atomic-only abilities fail with the expected capability response and that supported native WPVibe Elementor schema/save routes still work for a draft page without guessed `_elementor_data` writes.
+20. Elementor site-wide styles: on staging only, create/update a test global variable/class/default style, verify representative Atomic elements, then restore the original state. Verify local per-widget overrides remain understandable.
+21. Elementor Pro when available: locate an existing test Theme Builder template, update/reuse it through discovered Pro abilities or `elementor_save_template`, verify display conditions/live rendering, and avoid duplicate global templates. Test component capabilities only when discovered.
+22. Smoke-test Beaver, Bricks, and Breakdance native get/schema/save routes when installed and verify post status/render/cache behavior.
+23. Inspect WPVibe audit log and Direct MCP activity summaries.
 
 ## Integration status for this release build
 
