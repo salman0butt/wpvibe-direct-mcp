@@ -14,12 +14,15 @@ parity_test('reference local aliases preserve existing safety semantics',functio
     assert_true(is_wp_error($bad),'GET must be rejected');
     assert_same('invalid_method',$bad->get_error_code(),'GET rejection code');
     set_test_routes(array('/wp/v2/pages/12'=>array('POST')));
-    $GLOBALS['rest_dispatch_callback']=function($r){return new WP_REST_Response(array('id'=>12,'method'=>$r->get_param('_method')),200);};
-    $write=WPVDMCP_Parity::execute('rest_api_write',array('method'=>'POST','path'=>'/wp/v2/pages/12','body'=>array('title'=>'Updated')));
-    unset($GLOBALS['rest_dispatch_callback']);
-    assert_same(12,$write['data']['id']??null,'write delegated');
-
     $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){return new WP_REST_Response(array('id'=>12,'method'=>$r->get_param('_method')),200);};
+    $approval=WPVDMCP_Parity::execute('rest_api_write',array('method'=>'POST','path'=>'/wp/v2/pages/12','body'=>array('title'=>'Updated')));
+    assert_same('approval_required',$approval['status']??null,'REST write approval');
+    WPVDMCP_Approvals::approve($approval['approval_id'],1);
+    $write=WPVDMCP_Parity::execute('rest_api_write',array('method'=>'POST','path'=>'/wp/v2/pages/12','body'=>array('title'=>'Updated'),'approval_id'=>$approval['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+    assert_same(12,$write['data']['id']??null,'write delegated after approval');
+
     $first=WPVDMCP_Parity::execute('save_skill',array('slug'=>'reference-flow','title'=>'Reference Flow','instructions'=>'Inspect the target, use the narrowest safe tool, verify the result, and preserve rollback information.'));
     assert_same('approval_required',$first['status']??null,'save create approval');
     WPVDMCP_Approvals::approve($first['approval_id'],1);
@@ -110,4 +113,3 @@ parity_test('SeedProd compile never exposes raw builder login and requires appro
     assert_same(true,$done['saw_login']??null,'trusted provider got login');
     assert_true(!isset($done['login_url']),'login URL not leaked to model');
 });
-
