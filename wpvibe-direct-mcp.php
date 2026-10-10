@@ -3,7 +3,7 @@
  * Plugin Name: WPVibe Direct MCP
  * Plugin URI:  https://github.com/salman0butt/wpvibe-direct-mcp
  * Description: Adds a self-hosted MCP endpoint to WPVibe, reusing WPVibe's protected REST tools without the hosted WPVibe MCP gateway.
- * Version:     1.3.0
+ * Version:     1.3.1
  * Author:      Community build
  * License:     GPL-2.0-or-later
  * Requires at least: 6.0
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPVDMCP_VERSION', '1.3.0' );
+define( 'WPVDMCP_VERSION', '1.3.1' );
 define( 'WPVDMCP_FILE', __FILE__ );
 define( 'WPVDMCP_DIR', plugin_dir_path( __FILE__ ) );
 
