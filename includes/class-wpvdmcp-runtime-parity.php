@@ -35,21 +35,26 @@ final class WPVDMCP_Runtime_Parity {
 					'approval_id' => self::strp( 'One-time Direct MCP approval ID returned by the first write call.' ),
 				), array( 'method', 'path' ) ),
 			),
+			array(
+				'name' => 'run_wp_cli',
+				'description' => 'Run WPVibe native PHP WP-CLI emulation. Read/reversible commands follow WPVibe directly; destructive or high-risk commands pause for a Direct browser approval and then execute through WPVibe_CLI::run_approved with the exact approved dry-run snapshot.',
+				'inputSchema' => self::schema( array(
+					'command' => self::strp( 'Allowlisted WP-CLI-style command.', true ),
+					'confirm_write' => array( 'type' => 'boolean', 'description' => 'Confirm reversible writes when WPVibe requires its second stage.' ),
+					'approval_id' => self::strp( 'One-time Direct MCP approval ID returned when WPVibe classifies the command as approval-required.' ),
+				), array( 'command' ) ),
+			),
 		);
 	}
 
 	public static function handles( $name ) {
-		return in_array( $name, array( 'run_ability', 'rest_api', 'rest_api_write' ), true );
+		return in_array( $name, array( 'run_ability', 'rest_api', 'rest_api_write', 'run_wp_cli' ), true );
 	}
 
 	public static function execute( $name, $args ) {
 		$args = is_array( $args ) ? $args : array();
-		if ( 'run_ability' === $name ) {
-			return self::run_ability( $args );
-		}
-		if ( 'rest_api' === $name ) {
-			return self::rest_api( $args );
-		}
+		if ( 'run_ability' === $name ) { return self::run_ability( $args ); }
+		if ( 'rest_api' === $name ) { return self::rest_api( $args ); }
 		if ( 'rest_api_write' === $name ) {
 			$method = isset( $args['method'] ) ? strtoupper( sanitize_text_field( $args['method'] ) ) : '';
 			if ( ! in_array( $method, array( 'POST', 'PUT', 'PATCH', 'DELETE' ), true ) ) {
@@ -58,6 +63,7 @@ final class WPVDMCP_Runtime_Parity {
 			$args['method'] = $method;
 			return self::rest_api( $args );
 		}
+		if ( 'run_wp_cli' === $name ) { return self::run_wp_cli( $args ); }
 		return new WP_Error( 'unknown_runtime_tool', 'Unknown runtime parity tool.', array( 'status' => 404, 'tool' => $name ) );
 	}
 
@@ -94,11 +100,7 @@ final class WPVDMCP_Runtime_Parity {
 		return WPVDMCP_Tools::dispatch( 'POST', $route, array(), array( 'input' => $input ) );
 	}
 
-	/**
-	 * Public generic REST bridge with the approval layer that the hosted Worker
-	 * normally supplies. The low-level WPVDMCP_Tools adapter remains the final
-	 * dispatcher so destination route permission callbacks still decide access.
-	 */
+	/** Public generic REST bridge with the hosted Worker's approval semantics. */
 	private static function rest_api( $args ) {
 		$method = isset( $args['method'] ) ? strtoupper( sanitize_text_field( $args['method'] ) ) : 'GET';
 		if ( ! in_array( $method, array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ), true ) ) {
@@ -122,7 +124,6 @@ final class WPVDMCP_Runtime_Parity {
 		$max = isset( $args['max_response_bytes'] ) ? absint( $args['max_response_bytes'] ) : 262144;
 		$max = max( 1024, min( 1048576, $max ) );
 		$normalized = array( 'method' => $method, 'path' => $path, 'params' => $params, 'body' => $body, 'fields' => $fields, 'max_response_bytes' => $max );
-
 		if ( 'GET' !== $method && ! WPVDMCP_Approvals::bypass_enabled() ) {
 			$approval_id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
 			if ( '' === $approval_id ) {
@@ -134,6 +135,74 @@ final class WPVDMCP_Runtime_Parity {
 			if ( is_wp_error( $consumed ) ) { return $consumed; }
 		}
 		return WPVDMCP_Tools::execute( 'rest_api', $normalized );
+	}
+
+	/**
+	 * Replace the hosted Worker's proof-protected CLI approval handoff locally.
+	 * WPVibe itself remains the classifier and executor; Direct only stores the
+	 * exact dry-run snapshot while the browser approval is pending.
+	 */
+	private static function run_wp_cli( $args ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return new WP_Error( 'forbidden', 'WPVibe CLI execution requires manage_options.', array( 'status' => 403 ) );
+		}
+		$command = isset( $args['command'] ) ? trim( (string) $args['command'] ) : '';
+		if ( '' === $command ) {
+			return new WP_Error( 'invalid_command', 'command is required.', array( 'status' => 400 ) );
+		}
+		$confirm = ! empty( $args['confirm_write'] );
+		$approval_id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
+
+		if ( '' !== $approval_id ) {
+			$snapshot = get_transient( self::cli_snapshot_key( $approval_id ) );
+			if ( ! is_array( $snapshot ) || empty( $snapshot['approved_state'] ) ) {
+				return new WP_Error( 'approval_snapshot_missing', 'The approved WP-CLI snapshot is missing or expired.', array( 'status' => 410 ) );
+			}
+			$payload = array( 'command' => $command, 'confirm_write' => $confirm, 'approved_state' => $snapshot['approved_state'] );
+			$consumed = WPVDMCP_Approvals::consume( $approval_id, 'run_wp_cli', $payload );
+			if ( is_wp_error( $consumed ) ) { return $consumed; }
+			delete_transient( self::cli_snapshot_key( $approval_id ) );
+			return self::run_wp_cli_approved_native( $command, $confirm, $snapshot['approved_state'] );
+		}
+
+		$result = WPVDMCP_Tools::execute( 'run_wp_cli', array( 'command' => $command, 'confirm_write' => $confirm ) );
+		if ( ! is_wp_error( $result ) || 'approval_required' !== $result->get_error_code() ) { return $result; }
+		$data = $result->get_error_data();
+		$data = is_array( $data ) ? $data : array();
+		$approved_state = array(
+			'operation' => isset( $data['operation'] ) ? $data['operation'] : null,
+			'dry_run' => isset( $data['dry_run'] ) ? $data['dry_run'] : null,
+		);
+		if ( null === $approved_state['operation'] || ! is_array( $approved_state['dry_run'] ) ) {
+			return new WP_Error( 'approval_snapshot_invalid', 'WPVibe requested approval without a usable operation/dry-run snapshot.', array( 'status' => 502 ) );
+		}
+		if ( WPVDMCP_Approvals::bypass_enabled() ) {
+			return self::run_wp_cli_approved_native( $command, $confirm, $approved_state );
+		}
+		$payload = array( 'command' => $command, 'confirm_write' => $confirm, 'approved_state' => $approved_state );
+		$approval = WPVDMCP_Approvals::request( 'run_wp_cli', $payload, $result->get_error_message() );
+		if ( is_wp_error( $approval ) ) { return $approval; }
+		set_transient( self::cli_snapshot_key( $approval['approval_id'] ), array( 'approved_state' => $approved_state ), WPVDMCP_Approvals::TTL );
+		return array_merge( $approval, array(
+			'status' => 'approval_required',
+			'command' => isset( $data['command'] ) ? $data['command'] : $command,
+			'operation' => $approved_state['operation'],
+			'dry_run' => $approved_state['dry_run'],
+		) );
+	}
+
+	private static function run_wp_cli_approved_native( $command, $confirm, $approved_state ) {
+		if ( ! class_exists( 'WPVibe_CLI' ) || ! method_exists( 'WPVibe_CLI', 'run_approved' ) ) {
+			return new WP_Error( 'tool_unavailable', 'The installed WPVibe version does not expose native approved CLI execution.', array( 'status' => 501 ) );
+		}
+		$cli = new WPVibe_CLI();
+		$result = $cli->run_approved( $command, $confirm, wp_json_encode( $approved_state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+		if ( is_wp_error( $result ) ) { return $result; }
+		return array( 'status' => 200, 'data' => $result );
+	}
+
+	private static function cli_snapshot_key( $approval_id ) {
+		return 'wpvdmcp_cli_snapshot_' . hash( 'sha256', (string) $approval_id );
 	}
 
 	private static function normalize_rest_path( $path ) {
@@ -160,8 +229,13 @@ final class WPVDMCP_Runtime_Parity {
 	}
 
 	private static function schema( $properties, $required = array() ) {
+		foreach ( $properties as $key => $property ) {
+			if ( ! empty( $property['_required'] ) && ! in_array( $key, $required, true ) ) { $required[] = $key; }
+			unset( $property['_required'] );
+			$properties[ $key ] = $property;
+		}
 		$schema = array( 'type' => 'object', 'properties' => (object) $properties, 'additionalProperties' => false );
-		if ( $required ) { $schema['required'] = $required; }
+		if ( $required ) { $schema['required'] = array_values( array_unique( $required ) ); }
 		return $schema;
 	}
 	private static function strp( $description, $required = false ) { return array( 'type' => 'string', 'description' => $description, '_required' => $required ); }
