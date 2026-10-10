@@ -1,5 +1,15 @@
 <?php
 
+if (!class_exists('WPVibe_CLI')) {
+    class WPVibe_CLI {
+        public static $approved_calls=array();
+        public function run_approved($command,$confirm_write=false,$approved_state=null){
+            self::$approved_calls[]=array('command'=>$command,'confirm_write'=>$confirm_write,'approved_state'=>$approved_state);
+            return array('executed'=>true,'command'=>$command,'confirm_write'=>$confirm_write,'approved_state'=>$approved_state);
+        }
+    }
+}
+
 parity_test('destructive idempotent ability uses DELETE after approval', function () {
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $GLOBALS['wp_current_user']=1;
@@ -102,4 +112,55 @@ parity_test('generic REST cannot reach WPVibe or Direct control-plane routes', f
         assert_true(is_wp_error($result),'blocked route expected for '.$path);
         assert_same('blocked_route',$result->get_error_code(),'blocked code '.$path);
     }
+});
+
+parity_test('destructive WP-CLI pauses for Direct approval then uses native run_approved snapshot', function () {
+    set_test_routes(array('/wpvibe/v1/cli/run'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    WPVibe_CLI::$approved_calls=array();
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        if($r->get_param('_route')==='/wpvibe/v1/cli/run'){
+            return new WP_Error('approval_required','Deleting a post requires approval.',array(
+                'status'=>409,
+                'operation'=>'post_delete',
+                'dry_run'=>array('post_ids'=>array(77),'force'=>true),
+                'command'=>'wp post delete'
+            ));
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+    $first=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'wp post delete 77 --force','confirm_write'=>true));
+    assert_same('approval_required',$first['status']??null,'Direct approval returned');
+    assert_same(0,count(WPVibe_CLI::$approved_calls),'not executed before approval');
+    WPVDMCP_Approvals::approve($first['approval_id'],1);
+
+    $changed=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'wp post delete 78 --force','confirm_write'=>true,'approval_id'=>$first['approval_id']));
+    assert_true(is_wp_error($changed),'changed command rejected');
+    assert_same('approval_payload_mismatch',$changed->get_error_code(),'command bound to approval');
+
+    $done=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'wp post delete 77 --force','confirm_write'=>true,'approval_id'=>$first['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+    assert_same(true,$done['data']['executed']??null,'approved native execution');
+    assert_same('wp post delete 77 --force',WPVibe_CLI::$approved_calls[0]['command']??null,'exact command kept');
+    $snapshot=json_decode(WPVibe_CLI::$approved_calls[0]['approved_state']??'',true);
+    assert_same('post_delete',$snapshot['operation']??null,'operation snapshot kept');
+    assert_same(array(77),$snapshot['dry_run']['post_ids']??null,'dry-run snapshot kept');
+
+    $replay=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'wp post delete 77 --force','confirm_write'=>true,'approval_id'=>$first['approval_id']));
+    assert_true(is_wp_error($replay),'CLI approval replay rejected');
+});
+
+parity_test('WP-CLI dangerous approval bypass executes native approved path immediately', function () {
+    set_test_routes(array('/wpvibe/v1/cli/run'=>array('POST')));
+    WPVibe_CLI::$approved_calls=array();
+    $GLOBALS['wp_options']['wpvibe_bypass_approvals']=array('enabled'=>true);
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        return new WP_Error('approval_required','SQL write requires approval.',array(
+            'status'=>409,'operation'=>'db_query_write','dry_run'=>array('sql'=>'UPDATE wp_posts SET post_status="draft" WHERE ID=9'),'command'=>'wp db query'
+        ));
+    };
+    $done=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'wp db query "UPDATE wp_posts SET post_status=\"draft\" WHERE ID=9"'));
+    unset($GLOBALS['rest_dispatch_callback'],$GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    assert_same(true,$done['data']['executed']??null,'bypass executes');
+    assert_same(1,count(WPVibe_CLI::$approved_calls),'approved path called once');
 });
