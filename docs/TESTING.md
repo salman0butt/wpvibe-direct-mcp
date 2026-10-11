@@ -8,9 +8,10 @@ From the plugin root:
 php tests/run.php
 php tests/parity-run.php
 php tests/reference-run.php
+php tests/abilities-json-body-run.php
 ```
 
-Current 1.3.2 verification runs **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 total)**. CI runs the same suites plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
+Release 1.3.2 contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)**. Current development CI runs those same suites plus PHP syntax validation and one focused Abilities raw-JSON request-body regression on PHP 7.4, 8.2, and 8.4.
 
 ### MCP transport
 
@@ -44,6 +45,7 @@ Current 1.3.2 verification runs **27 legacy tests + 14 core parity tests + 53 re
 - ordinary write POST with approval;
 - destructive + idempotent DELETE with approval;
 - destructive + non-idempotent POST with approval;
+- POST Abilities mutations use the raw `application/json` request-body contract expected by the WordPress 6.9 Abilities run controller;
 - current Elementor 4.3 Abilities-first workflow, Atomic capability boundary, whole-settings replacement warning, native fallback, preview and live/render verification guidance.
 
 ### Device media flow
@@ -78,9 +80,39 @@ find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 
 ## Static secret scan
 
-Before packaging, inspect the tree for plaintext passwords/tokens/private keys and ensure fixtures contain only obviously synthetic values such as `test-token`.
+Before packaging, inspect the tree for plaintext passwords/tokens/private keys and ensure fixtures contain only obviously synthetic values such as `test-token`. The disposable Elementor job generates an ephemeral Direct MCP token inside the runner, masks it in GitHub Actions, and redacts token-shaped values from failure diagnostics.
 
-## Manual disposable WordPress integration checklist
+## Disposable WordPress + Elementor CI acceptance
+
+`.github/workflows/wordpress-elementor-e2e.yml` provisions an isolated WordPress environment and never accepts a production/customer URL. The verified lane currently pins:
+
+- WordPress **6.9**;
+- official WPVibe **1.20.3** at exact upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`;
+- Elementor Core **4.3.4**;
+- PHP **8.2** / Apache and MySQL 8;
+- the exact Direct MCP pull-request/main checkout under test.
+
+The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
+
+Verified on 2026-10-11:
+
+1. authenticated Direct MCP health;
+2. MCP `2026-07-28` `server/discover` and routing headers;
+3. real `tools/list` including Abilities and native Elementor fallback tools;
+4. runtime discovery of `elementor/create-page`, `elementor/build-composition`, `elementor/get-page-structure`, and `elementor/publish-document`;
+5. live annotation verification for method selection;
+6. one-time approval-required → administrator approval → execution flow, including replay rejection;
+7. `elementor/create-page` creates a draft;
+8. `elementor/build-composition` creates an Atomic heading through the destructive + non-idempotent **POST** path;
+9. `elementor/get-page-structure` re-reads the generated hierarchy through the readonly **GET** path;
+10. `elementor/publish-document` publishes through the destructive + idempotent **DELETE** path;
+11. the rendered frontend contains the requested Elementor heading;
+12. no PHP fatal/uncaught error is present after the acceptance sequence;
+13. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable.
+
+This is real disposable-site E2E evidence for that bounded Elementor workflow. It is **not** evidence that Elementor Pro Theme Builder, every Elementor element/style/global-setting mutation, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+
+## Broader manual disposable WordPress integration checklist
 
 **Do not run destructive tests against production.** Use a disposable/staging site with current WPVibe and Direct MCP.
 
@@ -95,13 +127,13 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 9. With WPCode installed, create/update a dormant snippet and confirm it is not silently activated.
 10. Public URL media: raster types, safe/malicious SVG, wrong MIME, redirects/private IPs, HTTP failures, dotted filenames, large/invalid images, metadata/parenting.
 11. Device upload: PNG browser upload + replay rejection; safe SVG if upstream sanitizer exists; malicious SVG rejection.
-12. Elementor 4.3+/WordPress 6.9+, Atomic Editor ON: discover installed Elementor abilities/resources; create a draft; build composition; update/move elements; full read-modify-write page settings; preview; publish; re-read structure; verify live rendered page, generated styles and caches.
-13. Elementor Atomic Editor OFF: verify Atomic-only capabilities fail predictably and native WPVibe Elementor schema/save fallback still works without guessed `_elementor_data` writes.
+12. Elementor 4.3+/WordPress 6.9+, extend the verified Atomic-ON lane to update/move/delete elements, full read-modify-write page settings, generated styles/cache behavior, globals/classes/variables and broader widget coverage.
+13. Extend the verified Atomic-OFF lane with native fallback save/schema behavior, not guessed `_elementor_data` writes.
 14. Elementor site-wide styles: on staging only, create/update a test global variable/class/default style, verify representative pages, then restore original state.
 15. Elementor Pro when available: reuse/update a test Theme Builder template through discovered Pro abilities or `elementor_save_template`; verify display conditions/live rendering; avoid duplicate global templates.
 16. Smoke-test Beaver, Bricks, and Breakdance native get/schema/save routes when installed.
 17. Inspect WPVibe audit log and Direct MCP activity summaries.
 
-## Integration status for this release build
+## Current integration status
 
-The automated suite and PHP syntax verification are executable and CI-backed. A real disposable WordPress/Elementor staging target was **not supplied to this build session**, so the manual integration checklist above is intentionally not marked as passed. Production was not touched.
+A real disposable WordPress/Elementor target is now CI-backed for the bounded Elementor workflow listed above. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
