@@ -73,6 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$WP_ROOT"
+          echo "WP_ROOT=$WP_ROOT" >> "$GITHUB_ENV"
 
           wp core download --path="$WP_ROOT" --version=6.9 --force
           wp config create \
@@ -95,19 +96,22 @@ jobs:
             --skip-email
           wp rewrite structure '/%postname%/' --path="$WP_ROOT"
 
-          git clone --quiet https://github.com/awesomemotive/wpvibe-ai-mcp.git "$WP_ROOT/wp-content/plugins/wpvibe-ai-mcp"
-          git -C "$WP_ROOT/wp-content/plugins/wpvibe-ai-mcp" checkout --quiet --detach "$WPVIBE_SHA"
-          test "$(git -C "$WP_ROOT/wp-content/plugins/wpvibe-ai-mcp" rev-parse HEAD)" = "$WPVIBE_SHA"
+          # WordPress plugin dependencies key WPVibe by its WordPress.org slug
+          # `vibe-ai`. Clone the audited source into that exact folder so the
+          # disposable fixture mirrors a real WordPress.org installation.
+          git clone --quiet https://github.com/awesomemotive/wpvibe-ai-mcp.git "$WP_ROOT/wp-content/plugins/vibe-ai"
+          git -C "$WP_ROOT/wp-content/plugins/vibe-ai" checkout --quiet --detach "$WPVIBE_SHA"
+          test "$(git -C "$WP_ROOT/wp-content/plugins/vibe-ai" rev-parse HEAD)" = "$WPVIBE_SHA"
 
           mkdir -p "$WP_ROOT/wp-content/plugins/wpvibe-direct-mcp"
           rsync -a --delete --exclude='.git' --exclude='.worktrees' "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wpvibe-direct-mcp/"
 
           wp plugin install elementor --version=4.3.4 --activate --path="$WP_ROOT"
-          wp plugin activate wpvibe-ai-mcp/vibe-ai.php --path="$WP_ROOT"
+          wp plugin activate vibe-ai/vibe-ai.php --path="$WP_ROOT"
           wp plugin activate wpvibe-direct-mcp/wpvibe-direct-mcp.php --path="$WP_ROOT"
 
           test "$(wp plugin get elementor --field=version --path="$WP_ROOT")" = '4.3.4'
-          test "$(wp plugin get wpvibe-ai-mcp --field=version --path="$WP_ROOT")" = '1.20.3'
+          test "$(wp plugin get vibe-ai --field=version --path="$WP_ROOT")" = '1.20.3'
 
           ADMIN_ID="$(wp user get admin --field=ID --path="$WP_ROOT")"
           DIRECT_TOKEN="wpvd_e2e_$(openssl rand -hex 24)"
@@ -119,7 +123,6 @@ jobs:
           # Use Elementor's own feature-option keys rather than guessing option names.
           wp eval 'foreach ( array( "e_opt_in_v4", "container", "e_atomic_elements" ) as $feature ) { $key = Elementor\Plugin::$instance->experiments->get_feature_option_key( $feature ); update_option( $key, Elementor\Core\Experiments\Manager::STATE_ACTIVE ); } update_option( "elementor_v4_opt_in_clicked", true );' --path="$WP_ROOT"
 
-          echo "WP_ROOT=$WP_ROOT" >> "$GITHUB_ENV"
           echo "ADMIN_ID=$ADMIN_ID" >> "$GITHUB_ENV"
           echo "DIRECT_TOKEN=$DIRECT_TOKEN" >> "$GITHUB_ENV"
           echo 'BASE_URL=http://127.0.0.1:8080' >> "$GITHUB_ENV"
@@ -160,18 +163,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ROOT="${WP_ROOT:-/tmp/wpvibe-e2e-wordpress}"
           mkdir -p /tmp/wpvibe-e2e-diagnostics
           if [[ -f /tmp/wpvibe-e2e-server.log ]]; then
             sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' /tmp/wpvibe-e2e-server.log > /tmp/wpvibe-e2e-diagnostics/server.log
           fi
-          if [[ -f "$WP_ROOT/wp-content/debug.log" ]]; then
-            sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' "$WP_ROOT/wp-content/debug.log" > /tmp/wpvibe-e2e-diagnostics/debug.log
+          if [[ -f "$ROOT/wp-content/debug.log" ]]; then
+            sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' "$ROOT/wp-content/debug.log" > /tmp/wpvibe-e2e-diagnostics/debug.log
           fi
           {
-            echo 'WordPress:' "$(wp core version --path="$WP_ROOT" 2>/dev/null || true)"
-            echo 'WPVibe:' "$(wp plugin get wpvibe-ai-mcp --field=version --path="$WP_ROOT" 2>/dev/null || true)"
-            echo 'Elementor:' "$(wp plugin get elementor --field=version --path="$WP_ROOT" 2>/dev/null || true)"
-            echo 'Direct MCP:' "$(wp plugin get wpvibe-direct-mcp --field=version --path="$WP_ROOT" 2>/dev/null || true)"
+            echo 'WordPress:' "$(wp core version --path="$ROOT" 2>/dev/null || true)"
+            echo 'WPVibe:' "$(wp plugin get vibe-ai --field=version --path="$ROOT" 2>/dev/null || true)"
+            echo 'Elementor:' "$(wp plugin get elementor --field=version --path="$ROOT" 2>/dev/null || true)"
+            echo 'Direct MCP:' "$(wp plugin get wpvibe-direct-mcp --field=version --path="$ROOT" 2>/dev/null || true)"
           } > /tmp/wpvibe-e2e-diagnostics/environment.txt
 
       - name: Upload failure diagnostics
