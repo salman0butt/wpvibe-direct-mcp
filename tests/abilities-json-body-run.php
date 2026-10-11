@@ -29,6 +29,7 @@ $GLOBALS['rest_dispatch_callback'] = function ( $request ) {
 	if ( '/wp-abilities/v1/abilities/elementor/create-page/run' === $route ) {
 		return new WP_REST_Response(
 			array(
+				'body' => $request->get_body(),
 				'json' => $request->get_json_params(),
 			),
 			200
@@ -64,10 +65,19 @@ $second = WPVDMCP_Abilities_Compat::execute(
 unset( $GLOBALS['rest_dispatch_callback'] );
 
 assert_true( ! is_wp_error( $second ), 'Approved ability should execute.' );
+assert_true(
+	isset( $second['data']['body'] ) && '' !== $second['data']['body'],
+	'WordPress core Abilities POST requests require a raw JSON body, not only pre-populated params.'
+);
+assert_same(
+	array( 'input' => $input ),
+	json_decode( $second['data']['body'], true ),
+	'Raw Abilities request body must match the WordPress core controller contract.'
+);
 assert_same(
 	$input,
 	isset( $second['data']['json']['input'] ) ? $second['data']['json']['input'] : null,
-	'Public run_ability bridge must expose POST input through WP_REST_Request::get_json_params().'
+	'Raw JSON body must parse to the structured input expected by the Abilities controller.'
 );
 
-echo "PASS: Abilities compatibility bridge sends POST input as JSON.\n";
+echo "PASS: Abilities compatibility bridge sends a core-style raw JSON body.\n";
