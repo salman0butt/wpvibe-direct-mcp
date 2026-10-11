@@ -79,8 +79,10 @@ parity_test('saved skills persist descriptions and bounded text reference files'
 parity_test('rest_api_write schema mirrors hardened REST body and field shapes',function(){
     $tool=parity_tool('rest_api_write');$props=(array)($tool['inputSchema']['properties']??array());
     assert_same(array('POST','PUT','PATCH','DELETE'),$props['method']['enum']??null,'write methods exact');
-    assert_same('array',$props['fields']['type']??null,'fields is array');
-    assert_same('string',$props['fields']['items']['type']??null,'field names strings');
+    assert_true(isset($props['fields']['oneOf'])&&count($props['fields']['oneOf'])===2,'fields supports array or string compatibility forms');
+    $types=array_map(function($shape){return $shape['type']??'';},$props['fields']['oneOf']);
+    sort($types);
+    assert_same(array('array','string'),$types,'fields compatibility types');
     assert_true(isset($props['body']['oneOf'])&&count($props['body']['oneOf'])===2,'body supports object or JSON string');
 });
 
