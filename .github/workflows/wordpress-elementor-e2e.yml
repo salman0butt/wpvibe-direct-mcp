@@ -8,6 +8,8 @@ on:
       - 'includes/**'
       - 'skills/elementor.md'
       - 'wpvibe-direct-mcp.php'
+      - 'docs/TESTING.md'
+      - 'docs/PARITY.md'
   push:
     branches: [main, 'feat/**']
     paths:
@@ -16,6 +18,8 @@ on:
       - 'includes/**'
       - 'skills/elementor.md'
       - 'wpvibe-direct-mcp.php'
+      - 'docs/TESTING.md'
+      - 'docs/PARITY.md'
   workflow_dispatch:
 
 permissions:
