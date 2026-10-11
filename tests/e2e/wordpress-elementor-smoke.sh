@@ -168,7 +168,7 @@ note 'Turning Elementor Atomic Editor off and checking failure/fallback behavior
 # With Atomic off, an Atomic-only composition must not silently succeed. Depending on
 # Elementor registration timing/version it can disappear at metadata lookup or return
 # a capability/403-style tool error; either outcome is acceptable, success is not.
-off_args="$(jq -cn --argjson post_id "$PAGE_ID" '{ability_name:"elementor/build-composition",input:{post_id:$post_id,xml_structure:"<e-heading configuration-id=\"off-test\"></e-heading>",element_config:{"off-test":{tag:"h2",title:"should not persist"}}}')"
+off_args="$(jq -cn --argjson post_id "$PAGE_ID" '{ability_name:"elementor/build-composition",input:{post_id:$post_id,xml_structure:"<e-heading configuration-id=\"off-test\"></e-heading>",element_config:{"off-test":{tag:"h2",title:"should not persist"}}}}')"
 off_result="$(tool_call run_ability "$off_args")"
 if jq -e '(.result.isError // false) == false and (.result.structuredContent.status // "") == "approval_required"' >/dev/null 2>&1 <<<"$off_result"; then
   off_approval="$(approval_id_from "$off_result")"
