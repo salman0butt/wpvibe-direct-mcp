@@ -46,7 +46,14 @@ class WP_REST_Request {
     public function set_query_params($q){$this->query=$q;}
     public function get_query_params(){return $this->query;}
     public function set_json_params($j){$this->json=$j;}
-    public function get_json_params(){return $this->json;}
+    public function get_json_params(){
+        if ($this->json !== null) return $this->json;
+        if ($this->body === '') return null;
+        $decoded=json_decode($this->body,true);
+        return json_last_error()===JSON_ERROR_NONE ? $decoded : null;
+    }
+    public function set_body($body){$this->body=(string)$body;$this->json=null;}
+    public function get_body(){return $this->body;}
     public function set_param($k,$v){$this->params[$k]=$v;}
     public function get_param($k){return isset($this->params[$k])?$this->params[$k]:null;}
     public function set_body_params($params){foreach($params as $k=>$v){$this->params[$k]=$v;}}
