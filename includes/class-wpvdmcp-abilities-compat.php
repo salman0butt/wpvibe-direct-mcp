@@ -135,7 +135,39 @@ final class WPVDMCP_Abilities_Compat {
 		if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
-		return WPVDMCP_Tools::dispatch( 'POST', $route, array(), array( 'input' => $input ) );
+		return self::dispatch_json_post( $route, array( 'input' => $input ) );
+	}
+
+	/**
+	 * Dispatch an Abilities mutation as an actual JSON request body.
+	 *
+	 * WordPress 6.9+ Abilities validates the top-level `input` from the JSON
+	 * parameter bag. set_body_params() alone populates form/body params and can
+	 * therefore make a valid structured input look absent/non-object to the
+	 * Abilities controller during an internal REST request.
+	 */
+	private static function dispatch_json_post( $route, $body ) {
+		$request = new WP_REST_Request( 'POST', $route );
+		$request->set_header( 'content-type', 'application/json' );
+		if ( method_exists( $request, 'set_json_params' ) ) {
+			$request->set_json_params( $body );
+		} else {
+			$request->set_body_params( $body );
+		}
+
+		$response = rest_do_request( $request );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$response = rest_ensure_response( $response );
+		$data = $response->get_data();
+		$status = $response->get_status();
+		if ( $status >= 400 ) {
+			$message = is_array( $data ) && isset( $data['message'] ) ? $data['message'] : 'WordPress REST request failed.';
+			$code = is_array( $data ) && isset( $data['code'] ) ? $data['code'] : 'rest_error';
+			return new WP_Error( $code, $message, array( 'status' => $status, 'response' => $data ) );
+		}
+		return array( 'status' => $status, 'data' => $data );
 	}
 
 	private static function abilities_available() {
