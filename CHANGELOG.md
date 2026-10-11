@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.2 - 2026-10-11
+- Hardened generic `rest_api` / `rest_api_write` mutations with one-time Direct MCP approvals, safe trash behavior for core content deletes, and WooCommerce protection against accidentally replacing complete product list fields with partial payloads.
+- Matched the current WPVibe public REST option contract while preserving Direct aliases: `route`/`path`, `query`/`params`, string-or-array `fields`, `max_length`/`max_response_bytes`, and embedded-query normalization.
+- Expanded WordPress Abilities compatibility with `ability_name`/`name`, `input_json`/structured input, metadata-first annotations with bounded fallback hints, and `op_id`/`approval_id` compatibility without weakening approval replay protection.
+- Matched current provider-backed public contracts for image search, page audits, rendered HTML, site connection, and fleet jobs while continuing to fail closed when no user-owned provider is configured.
+- Matched current Saved Skill lookup contracts with `name`, `query`, and `resource` forms, no-argument catalog metadata, bounded metadata search, and exact saved-reference reads.
+- Re-verified the complete current tree against official WPVibe 1.20.3 (`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`) and the current WPVibe docs/Elementor workflow. Automated CI now runs 27 legacy + 14 parity + 53 reference cases = 94 tests on PHP 7.4, 8.2, and 8.4.
+- Real WordPress/Elementor destructive E2E remains an explicit disposable-staging acceptance boundary and is not falsely marked as passed.
+
 ## 1.3.1 - 2026-10-10
 - Fixed WordPress Abilities REST method selection: readonly abilities use `GET`, destructive+idempotent abilities use `DELETE`, and every other mutation (including destructive non-idempotent abilities) uses `POST`.
 - Added regression coverage for both idempotent and non-idempotent destructive abilities so Elementor/plugin mutations cannot silently regress to the wrong HTTP method.
