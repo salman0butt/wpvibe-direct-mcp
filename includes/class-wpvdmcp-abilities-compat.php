@@ -38,8 +38,8 @@ final class WPVDMCP_Abilities_Compat {
 			'input' => array( 'type' => 'object', 'description' => 'Preferred structured ability input object.' ),
 			'input_json' => array( 'type' => 'string', 'description' => 'Legacy WPVibe JSON-encoded ability input. Ignored when input is present.' ),
 			'readonly' => array( 'type' => 'boolean', 'description' => 'Fallback annotation hint used only if ability metadata cannot be fetched.' ),
-			'destructive' => array( 'type' => 'boolean', 'description' => 'Fallback destructive hint used only if metadata cannot be fetched.' ),
-			'idempotent' => array( 'type' => 'boolean', 'description' => 'Fallback idempotent hint used only if metadata cannot be fetched.' ),
+			'destructive' => array( 'type' => 'boolean', 'description' => 'Fallback destructive hint used only if ability metadata cannot be fetched.' ),
+			'idempotent' => array( 'type' => 'boolean', 'description' => 'Fallback idempotent hint used only if ability metadata cannot be fetched.' ),
 			'approval_id' => array( 'type' => 'string', 'description' => 'One-time Direct MCP approval ID for a previously approved local write.' ),
 		);
 		$run_schema = self::schema( $run_props );
@@ -139,21 +139,17 @@ final class WPVDMCP_Abilities_Compat {
 	}
 
 	/**
-	 * Dispatch an Abilities mutation as an actual JSON request body.
+	 * Dispatch an Abilities mutation exactly like WordPress core's REST tests.
 	 *
-	 * WordPress 6.9+ Abilities validates the top-level `input` from the JSON
-	 * parameter bag. set_body_params() alone populates form/body params and can
-	 * therefore make a valid structured input look absent/non-object to the
-	 * Abilities controller during an internal REST request.
+	 * WordPress 6.9+ parses the top-level `input` from the raw JSON request body.
+	 * Populating form/body params or a synthetic JSON-param bag is insufficient
+	 * for the real WP_REST_Abilities_V1_Run_Controller. Core sets the JSON content
+	 * type and then calls set_body( wp_json_encode( ... ) ).
 	 */
 	private static function dispatch_json_post( $route, $body ) {
 		$request = new WP_REST_Request( 'POST', $route );
 		$request->set_header( 'content-type', 'application/json' );
-		if ( method_exists( $request, 'set_json_params' ) ) {
-			$request->set_json_params( $body );
-		} else {
-			$request->set_body_params( $body );
-		}
+		$request->set_body( wp_json_encode( $body ) );
 
 		$response = rest_do_request( $request );
 		if ( is_wp_error( $response ) ) {
