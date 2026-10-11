@@ -94,7 +94,6 @@ jobs:
             --admin_password='disposable-e2e-admin-only' \
             --admin_email=e2e@example.test \
             --skip-email
-          wp rewrite structure '/%postname%/' --path="$WP_ROOT"
 
           # WordPress plugin dependencies key WPVibe by its WordPress.org slug
           # `vibe-ai`. Clone the audited source into that exact folder so the
@@ -132,7 +131,8 @@ jobs:
           echo "ADMIN_ID=$ADMIN_ID" >> "$GITHUB_ENV"
           echo "DIRECT_TOKEN=$DIRECT_TOKEN" >> "$GITHUB_ENV"
           echo 'BASE_URL=http://127.0.0.1:8080' >> "$GITHUB_ENV"
-          echo 'MCP_URL=http://127.0.0.1:8080/wp-json/wpvibe-direct/v1/mcp' >> "$GITHUB_ENV"
+          echo 'HEALTH_URL=http://127.0.0.1:8080/?rest_route=/wpvibe-direct/v1/health' >> "$GITHUB_ENV"
+          echo 'MCP_URL=http://127.0.0.1:8080/?rest_route=/wpvibe-direct/v1/mcp' >> "$GITHUB_ENV"
 
       - name: Start disposable WordPress Apache container
         shell: bash
@@ -151,8 +151,10 @@ jobs:
             wordpress:php8.2-apache \
             bash -lc "sed -ri 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf && sed -ri 's/<VirtualHost \\*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"
 
+          # Use WordPress's canonical rest_route query form. The acceptance
+          # target is the REST controller itself, not Apache permalink rewrite.
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8080/wp-json/ >/dev/null; then
+            if curl -fsS 'http://127.0.0.1:8080/?rest_route=/' >/dev/null; then
               exit 0
             fi
             if ! docker ps --format '{{.Names}}' | grep -Fxq wpvibe-e2e-web; then
