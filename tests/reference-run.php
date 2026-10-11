@@ -17,5 +17,6 @@ require __DIR__ . '/reference/cases-4.php';
 require __DIR__ . '/reference/cases-5.php';
 require __DIR__ . '/reference/cases-6.php';
 require __DIR__ . '/reference/cases-7.php';
+require __DIR__ . '/reference/cases-8.php';
 
 $fail=0;foreach($tests as $name=>$fn){try{$fn();echo "PASS $name\n";}catch(Throwable $e){$fail++;echo "FAIL $name: {$e->getMessage()}\n";}}echo sprintf("\n%d reference parity tests, %d failures\n",count($tests),$fail);exit($fail?1:0);
