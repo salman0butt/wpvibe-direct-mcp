@@ -26,9 +26,18 @@ require_command curl
 require_command jq
 require_command "$WP_BIN"
 
+# Send both supported header forms. On a normal WordPress Apache install the
+# rewrite rules preserve Authorization; this disposable lane deliberately uses
+# ?rest_route= to avoid rewrite coupling, so X-WPVibe-Direct-Token also proves
+# the documented header fallback without weakening token validation.
+auth_headers=(
+  -H "Authorization: Bearer ${DIRECT_TOKEN}"
+  -H "X-WPVibe-Direct-Token: ${DIRECT_TOKEN}"
+)
+
 mcp_legacy() {
   curl --fail-with-body --silent --show-error \
-    -H "Authorization: Bearer ${DIRECT_TOKEN}" \
+    "${auth_headers[@]}" \
     -H 'Content-Type: application/json' \
     -H 'MCP-Protocol-Version: 2025-11-25' \
     --data-binary @- \
@@ -38,7 +47,7 @@ mcp_legacy() {
 mcp_modern() {
   local method="$1"
   curl --fail-with-body --silent --show-error \
-    -H "Authorization: Bearer ${DIRECT_TOKEN}" \
+    "${auth_headers[@]}" \
     -H 'Content-Type: application/json' \
     -H 'MCP-Protocol-Version: 2026-07-28' \
     -H "Mcp-Method: ${method}" \
@@ -99,7 +108,7 @@ run_approved_ability() {
 }
 
 note 'Checking authenticated Direct MCP health endpoint'
-health="$(curl --fail-with-body --silent --show-error -H "Authorization: Bearer ${DIRECT_TOKEN}" "$HEALTH_URL")"
+health="$(curl --fail-with-body --silent --show-error "${auth_headers[@]}" "$HEALTH_URL")"
 assert_jq "$health" '.name == "WPVibe Direct MCP" and .wpvibe_active == true' 'Direct MCP health did not report an active WPVibe bridge'
 
 note 'Checking MCP 2026-07-28 server discovery and routing headers'
