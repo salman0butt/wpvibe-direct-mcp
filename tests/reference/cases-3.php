@@ -105,3 +105,55 @@ parity_test('1.3 skills identify their release source',function(){
     assert_same('builtin-1.3',$catalog['abilities-plugin']['source']??'','1.3 skill source is stale');
 });
 
+parity_test('generic REST schemas expose approval IDs for writes',function(){
+    $rest=parity_tool('rest_api');
+    $write=parity_tool('rest_api_write');
+    assert_true(isset($rest['inputSchema']['properties']->approval_id),'rest_api approval_id missing');
+    assert_true(isset($write['inputSchema']['properties']->approval_id),'rest_api_write approval_id missing');
+});
+
+parity_test('generic REST writes require one-time approval unless bypass is enabled',function(){
+    set_test_routes(array('/wp/v2/pages/12'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    $calls=0;
+    $GLOBALS['rest_dispatch_callback']=function($r) use (&$calls){
+        $calls++;
+        return new WP_REST_Response(array('id'=>12,'method'=>$r->get_param('_method'),'body'=>$r->get_json_params()),200);
+    };
+    $args=array('method'=>'POST','path'=>'/wp/v2/pages/12','body'=>array('title'=>'Updated'));
+    $first=WPVDMCP_Parity::execute('rest_api',$args);
+    assert_same('approval_required',$first['status']??null,'REST write should request approval');
+    assert_same(0,$calls,'REST write must not dispatch before approval');
+    assert_true(WPVDMCP_Approvals::approve($first['approval_id'],1)===true,'REST approval accepted');
+    $args['approval_id']=$first['approval_id'];
+    $second=WPVDMCP_Parity::execute('rest_api',$args);
+    assert_same(12,$second['data']['id']??null,'approved REST write dispatched');
+    assert_same(1,$calls,'approved REST write dispatched once');
+    $replay=WPVDMCP_Parity::execute('rest_api',$args);
+    assert_true(is_wp_error($replay),'REST approval must be single use');
+
+    $GLOBALS['wp_options']['wpvibe_bypass_approvals']=array('enabled'=>true);
+    $bypass=WPVDMCP_Parity::execute('rest_api',array('method'=>'POST','path'=>'/wp/v2/pages/12','body'=>array('title'=>'Bypassed')));
+    assert_same(12,$bypass['data']['id']??null,'bypass executes REST write');
+    assert_same(2,$calls,'bypass dispatches directly');
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals'],$GLOBALS['rest_dispatch_callback']);
+});
+
+parity_test('core content REST deletes trash instead of honoring force true',function(){
+    set_test_routes(array('/wp/v2/pages/12'=>array('DELETE')));
+    $GLOBALS['wp_current_user']=1;
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        return new WP_REST_Response(array('query'=>$r->get_query_params(),'method'=>$r->get_param('_method')),200);
+    };
+    $args=array('method'=>'DELETE','path'=>'/wp/v2/pages/12','params'=>array('force'=>true));
+    $first=WPVDMCP_Parity::execute('rest_api',$args);
+    assert_same('approval_required',$first['status']??null,'REST delete should request approval');
+    assert_true(WPVDMCP_Approvals::approve($first['approval_id'],1)===true,'REST delete approval accepted');
+    $args['approval_id']=$first['approval_id'];
+    $done=WPVDMCP_Parity::execute('rest_api',$args);
+    $query=$done['data']['query']??array();
+    assert_true(!isset($query['force']) || !$query['force'],'force=true must not reach trashable core content delete');
+    unset($GLOBALS['rest_dispatch_callback']);
+});
