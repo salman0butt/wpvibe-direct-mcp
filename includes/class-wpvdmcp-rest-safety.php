@@ -14,7 +14,7 @@ final class WPVDMCP_REST_Safety {
 	public static function definitions() {
 		$common = array(
 			'method' => array( 'type' => 'string', 'enum' => array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ), 'description' => 'HTTP method.' ),
-			'path' => self::strp( 'WordPress REST route beginning with /, for example /wp/v2/pages/123.', true ),
+			'path' => self::strp( 'WordPress REST route beginning with /, for example /wp/v2/pages/123.' ),
 			'params' => self::objp( 'Structured query parameters.' ),
 			'body' => array( 'description' => 'JSON body object, or a JSON string for compatibility.', 'oneOf' => array( array( 'type' => 'object' ), array( 'type' => 'string' ) ) ),
 			'fields' => self::arrayp( 'Optional selected response fields. Also forwarded as WordPress _fields on GET.', array( 'type' => 'string' ) ),
@@ -128,7 +128,7 @@ final class WPVDMCP_REST_Safety {
 		if ( $required ) { $schema['required'] = array_values( $required ); }
 		return $schema;
 	}
-	private static function strp( $description, $required = false ) { return array( 'type' => 'string', 'description' => $description, '_required' => $required ); }
+	private static function strp( $description ) { return array( 'type' => 'string', 'description' => $description ); }
 	private static function intp( $description ) { return array( 'type' => 'integer', 'description' => $description ); }
 	private static function objp( $description ) { return array( 'type' => 'object', 'description' => $description ); }
 	private static function arrayp( $description, $items ) { return array( 'type' => 'array', 'description' => $description, 'items' => $items ); }
