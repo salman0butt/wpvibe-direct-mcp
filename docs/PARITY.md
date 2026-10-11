@@ -6,7 +6,7 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.3.2 |
+| Reference tool | Direct MCP 1.3.2 / current development head |
 |---|---|
 | `connect_site` | Provider-backed exact name; current auth options normalized; no fake WPVibe cloud registry |
 | `list_sites` | Provider-backed exact name |
@@ -17,7 +17,7 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 | `upload_media` | Native WPVibe route |
 | `request_upload`, `check_upload` | Local one-time media ticket + inline MCP App/browser fallback |
 | `search_images` | User-owned provider; current count/orientation and Direct `per_page` forms normalized |
-| `discover_abilities`, `get_ability_info`, `run_ability` | WordPress Abilities API; current name/input aliases and WordPress-compatible method selection |
+| `discover_abilities`, `get_ability_info`, `run_ability` | WordPress Abilities API; current name/input aliases, WordPress-compatible method selection, and core-compatible raw JSON body for POST mutations |
 | draft/theme/file tools | Native WPVibe routes, current 1.20.3 contracts |
 | `run_wp_cli` | Native WPVibe PHP dispatcher/approval receipts; installed `wp_cli_status` is the command source of truth |
 | `get_page_html` | Current URL/selector/max-length contract; JS browser provider preferred, safe same-site native fallback |
@@ -33,13 +33,14 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 
 `reference_parity_manifest` returns the machine-readable audited list and implementation class for every reference tool.
 
-## 1.3.2 contract and safety parity
+## Contract and safety parity
 
 - Generic REST writes are one-time approval-gated unless the site owner explicitly enables WPVibe's bypass setting; approval payloads bind the normalized route/query/body so a token cannot authorize a changed request.
 - Core WordPress content deletes are kept on the recoverable trash path rather than forwarding a generic `force=true` hard-delete request.
 - WooCommerce product and batch updates reject partial payloads that would accidentally replace complete protected list fields unless replacement is explicit.
 - Public REST accepts current WPVibe option names and Direct compatibility aliases: `route`/`path`, `query`/`params`, string-or-array `fields`, `max_length`/`max_response_bytes`, and embedded query strings with explicit query values taking precedence.
 - Abilities accept `ability_name`/`name` and `input_json`/structured `input`; fetched ability metadata is authoritative, with fallback hints used only when metadata cannot be read.
+- WordPress 6.9+ POST Ability execution uses an actual `application/json` raw body matching the core Abilities run-controller contract; readonly GET and destructive+idempotent DELETE retain query-param execution.
 - `load_skill` supports current `name`, `query`, and `resource` forms, no-argument bounded catalog metadata, metadata-only search, and exact bounded saved-reference reads.
 - Provider-backed public tools normalize the current documented options but still fail closed without user-owned infrastructure; no private WPVibe cloud credentials or account data are copied.
 
@@ -63,7 +64,7 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 
 ## Builder/workflow parity
 
-- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. The playbook covers page discovery/creation, page structure, composition and element management, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
+- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. A disposable CI lane now verifies WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 through Direct MCP HTTP for discovery, method annotations, one-time approvals/replay rejection, draft page creation, Atomic composition, structure read, publish, live frontend output, no PHP fatals, and Atomic-OFF failure/native-fallback discovery. The playbook additionally covers page/element operations, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`; those broader/Pro paths remain unverified unless explicitly listed in the E2E record. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
 - **Gutenberg:** installed block schemas + validated save path.
 - **SeedProd:** Abilities/public data writes plus approval-gated browser compile using upstream one-time builder login; raw login URL is never returned to the model.
 - **Divi / Divi 5:** surgical content edits trigger upstream Divi refresh hooks; Theme Builder linkage uses audited multi-value `post meta add/delete` rather than destructive row replacement.
@@ -74,6 +75,8 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 ## Current Works-with-AI playbooks
 
 Direct MCP ships explicit playbooks for Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, and Kadence. `abilities-plugin` remains the generic Abilities-first fallback for newly compliant plugins; capabilities are discovered rather than inferred from private storage.
+
+A fresh 2026-10-11 website audit also found newly documented WPVibe Works-with-AI coverage for **Ultimate Addons for Elementor 2.9.5** and **Advanced Custom Fields 6.8.10**. The generic Abilities bridge can discover and run compliant abilities when those plugins expose them, but dedicated Direct MCP playbooks/live plugin E2E for those newly documented integrations are a separate parity milestone and are not claimed complete by the Elementor Core E2E lane.
 
 ## MCP protocol/options parity
 
@@ -94,4 +97,4 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Automated protocol/unit/security/contract coverage proves the Direct code paths and reference manifest. Version 1.3.2 runs 94 tests (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4. A disposable real WordPress site is still required for destructive/manual E2E acceptance across actual installed builder/plugin versions, especially Elementor Atomic/Pro rendering, autosave/cache behavior, media/network edge cases and generated assets. Production is not used for that verification.
+Release 1.3.2 runs 94 suite cases (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4. The current development head adds a focused Abilities raw-JSON request-body regression to that matrix plus a real disposable Elementor acceptance workflow. The verified live lane is intentionally bounded: it proves the listed Elementor Core flow on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
