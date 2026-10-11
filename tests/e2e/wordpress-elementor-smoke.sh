@@ -7,6 +7,7 @@ set -euo pipefail
 : "${ADMIN_ID:?ADMIN_ID is required}"
 WP_BIN="${WP_BIN:-wp}"
 BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
+HEALTH_URL="${HEALTH_URL:-${BASE_URL}/?rest_route=/wpvibe-direct/v1/health}"
 
 fail() {
   printf '::error::%s\n' "$*" >&2
@@ -98,7 +99,7 @@ run_approved_ability() {
 }
 
 note 'Checking authenticated Direct MCP health endpoint'
-health="$(curl --fail-with-body --silent --show-error -H "Authorization: Bearer ${DIRECT_TOKEN}" "${BASE_URL}/wp-json/wpvibe-direct/v1/health")"
+health="$(curl --fail-with-body --silent --show-error -H "Authorization: Bearer ${DIRECT_TOKEN}" "$HEALTH_URL")"
 assert_jq "$health" '.name == "WPVibe Direct MCP" and .wpvibe_active == true' 'Direct MCP health did not report an active WPVibe bridge'
 
 note 'Checking MCP 2026-07-28 server discovery and routing headers'
@@ -146,8 +147,9 @@ publish_result="$(run_approved_ability 'elementor/publish-document' "$publish_in
 assert_jq "$publish_result" '.result.structuredContent.data.status == "publish"' 'Elementor publish-document did not publish the page'
 
 note 'Verifying rendered frontend output, not only mutation responses'
-PAGE_URL="$("$WP_BIN" --path="$WP_ROOT" post url "$PAGE_ID")"
-[[ "$PAGE_URL" == http://127.0.0.1:8080/* ]] || fail 'Disposable page URL escaped the local runner origin'
+# Use WordPress's plain page query so frontend verification does not depend on
+# Apache permalink rewrite rules in the disposable runner.
+PAGE_URL="${BASE_URL}/?page_id=${PAGE_ID}"
 frontend="$(curl --fail-with-body --silent --show-error "$PAGE_URL")"
 grep -Fq 'WPVibe Direct MCP E2E Heading' <<<"$frontend" || fail 'Published frontend did not contain the expected Elementor heading'
 
