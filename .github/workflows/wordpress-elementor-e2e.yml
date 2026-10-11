@@ -115,10 +115,16 @@ jobs:
 
           ADMIN_ID="$(wp user get admin --field=ID --path="$WP_ROOT")"
           DIRECT_TOKEN="wpvd_e2e_$(openssl rand -hex 24)"
+          echo "::add-mask::$DIRECT_TOKEN"
           TOKEN_HASH="$(printf '%s' "$DIRECT_TOKEN" | sha256sum | awk '{print $1}')"
           wp option update wpvdmcp_token_hash "$TOKEN_HASH" --path="$WP_ROOT" >/dev/null
           wp option update wpvdmcp_user_id "$ADMIN_ID" --path="$WP_ROOT" >/dev/null
           wp option update wpvdmcp_enabled 1 --path="$WP_ROOT" >/dev/null
+
+          # Elementor 4.3+ deliberately does not register its abilities until
+          # the site owner enables MCP access from Elementor > Elementor MCP.
+          # Mirror that explicit opt-in in this disposable site.
+          wp option update elementor_mcp_enabled 1 --path="$WP_ROOT" >/dev/null
 
           # Use Elementor's own feature-option keys rather than guessing option names.
           wp eval 'foreach ( array( "e_opt_in_v4", "container", "e_atomic_elements" ) as $feature ) { $key = Elementor\Plugin::$instance->experiments->get_feature_option_key( $feature ); update_option( $key, Elementor\Core\Experiments\Manager::STATE_ACTIVE ); } update_option( "elementor_v4_opt_in_clicked", true );' --path="$WP_ROOT"
