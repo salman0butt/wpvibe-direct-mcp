@@ -134,19 +134,34 @@ jobs:
           echo 'BASE_URL=http://127.0.0.1:8080' >> "$GITHUB_ENV"
           echo 'MCP_URL=http://127.0.0.1:8080/wp-json/wpvibe-direct/v1/mcp' >> "$GITHUB_ENV"
 
-      - name: Start disposable WordPress server
+      - name: Start disposable WordPress Apache container
         shell: bash
         run: |
           set -euo pipefail
-          nohup wp server --host=127.0.0.1 --port=8080 --docroot="$WP_ROOT" > /tmp/wpvibe-e2e-server.log 2>&1 &
-          echo $! > /tmp/wpvibe-e2e-server.pid
+          docker pull wordpress:php8.2-apache
+
+          # The HTTP process needs to create Elementor CSS/cache/uploads. The
+          # site is disposable and mounted read/write only into this container.
+          sudo chown -R 33:33 "$WP_ROOT/wp-content"
+
+          docker run --detach \
+            --name wpvibe-e2e-web \
+            --network host \
+            --volume "$WP_ROOT:/var/www/html" \
+            wordpress:php8.2-apache \
+            bash -lc "sed -ri 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf && sed -ri 's/<VirtualHost \\*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"
+
           for attempt in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8080/wp-json/ >/dev/null; then
               exit 0
             fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq wpvibe-e2e-web; then
+              docker logs wpvibe-e2e-web >&2 || true
+              exit 1
+            fi
             sleep 1
           done
-          cat /tmp/wpvibe-e2e-server.log >&2 || true
+          docker logs wpvibe-e2e-web >&2 || true
           exit 1
 
       - name: Run Direct MCP Elementor acceptance
@@ -171,8 +186,8 @@ jobs:
           set -euo pipefail
           ROOT="${WP_ROOT:-/tmp/wpvibe-e2e-wordpress}"
           mkdir -p /tmp/wpvibe-e2e-diagnostics
-          if [[ -f /tmp/wpvibe-e2e-server.log ]]; then
-            sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' /tmp/wpvibe-e2e-server.log > /tmp/wpvibe-e2e-diagnostics/server.log
+          if docker inspect wpvibe-e2e-web >/dev/null 2>&1; then
+            docker logs wpvibe-e2e-web 2>&1 | sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' > /tmp/wpvibe-e2e-diagnostics/server.log || true
           fi
           if [[ -f "$ROOT/wp-content/debug.log" ]]; then
             sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' "$ROOT/wp-content/debug.log" > /tmp/wpvibe-e2e-diagnostics/debug.log
@@ -192,3 +207,8 @@ jobs:
           path: /tmp/wpvibe-e2e-diagnostics
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Stop disposable WordPress container
+        if: always()
+        shell: bash
+        run: docker rm --force wpvibe-e2e-web >/dev/null 2>&1 || true
