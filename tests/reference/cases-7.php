@@ -55,7 +55,7 @@ parity_test('get page html server fallback accepts same-site absolute URL but re
     set_test_routes(array('/wpvibe/v1/rendered-html'=>array('POST')));
     unset($GLOBALS['wpvdmcp_providers']);
     $seen_path='';
-    $GLOBALS['rest_dispatch_callback']=function($r)use(&$seen_path){$seen_path=$r->get_json_params()['path']??'';return new WP_REST_Response(array('html'=>'<main>Same site</main>'),200);};
+    $GLOBALS['rest_dispatch_callback']=function($r)use(&$seen_path){$seen_path=$r->get_params()['path']??'';return new WP_REST_Response(array('html'=>'<main>Same site</main>'),200);};
     $same=WPVDMCP_Parity::execute('get_page_html',array('url'=>'https://example.test/about/'));
     assert_true(!is_wp_error($same),'same-site URL native fallback');
     assert_same('/about/',$seen_path,'same-site URL converted to path');
