@@ -16,11 +16,20 @@ final class WPVDMCP_REST_Safety {
 	public static function definitions() {
 		$common = array(
 			'method' => array( 'type' => 'string', 'enum' => array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ), 'description' => 'HTTP method.' ),
-			'path' => self::strp( 'WordPress REST route beginning with /, for example /wp/v2/pages/123.' ),
-			'params' => self::objp( 'Structured query parameters.' ),
+			'path' => self::strp( 'Direct MCP REST route beginning with /, for example /wp/v2/pages/123.' ),
+			'route' => self::strp( 'WPVibe-compatible REST route. May include a query string; /wp-json is stripped when present.' ),
+			'params' => self::objp( 'Direct MCP structured query parameters.' ),
+			'query' => self::objp( 'WPVibe-compatible structured query parameters. Explicit query/params override duplicate keys embedded in route.' ),
 			'body' => array( 'description' => 'JSON body object, or a JSON string for compatibility.', 'oneOf' => array( array( 'type' => 'object' ), array( 'type' => 'string' ) ) ),
-			'fields' => self::arrayp( 'Optional selected response fields. Also forwarded as WordPress _fields on GET.', array( 'type' => 'string' ) ),
-			'max_response_bytes' => self::intp( 'Maximum encoded response size. Default 262144, hard cap 1048576 bytes.' ),
+			'fields' => array(
+				'description' => 'Response fields: Direct MCP string array, WPVibe comma-separated string, or "all" for no field filtering.',
+				'oneOf' => array(
+					array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
+					array( 'type' => 'string' ),
+				),
+			),
+			'max_response_bytes' => self::intp( 'Direct MCP maximum encoded response size. Default 262144, hard cap 1048576 bytes.' ),
+			'max_length' => self::intp( 'WPVibe-compatible response-size alias. Mapped to the Direct MCP response byte cap when max_response_bytes is omitted.' ),
 			'approval_id' => self::strp( 'One-time Direct MCP approval ID returned by an earlier write call.' ),
 		);
 		$write = $common;
@@ -28,13 +37,13 @@ final class WPVDMCP_REST_Safety {
 		return array(
 			array(
 				'name' => 'rest_api',
-				'description' => 'Call a registered WordPress REST API route internally as the token owner. GET runs immediately; writes require one-time approval unless the site owner enabled WPVibe Dangerously bypass approvals. Destination capability checks, credential-route blocking, WooCommerce replace-list guards and bounded responses remain enforced.',
-				'inputSchema' => self::schema( $common, array( 'method', 'path' ) ),
+				'description' => 'Call a registered WordPress REST API route internally as the token owner. Accepts both WPVibe route/query option names and Direct MCP path/params names. GET runs immediately; writes require one-time approval unless the site owner enabled WPVibe Dangerously bypass approvals. Destination capability checks, credential-route blocking, WooCommerce replace-list guards and bounded responses remain enforced.',
+				'inputSchema' => self::rest_schema( $common ),
 			),
 			array(
 				'name' => 'rest_api_write',
-				'description' => 'Perform an approval-gated WordPress REST mutation through the same hardened Direct MCP REST bridge. DELETE never forwards force=true. WooCommerce product/variation replacement lists must preserve existing entries unless wpvibe_replace=true is explicitly supplied.',
-				'inputSchema' => self::schema( $write, array( 'method', 'path' ) ),
+				'description' => 'Perform an approval-gated WordPress REST mutation through the same hardened Direct MCP REST bridge. Accepts both WPVibe and Direct MCP option names. DELETE never forwards force=true. WooCommerce product/variation replacement lists must preserve existing entries unless wpvibe_replace=true is explicitly supplied.',
+				'inputSchema' => self::rest_schema( $write ),
 			),
 		);
 	}
@@ -51,15 +60,25 @@ final class WPVDMCP_REST_Safety {
 			return new WP_Error( 'invalid_method', 'rest_api_write' === $name ? 'rest_api_write only accepts POST, PUT, PATCH, or DELETE.' : 'Unsupported REST method.', array( 'status' => 400 ) );
 		}
 
-		$path = self::normalize_path( isset( $args['path'] ) ? (string) $args['path'] : '' );
+		$raw_path = '';
+		if ( isset( $args['path'] ) && '' !== trim( (string) $args['path'] ) ) {
+			$raw_path = (string) $args['path'];
+		} elseif ( isset( $args['route'] ) ) {
+			$raw_path = (string) $args['route'];
+		}
+		$path = self::normalize_path( $raw_path );
 		if ( '' === $path ) {
-			return new WP_Error( 'invalid_path', 'A WordPress REST path is required.', array( 'status' => 400 ) );
+			return new WP_Error( 'invalid_path', 'A WordPress REST path/route is required.', array( 'status' => 400 ) );
 		}
 		if ( self::is_blocked_path( $path ) ) {
 			return new WP_Error( 'blocked_route', 'This authentication-sensitive REST route is blocked by the direct MCP bridge.', array( 'status' => 403 ) );
 		}
 
-		$params = isset( $args['params'] ) && is_array( $args['params'] ) ? $args['params'] : array();
+		$embedded = self::embedded_query( $raw_path );
+		$query = isset( $args['query'] ) && is_array( $args['query'] ) ? $args['query'] : array();
+		$direct_params = isset( $args['params'] ) && is_array( $args['params'] ) ? $args['params'] : array();
+		$params = array_merge( $embedded, $query, $direct_params );
+
 		$body = isset( $args['body'] ) ? $args['body'] : array();
 		if ( is_string( $body ) && '' !== trim( $body ) ) {
 			$decoded = json_decode( $body, true );
@@ -84,12 +103,21 @@ final class WPVDMCP_REST_Safety {
 			$body = $guarded;
 		}
 
+		$fields = self::normalize_fields( isset( $args['fields'] ) ? $args['fields'] : null );
 		$delegate = $args;
 		$delegate['method'] = $method;
 		$delegate['path'] = $path;
 		$delegate['params'] = $params;
 		$delegate['body'] = $body;
-		unset( $delegate['approval_id'] );
+		if ( $fields ) {
+			$delegate['fields'] = $fields;
+		} else {
+			unset( $delegate['fields'] );
+		}
+		if ( ! isset( $delegate['max_response_bytes'] ) && isset( $args['max_length'] ) ) {
+			$delegate['max_response_bytes'] = absint( $args['max_length'] );
+		}
+		unset( $delegate['approval_id'], $delegate['route'], $delegate['query'], $delegate['max_length'] );
 
 		if ( 'GET' === $method ) {
 			return WPVDMCP_Tools::execute( 'rest_api', $delegate );
@@ -223,6 +251,29 @@ final class WPVDMCP_REST_Safety {
 		return $value;
 	}
 
+	private static function embedded_query( $raw_path ) {
+		$query = wp_parse_url( (string) $raw_path, PHP_URL_QUERY );
+		if ( ! is_string( $query ) || '' === $query ) { return array(); }
+		$out = array();
+		parse_str( $query, $out );
+		return is_array( $out ) ? $out : array();
+	}
+
+	private static function normalize_fields( $value ) {
+		if ( is_string( $value ) ) {
+			$value = trim( $value );
+			if ( '' === $value || 'all' === strtolower( $value ) ) { return array(); }
+			$value = explode( ',', $value );
+		}
+		if ( ! is_array( $value ) ) { return array(); }
+		$out = array();
+		foreach ( $value as $field ) {
+			$field = sanitize_key( trim( (string) $field ) );
+			if ( '' !== $field ) { $out[] = $field; }
+		}
+		return array_values( array_unique( $out ) );
+	}
+
 	private static function normalize_path( $path ) {
 		$path = trim( (string) $path );
 		if ( '' === $path ) { return ''; }
@@ -239,6 +290,15 @@ final class WPVDMCP_REST_Safety {
 		return 0 === strpos( $lower, '/wpvibe-direct/v1/' ) || false !== strpos( $lower, '/application-passwords' );
 	}
 
+	private static function rest_schema( $props ) {
+		$schema = self::schema( $props, array( 'method' ) );
+		$schema['anyOf'] = array(
+			array( 'required' => array( 'path' ) ),
+			array( 'required' => array( 'route' ) ),
+		);
+		return $schema;
+	}
+
 	private static function schema( $props, $required = array() ) {
 		$schema = array( 'type' => 'object', 'properties' => (object) $props, 'additionalProperties' => false );
 		if ( $required ) { $schema['required'] = array_values( $required ); }
@@ -247,5 +307,4 @@ final class WPVDMCP_REST_Safety {
 	private static function strp( $description ) { return array( 'type' => 'string', 'description' => $description ); }
 	private static function intp( $description ) { return array( 'type' => 'integer', 'description' => $description ); }
 	private static function objp( $description ) { return array( 'type' => 'object', 'description' => $description ); }
-	private static function arrayp( $description, $items ) { return array( 'type' => 'array', 'description' => $description, 'items' => $items ); }
 }
