@@ -11,8 +11,10 @@ parity_test('public REST schema accepts reference and Direct option names',funct
 
 parity_test('public REST route query fields and max length aliases normalize before dispatch',function(){
     set_test_routes(array('/wp/v2/posts'=>array('GET')));
-    $GLOBALS['rest_dispatch_callback']=function($r){
-        return new WP_REST_Response(array('query'=>$r->get_query_params()),200);
+    $seen=array();
+    $GLOBALS['rest_dispatch_callback']=function($r) use (&$seen){
+        $seen=$r->get_query_params();
+        return new WP_REST_Response(array('id'=>1,'title'=>'Draft'),200);
     };
     $result=WPVDMCP_Parity::execute('rest_api',array(
         'method'=>'GET',
@@ -23,11 +25,12 @@ parity_test('public REST route query fields and max length aliases normalize bef
     ));
     unset($GLOBALS['rest_dispatch_callback']);
     assert_true(!is_wp_error($result),'reference option aliases should dispatch');
-    $query=$result['data']['query']??array();
-    assert_same('5',(string)($query['per_page']??''),'embedded route query forwarded');
-    assert_same('draft',$query['status']??null,'embedded status forwarded');
-    assert_same(2,(int)($query['page']??0),'query alias forwarded');
-    assert_same('id,title',$query['_fields']??null,'string fields normalized');
+    assert_same('5',(string)($seen['per_page']??''),'embedded route query forwarded');
+    assert_same('draft',$seen['status']??null,'embedded status forwarded');
+    assert_same(2,(int)($seen['page']??0),'query alias forwarded');
+    assert_same('id,title',$seen['_fields']??null,'string fields normalized');
+    assert_same(1,$result['data']['id']??null,'selected id preserved');
+    assert_same('Draft',$result['data']['title']??null,'selected title preserved');
 });
 
 parity_test('public REST explicit query object wins over embedded duplicate keys',function(){
