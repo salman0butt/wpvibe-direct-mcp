@@ -38,8 +38,8 @@ final class WPVDMCP_Abilities_Compat {
 			'input' => array( 'type' => 'object', 'description' => 'Preferred structured ability input object.' ),
 			'input_json' => array( 'type' => 'string', 'description' => 'Legacy WPVibe JSON-encoded ability input. Ignored when input is present.' ),
 			'readonly' => array( 'type' => 'boolean', 'description' => 'Fallback annotation hint used only if ability metadata cannot be fetched.' ),
-			'destructive' => array( 'type' => 'boolean', 'description' => 'Fallback destructive hint used only if metadata cannot be fetched.' ),
-			'idempotent' => array( 'type' => 'boolean', 'description' => 'Fallback idempotent hint used only if metadata cannot be fetched.' ),
+			'destructive' => array( 'type' => 'boolean', 'description' => 'Fallback destructive hint used only if ability metadata cannot be fetched.' ),
+			'idempotent' => array( 'type' => 'boolean', 'description' => 'Fallback idempotent hint used only if ability metadata cannot be fetched.' ),
 			'approval_id' => array( 'type' => 'string', 'description' => 'One-time Direct MCP approval ID for a previously approved local write.' ),
 		);
 		$run_schema = self::schema( $run_props );
@@ -135,7 +135,35 @@ final class WPVDMCP_Abilities_Compat {
 		if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
-		return WPVDMCP_Tools::dispatch( 'POST', $route, array(), array( 'input' => $input ) );
+		return self::dispatch_json_post( $route, array( 'input' => $input ) );
+	}
+
+	/**
+	 * Dispatch an Abilities mutation exactly like WordPress core's REST tests.
+	 *
+	 * WordPress 6.9+ parses the top-level `input` from the raw JSON request body.
+	 * Populating form/body params or a synthetic JSON-param bag is insufficient
+	 * for the real WP_REST_Abilities_V1_Run_Controller. Core sets the JSON content
+	 * type and then calls set_body( wp_json_encode( ... ) ).
+	 */
+	private static function dispatch_json_post( $route, $body ) {
+		$request = new WP_REST_Request( 'POST', $route );
+		$request->set_header( 'content-type', 'application/json' );
+		$request->set_body( wp_json_encode( $body ) );
+
+		$response = rest_do_request( $request );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$response = rest_ensure_response( $response );
+		$data = $response->get_data();
+		$status = $response->get_status();
+		if ( $status >= 400 ) {
+			$message = is_array( $data ) && isset( $data['message'] ) ? $data['message'] : 'WordPress REST request failed.';
+			$code = is_array( $data ) && isset( $data['code'] ) ? $data['code'] : 'rest_error';
+			return new WP_Error( $code, $message, array( 'status' => $status, 'response' => $data ) );
+		}
+		return array( 'status' => $status, 'data' => $data );
 	}
 
 	private static function abilities_available() {

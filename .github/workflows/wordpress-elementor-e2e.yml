@@ -1,0 +1,220 @@
+name: WordPress Elementor E2E
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/wordpress-elementor-e2e.yml'
+      - 'tests/e2e/**'
+      - 'includes/**'
+      - 'skills/elementor.md'
+      - 'wpvibe-direct-mcp.php'
+      - 'docs/TESTING.md'
+      - 'docs/PARITY.md'
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - '.github/workflows/wordpress-elementor-e2e.yml'
+      - 'tests/e2e/**'
+      - 'includes/**'
+      - 'skills/elementor.md'
+      - 'wpvibe-direct-mcp.php'
+      - 'docs/TESTING.md'
+      - 'docs/PARITY.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordpress-elementor-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  elementor:
+    name: WordPress 6.9 / WPVibe 1.20.3 / Elementor 4.3.4
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout Direct MCP
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, curl, mbstring, xml, dom
+          coverage: none
+
+      - name: Install WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          php /tmp/wp-cli.phar --info
+          sudo install -m 0755 /tmp/wp-cli.phar /usr/local/bin/wp
+
+      - name: Build disposable WordPress site
+        id: site
+        shell: bash
+        env:
+          WPVIBE_SHA: 8f303926ae11179e38bc0ecf2a87e3cbd18984c6
+          WP_ROOT: /tmp/wpvibe-e2e-wordpress
+        run: |
+          set -euo pipefail
+          mkdir -p "$WP_ROOT"
+          echo "WP_ROOT=$WP_ROOT" >> "$GITHUB_ENV"
+
+          wp core download --path="$WP_ROOT" --version=6.9 --force
+          wp config create \
+            --path="$WP_ROOT" \
+            --dbname=wordpress \
+            --dbuser=root \
+            --dbpass=root \
+            --dbhost=127.0.0.1:3306 \
+            --skip-check
+          wp config set WP_DEBUG true --raw --path="$WP_ROOT"
+          wp config set WP_DEBUG_LOG true --raw --path="$WP_ROOT"
+          wp config set WP_DEBUG_DISPLAY false --raw --path="$WP_ROOT"
+          wp core install \
+            --path="$WP_ROOT" \
+            --url=http://127.0.0.1:8080 \
+            --title='WPVibe Direct MCP E2E' \
+            --admin_user=admin \
+            --admin_password='disposable-e2e-admin-only' \
+            --admin_email=e2e@example.test \
+            --skip-email
+
+          # WordPress plugin dependencies key WPVibe by its WordPress.org slug
+          # `vibe-ai`. Clone the audited source into that exact folder so the
+          # disposable fixture mirrors a real WordPress.org installation.
+          git clone --quiet https://github.com/awesomemotive/wpvibe-ai-mcp.git "$WP_ROOT/wp-content/plugins/vibe-ai"
+          git -C "$WP_ROOT/wp-content/plugins/vibe-ai" checkout --quiet --detach "$WPVIBE_SHA"
+          test "$(git -C "$WP_ROOT/wp-content/plugins/vibe-ai" rev-parse HEAD)" = "$WPVIBE_SHA"
+
+          mkdir -p "$WP_ROOT/wp-content/plugins/wpvibe-direct-mcp"
+          rsync -a --delete --exclude='.git' --exclude='.worktrees' "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wpvibe-direct-mcp/"
+
+          wp plugin install elementor --version=4.3.4 --activate --path="$WP_ROOT"
+          wp plugin activate vibe-ai/vibe-ai.php --path="$WP_ROOT"
+          wp plugin activate wpvibe-direct-mcp/wpvibe-direct-mcp.php --path="$WP_ROOT"
+
+          test "$(wp plugin get elementor --field=version --path="$WP_ROOT")" = '4.3.4'
+          test "$(wp plugin get vibe-ai --field=version --path="$WP_ROOT")" = '1.20.3'
+
+          ADMIN_ID="$(wp user get admin --field=ID --path="$WP_ROOT")"
+          DIRECT_TOKEN="wpvd_e2e_$(openssl rand -hex 24)"
+          echo "::add-mask::$DIRECT_TOKEN"
+          TOKEN_HASH="$(printf '%s' "$DIRECT_TOKEN" | sha256sum | awk '{print $1}')"
+          wp option update wpvdmcp_token_hash "$TOKEN_HASH" --path="$WP_ROOT" >/dev/null
+          wp option update wpvdmcp_user_id "$ADMIN_ID" --path="$WP_ROOT" >/dev/null
+          wp option update wpvdmcp_enabled 1 --path="$WP_ROOT" >/dev/null
+
+          # Elementor 4.3+ deliberately does not register its abilities until
+          # the site owner enables MCP access from Elementor > Elementor MCP.
+          # Mirror that explicit opt-in in this disposable site.
+          wp option update elementor_mcp_enabled 1 --path="$WP_ROOT" >/dev/null
+
+          # Use Elementor's own feature-option keys rather than guessing option names.
+          wp eval 'foreach ( array( "e_opt_in_v4", "container", "e_atomic_elements" ) as $feature ) { $key = Elementor\Plugin::$instance->experiments->get_feature_option_key( $feature ); update_option( $key, Elementor\Core\Experiments\Manager::STATE_ACTIVE ); } update_option( "elementor_v4_opt_in_clicked", true );' --path="$WP_ROOT"
+
+          echo "ADMIN_ID=$ADMIN_ID" >> "$GITHUB_ENV"
+          echo "DIRECT_TOKEN=$DIRECT_TOKEN" >> "$GITHUB_ENV"
+          echo 'BASE_URL=http://127.0.0.1:8080' >> "$GITHUB_ENV"
+          echo 'HEALTH_URL=http://127.0.0.1:8080/?rest_route=/wpvibe-direct/v1/health' >> "$GITHUB_ENV"
+          echo 'MCP_URL=http://127.0.0.1:8080/?rest_route=/wpvibe-direct/v1/mcp' >> "$GITHUB_ENV"
+
+      - name: Start disposable WordPress Apache container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull wordpress:php8.2-apache
+
+          # The HTTP process needs to create Elementor CSS/cache/uploads. The
+          # site is disposable and mounted read/write only into this container.
+          sudo chown -R 33:33 "$WP_ROOT/wp-content"
+
+          docker run --detach \
+            --name wpvibe-e2e-web \
+            --network host \
+            --volume "$WP_ROOT:/var/www/html" \
+            wordpress:php8.2-apache \
+            bash -lc "sed -ri 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf && sed -ri 's/<VirtualHost \\*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"
+
+          # Use WordPress's canonical rest_route query form. The acceptance
+          # target is the REST controller itself, not Apache permalink rewrite.
+          for attempt in $(seq 1 60); do
+            if curl -fsS 'http://127.0.0.1:8080/?rest_route=/' >/dev/null; then
+              exit 0
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq wpvibe-e2e-web; then
+              docker logs wpvibe-e2e-web >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+          docker logs wpvibe-e2e-web >&2 || true
+          exit 1
+
+      - name: Run Direct MCP Elementor acceptance
+        shell: bash
+        run: bash tests/e2e/wordpress-elementor-smoke.sh
+
+      - name: Verify no PHP fatal errors were logged
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEBUG_LOG="$WP_ROOT/wp-content/debug.log"
+          if [[ -f "$DEBUG_LOG" ]] && grep -Eqi 'PHP Fatal error|Uncaught (Error|Exception)' "$DEBUG_LOG"; then
+            sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' "$DEBUG_LOG" >&2
+            exit 1
+          fi
+
+      - name: Prepare redacted diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${WP_ROOT:-/tmp/wpvibe-e2e-wordpress}"
+          mkdir -p /tmp/wpvibe-e2e-diagnostics
+          if docker inspect wpvibe-e2e-web >/dev/null 2>&1; then
+            docker logs wpvibe-e2e-web 2>&1 | sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' > /tmp/wpvibe-e2e-diagnostics/server.log || true
+          fi
+          if [[ -f "$ROOT/wp-content/debug.log" ]]; then
+            sed -E 's/(wpvd_[A-Za-z0-9_-]+)/[REDACTED_DIRECT_TOKEN]/g' "$ROOT/wp-content/debug.log" > /tmp/wpvibe-e2e-diagnostics/debug.log
+          fi
+          {
+            echo 'WordPress:' "$(wp core version --path="$ROOT" 2>/dev/null || true)"
+            echo 'WPVibe:' "$(wp plugin get vibe-ai --field=version --path="$ROOT" 2>/dev/null || true)"
+            echo 'Elementor:' "$(wp plugin get elementor --field=version --path="$ROOT" 2>/dev/null || true)"
+            echo 'Direct MCP:' "$(wp plugin get wpvibe-direct-mcp --field=version --path="$ROOT" 2>/dev/null || true)"
+          } > /tmp/wpvibe-e2e-diagnostics/environment.txt
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordpress-elementor-e2e-diagnostics
+          path: /tmp/wpvibe-e2e-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop disposable WordPress container
+        if: always()
+        shell: bash
+        run: docker rm --force wpvibe-e2e-web >/dev/null 2>&1 || true
