@@ -14,7 +14,7 @@
 
 - Maximum provider nesting depth is 8.
 - Maximum provider collection length processed is 200 items.
-- Maximum single provider string is 65,536 bytes.
+- Maximum single provider string value or map key is 65,536 bytes; oversized map-key entries are dropped with explicit accounting.
 - Maximum serialized provider result is 262,144 bytes; escaping/encoding expansion fails closed with explicit sanitizer metadata.
 - Provider error codes are bounded to 256 bytes when pathological, messages to 4,096 bytes, invalid UTF-8 is made JSON-safe, error data uses the same sanitizer, and the complete model-visible error envelope stays within the serialized ceiling.
 - Redaction is key-context based; ordinary prose containing words such as “token” stays intact.
@@ -22,11 +22,12 @@
 
 ## Review Focus
 
-- Header-like, contextual value/data, prefixed transport-auth, camelCase, leading-acronym (`AWSAccessKeyId`, `XApiKey`), OAuth consumer, and secret-access credential keys nested several levels deep are removed while safe count/status/public-key fields survive.
+- Header-like, recursively wrapped contextual value/data/hash/PEM, prefixed transport-auth, provider-secret-key, plural-credentials, camelCase, leading-acronym (`AWSAccessKeyId`, `XApiKey`), OAuth consumer, and secret-access credential keys nested several levels deep are removed while safe count/status/public-key fields survive.
 - A provider can return a very long string without bypassing the total/string bounds or losing truncation metadata.
 - Large/deep arrays cannot amplify output past the collection/depth guards.
 - Provider `WP_Error` data cannot leak credential fields; ordinary error codes/messages remain unchanged while pathological code/message/encoding inputs and Unicode JSON-escaping expansion are bounded using the server's actual error serialization flags, so the complete model-visible envelope cannot exceed the provider-output ceiling.
 - Successful provider output uses the server's actual pretty-print/Unicode text flags for the final serialized-size check so compact-vs-wire formatting expansion cannot bypass the ceiling.
+- Byte-limited valid UTF-8 strings are truncated only at code-point boundaries, and oversized map keys cannot exceed the single-string limit or swallow later safe siblings.
 - Both callback-global and WordPress filter branches traverse the same sanitizer.
 - Unmodified provider outputs keep their original shape so existing integrations do not see needless compatibility churn.
 

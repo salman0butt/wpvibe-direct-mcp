@@ -22,11 +22,11 @@ Safety limits:
 
 - Maximum nesting depth: **8**.
 - Maximum items processed in one collection: **200**.
-- Maximum bytes in one provider string: **65,536**.
+- Maximum bytes in one provider string value or map key: **65,536**. Oversized map-key entries are dropped and counted explicitly rather than truncated into a potentially colliding key.
 - Maximum serialized provider output: **262,144 bytes**. Traversal keeps an internal content reserve below that ceiling, then verifies the JSON-encoded result; pathological escaping/encoding expansion fails closed to a compact explicit truncation result instead of crossing the limit.
 - Provider `WP_Error` keeps ordinary code/message semantics while bounding pathological codes to **256 bytes** and messages to **4,096 bytes**; invalid UTF-8 is made JSON-safe, error data is normalized with the same rules as successful output, and the complete pretty-serialized model-visible error envelope is checked against the **262,144-byte** ceiling.
 
-The normalizer removes values under credential-shaped keys. Key matching is case-insensitive, understands separator variants, normal camelCase, leading-acronym camel forms such as `AWSAccessKeyId` and `XApiKey`, prefixed transport/auth forms such as `httpAuthorization` / `clientAuth`, and explicit credential-context forms such as `authorizationHeader`, `privateKeyPem`, `cookieHeader`, `passwordValue`, or `accessTokenData`; it is based on key context rather than prose content. It must cover authorization/bearer forms, cookie forms, password/secret forms, API keys, access/refresh/ID tokens, private/secret/consumer/access-key forms (including AWS and OAuth consumer-key names), credential fields, one-time `login_url`, and nonce fields, plus credential suffixes such as `_token`, `_secret`, `_password`, `_api_key`, `_private_key`, `_consumer_key`, `_access_key`, `_access_key_id`, `_nonce`, `_cookie`, or `_credential`.
+The normalizer removes values under credential-shaped keys. Key matching is case-insensitive, understands separator variants, normal camelCase, leading-acronym camel forms such as `AWSAccessKeyId` and `XApiKey`, prefixed transport/auth forms such as `httpAuthorization` / `clientAuth`, provider-prefixed secret-key forms such as `stripeSecretKey`, explicit plural credentials such as `clientCredentials`, and recursively chained credential-context forms such as `authorizationHeaderValue`, `privateKeyPem`, `cookieHeader`, `passwordHashValue`, or `accessTokenData`; it is based on key context rather than prose content. It must cover authorization/bearer forms, cookie forms, password/secret forms, API keys, access/refresh/ID tokens, private/secret/consumer/access-key forms (including AWS and OAuth consumer-key names), credential fields, one-time `login_url`, and nonce fields, plus credential suffixes such as `_token`, `_secret`, `_password`, `_api_key`, `_private_key`, `_secret_key`, `_consumer_key`, `_access_key`, `_access_key_id`, `_nonce`, `_cookie`, or `_credential`.
 
 Do **not** redact an ordinary value merely because prose contains words such as “token” or “password”. A field such as `token_count` also remains intact because the key describes a count, not a credential.
 
@@ -62,5 +62,7 @@ RED tests must prove current source leaks nested credential-key fields and permi
 - callback-global and WordPress filter-provider branches through the same normalizer;
 - leading-acronym plus OAuth/secret-access/prefixed-auth/contextual header-value-data credential-key variants with safe count/status/public-key false-positive controls;
 - successful `tools/call` provider text measured with the server's real pretty-print flags so formatting expansion cannot bypass the serialized ceiling;
+- oversized map keys are dropped/count-reported while safe siblings survive;
+- multibyte strings truncated by byte limits remain valid UTF-8 and model-visible JSON;
 - unchanged `provider_unavailable` behavior;
 - existing HTML/PDF bounds remaining green.

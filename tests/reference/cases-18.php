@@ -29,6 +29,14 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'requestAuthorization'=>'Bearer request-secret',
                 'httpAuth'=>'user:http-password',
                 'clientAuth'=>'client-auth-secret',
+                'tokenValue'=>'generic-token-secret',
+                'passwordHashValue'=>'password-hash-secret',
+                'authorizationHeaderValue'=>'Bearer nested-wrapper-secret',
+                'clientCredentials'=>array('id'=>'client-id','secret'=>'client-secret'),
+                'userCredentials'=>'user-credential-secret',
+                'oauthCredentials'=>'oauth-credential-secret',
+                'stripeSecretKey'=>'stripe-secret-key-value',
+                'apiSecretKey'=>'api-secret-key-value',
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
@@ -39,6 +47,9 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
             'publicKeyPem'=>'-----BEGIN PUBLIC KEY----- safe-public-material',
             'supportsAuth'=>true,
             'requiresAuthorization'=>false,
+            'supportsCredentials'=>true,
+            'oauthAuthorization'=>'https://auth.example.test/authorize',
+            'tokenExpiresAt'=>'2026-10-12T00:00:00Z',
             '_wpvdmcp_provider_output'=>array('redacted_fields'=>0,'truncated'=>false),
         );
     });
@@ -70,6 +81,14 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['requestAuthorization']),'request authorization credential must be removed');
     assert_true(!isset($r['results'][0]['httpAuth']),'HTTP auth credential must be removed');
     assert_true(!isset($r['results'][0]['clientAuth']),'client auth credential must be removed');
+    assert_true(!isset($r['results'][0]['tokenValue']),'generic token value credential must be removed');
+    assert_true(!isset($r['results'][0]['passwordHashValue']),'password hash value credential must be removed');
+    assert_true(!isset($r['results'][0]['authorizationHeaderValue']),'wrapped authorization header value must be removed');
+    assert_true(!isset($r['results'][0]['clientCredentials']),'client credentials must be removed');
+    assert_true(!isset($r['results'][0]['userCredentials']),'user credentials must be removed');
+    assert_true(!isset($r['results'][0]['oauthCredentials']),'OAuth credentials must be removed');
+    assert_true(!isset($r['results'][0]['stripeSecretKey']),'provider-prefixed secret key must be removed');
+    assert_true(!isset($r['results'][0]['apiSecretKey']),'API-prefixed secret key must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
@@ -80,7 +99,10 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_same('-----BEGIN PUBLIC KEY----- safe-public-material',$r['publicKeyPem']??null,'public key PEM material preserved');
     assert_same(true,$r['supportsAuth']??null,'auth capability metadata preserved');
     assert_same(false,$r['requiresAuthorization']??null,'authorization requirement metadata preserved');
-    assert_same(25,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same(true,$r['supportsCredentials']??null,'credentials capability metadata preserved');
+    assert_same('https://auth.example.test/authorize',$r['oauthAuthorization']??null,'OAuth authorization endpoint metadata preserved');
+    assert_same('2026-10-12T00:00:00Z',$r['tokenExpiresAt']??null,'token expiry metadata preserved');
+    assert_same(33,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 
@@ -107,6 +129,20 @@ parity_test('provider outputs bound strings collections and nesting with explici
     assert_true(($r['_wpvdmcp_provider_output']['dropped_items']??0)>=50,'dropped collection items counted');
     assert_same(true,$r['_wpvdmcp_provider_output']['depth_limited']??null,'depth metadata reported');
     assert_true(strlen(json_encode($r))<=262144,'serialized provider payload stays within the 262144-byte total limit');
+});
+
+parity_test('provider output bounds oversized map keys without losing safe siblings',function(){
+    $huge_key=str_repeat('k',70000);
+    $GLOBALS['wpvdmcp_providers']=array('page_audit'=>function($args)use($huge_key){
+        return array('container'=>array($huge_key=>'value','safe'=>'kept'));
+    });
+    $r=WPVDMCP_Parity::execute('audit_page',array('page_url'=>'https://example.test/'));
+    unset($GLOBALS['wpvdmcp_providers']);
+
+    assert_same('kept',$r['container']['safe']??null,'safe sibling after oversized key is preserved');
+    foreach(array_keys($r['container']??array()) as $key)assert_true(!is_string($key)||strlen($key)<=65536,'provider map key must respect single-string bound');
+    assert_same(true,$r['_wpvdmcp_provider_output']['truncated']??null,'oversized key is reported as truncation');
+    assert_true(($r['_wpvdmcp_provider_output']['dropped_items']??0)>=1,'oversized key item is counted as dropped');
 });
 
 parity_test('provider output fails closed when JSON escaping would exceed the serialized total limit',function(){
@@ -228,6 +264,25 @@ parity_test('provider WP_Error envelope accounts for JSON unicode escaping expan
     $decoded=json_decode($text,true);
     assert_true(is_array($decoded),'unicode-heavy provider error remains valid JSON');
     assert_same(true,$decoded['data']['_wpvdmcp_provider_output']['error_envelope_limit']??null,'unicode expansion triggers full-envelope fallback');
+});
+
+parity_test('provider string truncation never splits a valid UTF-8 code point',function(){
+    $emoji=str_repeat("\xF0\x9F\x92\xA5",2000);
+    $GLOBALS['wpvdmcp_providers']=array('page_audit'=>function($args)use($emoji){
+        return new WP_Error('utf8_error',$emoji,array('status'=>502));
+    });
+    $payload=array('jsonrpc'=>'2.0','id'=>'provider-error-utf8-truncate','method'=>'tools/call','params'=>array('name'=>'audit_page','arguments'=>array('page_url'=>'https://example.test/')));
+    $response=WPVDMCP_Server::instance()->handle(test_request($payload));
+    unset($GLOBALS['wpvdmcp_providers']);
+
+    $body=response_data($response);
+    $text=$body['result']['content'][0]['text']??null;
+    assert_true(is_string($text),'UTF-8 provider error must remain serializable text after truncation');
+    assert_true(false!==json_decode($text,true) || 'false'===$text,'UTF-8 provider error text must remain JSON');
+    $decoded=json_decode($text,true);
+    assert_true(is_array($decoded),'UTF-8 provider error text decodes as a structured error');
+    assert_true(1===preg_match('//u',(string)($decoded['message']??'')),'truncated provider error message remains valid UTF-8');
+    assert_true(strlen((string)($decoded['message']??''))<=4096,'truncated provider error message stays within byte cap');
 });
 
 parity_test('provider object output is normalized before nested credential filtering',function(){

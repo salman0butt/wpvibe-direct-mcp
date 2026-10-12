@@ -103,6 +103,11 @@ final class WPVDMCP_Provider_Output {
 				$state['reserved_metadata_removed'] = true;
 				continue;
 			}
+			if ( is_string( $key ) && strlen( $key ) > self::MAX_STRING_BYTES ) {
+				$state['truncated'] = true;
+				$state['dropped_items']++;
+				continue;
+			}
 			if ( is_string( $key ) && self::is_sensitive_key( $key ) ) {
 				$state['redacted_fields']++;
 				continue;
@@ -134,25 +139,24 @@ final class WPVDMCP_Provider_Output {
 			'password_hash', 'credential', 'credentials', 'login_url', 'nonce',
 		);
 		if ( in_array( $normalized, $exact, true ) ) { return true; }
-		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_consumer_key', '_access_key', '_access_key_id', '_nonce', '_cookie', '_credential' ) as $suffix ) {
+		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_secret_key', '_consumer_key', '_access_key', '_access_key_id', '_nonce', '_cookie', '_credential' ) as $suffix ) {
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
 		}
-		$context_bases = array(
-			'auth', 'authentication', 'authorization', 'bearer', 'cookie', 'password', 'passwd', 'secret',
-			'api_key', 'access_token', 'refresh_token', 'id_token', 'private_key', 'secret_key',
-			'consumer_key', 'access_key', 'access_key_id', 'credential', 'credentials', 'nonce',
-		);
-		foreach ( $context_bases as $base ) {
-			foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded', 'pem', 'data', 'hash' ) as $context ) {
-				$credential_context = $base . '_' . $context;
-				if ( $normalized === $credential_context ) { return true; }
-				$suffix = '_' . $credential_context;
-				if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
-			}
-		}
-		foreach ( array( 'http', 'client', 'request', 'proxy', 'server', 'upstream', 'provider', 'remote', 'api', 'basic', 'digest' ) as $prefix ) {
+		$transport_prefixes = array( 'http', 'client', 'request', 'proxy', 'server', 'upstream', 'provider', 'remote', 'api', 'basic', 'digest' );
+		foreach ( $transport_prefixes as $prefix ) {
 			foreach ( array( 'auth', 'authentication', 'authorization' ) as $auth_form ) {
 				if ( $normalized === $prefix . '_' . $auth_form ) { return true; }
+			}
+		}
+		foreach ( array_merge( $transport_prefixes, array( 'user', 'service', 'app', 'application', 'database', 'db', 'oauth' ) ) as $prefix ) {
+			foreach ( array( 'credential', 'credentials' ) as $credential_form ) {
+				if ( $normalized === $prefix . '_' . $credential_form ) { return true; }
+			}
+		}
+		foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded', 'pem', 'data', 'hash', 'confirmation', 'confirm', 'repeat' ) as $wrapper ) {
+			$suffix = '_' . $wrapper;
+			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) {
+				if ( self::is_sensitive_key( substr( $normalized, 0, -strlen( $suffix ) ) ) ) { return true; }
 			}
 		}
 		return false;
@@ -174,9 +178,19 @@ final class WPVDMCP_Provider_Output {
 		if ( $marker_length >= $limit ) {
 			$out = substr( $marker, 0, $limit );
 		} else {
-			$out = substr( $value, 0, $limit - $marker_length ) . $marker;
+			$out = self::utf8_prefix( $value, $limit - $marker_length ) . $marker;
 		}
 		self::consume_budget( strlen( $out ), $state );
+		return $out;
+	}
+
+	private static function utf8_prefix( $value, $max_bytes ) {
+		$max_bytes = max( 0, (int) $max_bytes );
+		if ( 0 === $max_bytes || '' === $value ) { return ''; }
+		$out = substr( $value, 0, $max_bytes );
+		while ( '' !== $out && 1 !== @preg_match( '//u', $out ) ) {
+			$out = substr( $out, 0, -1 );
+		}
 		return $out;
 	}
 
