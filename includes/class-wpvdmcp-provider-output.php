@@ -62,7 +62,13 @@ final class WPVDMCP_Provider_Output {
 					return self::consume_marker( '[unsupported provider object]', $state );
 				}
 			} else {
-				$value = get_object_vars( $value );
+				$encoded = wp_json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+				$decoded = false !== $encoded ? json_decode( $encoded, true ) : null;
+				if ( false !== $encoded && JSON_ERROR_NONE === json_last_error() ) {
+					$value = $decoded;
+				} else {
+					$value = get_object_vars( $value );
+				}
 			}
 		}
 
@@ -108,7 +114,7 @@ final class WPVDMCP_Provider_Output {
 				$state['dropped_items']++;
 				continue;
 			}
-			if ( is_string( $key ) && self::is_sensitive_key( $key ) ) {
+			if ( is_string( $key ) && self::is_sensitive_key( $key, $item ) ) {
 				$state['redacted_fields']++;
 				continue;
 			}
@@ -126,7 +132,7 @@ final class WPVDMCP_Provider_Output {
 		return $out;
 	}
 
-	private static function is_sensitive_key( $key ) {
+	private static function is_sensitive_key( $key, $value = null ) {
 		$normalized = preg_replace( '/([A-Z]+)([A-Z][a-z])/', '$1_$2', (string) $key );
 		$normalized = preg_replace( '/([a-z0-9])([A-Z])/', '$1_$2', (string) $normalized );
 		$normalized = strtolower( (string) $normalized );
@@ -142,6 +148,20 @@ final class WPVDMCP_Provider_Output {
 		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_secret_key', '_consumer_key', '_access_key', '_access_key_id', '_nonce', '_cookie', '_credential' ) as $suffix ) {
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
 		}
+		$safe_predicate_prefixes = array( 'supports', 'requires', 'needs', 'has', 'uses', 'allows', 'accepts', 'provides' );
+		$plural_secret_suffixes = array(
+			'credentials', 'secrets', 'tokens', 'passwords', 'cookies', 'api_keys', 'private_keys',
+			'secret_keys', 'consumer_keys', 'access_keys', 'access_tokens', 'refresh_tokens',
+		);
+		foreach ( $plural_secret_suffixes as $plural ) {
+			if ( $normalized === $plural ) { return true; }
+			$suffix = '_' . $plural;
+			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) {
+				$prefix = substr( $normalized, 0, -strlen( $suffix ) );
+				if ( is_bool( $value ) && in_array( $prefix, $safe_predicate_prefixes, true ) ) { return false; }
+				return true;
+			}
+		}
 		$transport_prefixes = array( 'http', 'client', 'request', 'proxy', 'server', 'upstream', 'provider', 'remote', 'api', 'basic', 'digest' );
 		foreach ( $transport_prefixes as $prefix ) {
 			foreach ( array( 'auth', 'authentication', 'authorization' ) as $auth_form ) {
@@ -156,7 +176,7 @@ final class WPVDMCP_Provider_Output {
 		foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded', 'pem', 'data', 'hash', 'confirmation', 'confirm', 'repeat' ) as $wrapper ) {
 			$suffix = '_' . $wrapper;
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) {
-				if ( self::is_sensitive_key( substr( $normalized, 0, -strlen( $suffix ) ) ) ) { return true; }
+				if ( self::is_sensitive_key( substr( $normalized, 0, -strlen( $suffix ) ), $value ) ) { return true; }
 			}
 		}
 		return false;

@@ -22,7 +22,7 @@
 
 ## Review Focus
 
-- Header-like, recursively wrapped contextual value/data/hash/PEM, prefixed transport-auth, provider-secret-key, plural-credentials, camelCase, leading-acronym (`AWSAccessKeyId`, `XApiKey`), OAuth consumer, and secret-access credential keys nested several levels deep are removed while safe count/status/public-key fields survive.
+- Header-like, recursively wrapped contextual value/data/hash/PEM, prefixed transport-auth, provider-secret-key, arbitrary plural credential/secret/token/API-key collections, camelCase, leading-acronym (`AWSAccessKeyId`, `XApiKey`), OAuth consumer, and secret-access credential keys nested several levels deep are removed while safe count/status/public-key and boolean capability-predicate fields survive.
 - A provider can return a very long string without bypassing the total/string bounds or losing truncation metadata.
 - Large/deep arrays cannot amplify output past the collection/depth guards.
 - Provider `WP_Error` data cannot leak credential fields; ordinary error codes/messages remain unchanged while pathological code/message/encoding inputs and Unicode JSON-escaping expansion are bounded using the server's actual error serialization flags, so the complete model-visible envelope cannot exceed the provider-output ceiling.
@@ -30,6 +30,7 @@
 - Byte-limited valid UTF-8 strings are truncated only at code-point boundaries, and oversized map keys cannot exceed the single-string limit or swallow later safe siblings.
 - Both callback-global and WordPress filter branches traverse the same sanitizer.
 - Unmodified provider outputs keep their original shape so existing integrations do not see needless compatibility churn.
+- Native JSON-encodable internal objects and `JsonSerializable` representations preserve safe represented data while nested credentials remain subject to the same sanitizer.
 
 ---
 

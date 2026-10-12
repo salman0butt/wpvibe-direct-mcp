@@ -37,6 +37,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'oauthCredentials'=>'oauth-credential-secret',
                 'stripeSecretKey'=>'stripe-secret-key-value',
                 'apiSecretKey'=>'api-secret-key-value',
+                'AWSCredentials'=>'AKIAEXAMPLE:SECRETEXAMPLE',
+                'bearerCredentials'=>'Bearer EXAMPLE-TOKEN',
+                'stripeCredentials'=>'sk_live_EXAMPLE',
+                'clientSecrets'=>array('secret-one','secret-two'),
+                'accessTokens'=>array('token-one','token-two'),
+                'apiKeys'=>array('api-one','api-two'),
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
@@ -48,6 +54,7 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
             'supportsAuth'=>true,
             'requiresAuthorization'=>false,
             'supportsCredentials'=>true,
+            'supportsTokens'=>true,
             'oauthAuthorization'=>'https://auth.example.test/authorize',
             'tokenExpiresAt'=>'2026-10-12T00:00:00Z',
             '_wpvdmcp_provider_output'=>array('redacted_fields'=>0,'truncated'=>false),
@@ -89,6 +96,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['oauthCredentials']),'OAuth credentials must be removed');
     assert_true(!isset($r['results'][0]['stripeSecretKey']),'provider-prefixed secret key must be removed');
     assert_true(!isset($r['results'][0]['apiSecretKey']),'API-prefixed secret key must be removed');
+    assert_true(!isset($r['results'][0]['AWSCredentials']),'arbitrary AWS credentials field must be removed');
+    assert_true(!isset($r['results'][0]['bearerCredentials']),'arbitrary bearer credentials field must be removed');
+    assert_true(!isset($r['results'][0]['stripeCredentials']),'arbitrary provider credentials field must be removed');
+    assert_true(!isset($r['results'][0]['clientSecrets']),'plural secrets field must be removed');
+    assert_true(!isset($r['results'][0]['accessTokens']),'plural access tokens field must be removed');
+    assert_true(!isset($r['results'][0]['apiKeys']),'plural API keys field must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
@@ -100,9 +113,10 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_same(true,$r['supportsAuth']??null,'auth capability metadata preserved');
     assert_same(false,$r['requiresAuthorization']??null,'authorization requirement metadata preserved');
     assert_same(true,$r['supportsCredentials']??null,'credentials capability metadata preserved');
+    assert_same(true,$r['supportsTokens']??null,'token capability metadata preserved');
     assert_same('https://auth.example.test/authorize',$r['oauthAuthorization']??null,'OAuth authorization endpoint metadata preserved');
     assert_same('2026-10-12T00:00:00Z',$r['tokenExpiresAt']??null,'token expiry metadata preserved');
-    assert_same(33,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same(39,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 
@@ -299,6 +313,20 @@ parity_test('provider object output is normalized before nested credential filte
     assert_same('admin',$r['nested']['role']??null,'nested object safe data preserved');
     assert_true(!isset($r['nested']['password']),'nested object credential removed');
     assert_same(true,$r['_wpvdmcp_provider_output']['object_normalized']??null,'object normalization reported');
+});
+
+parity_test('JSON-encodable internal provider objects preserve their safe representation',function(){
+    $GLOBALS['wpvdmcp_reference_providers']=array('get_profile'=>function($args){
+        return new ArrayObject(array('name'=>'Owner','plan'=>'pro','apiKey'=>'array-object-secret'));
+    });
+    $r=WPVDMCP_Parity::execute('get_profile',array());
+    unset($GLOBALS['wpvdmcp_reference_providers']);
+
+    assert_true(is_array($r),'JSON-encodable internal object normalized to array');
+    assert_same('Owner',$r['name']??null,'internal object safe field preserved');
+    assert_same('pro',$r['plan']??null,'internal object second safe field preserved');
+    assert_true(!isset($r['apiKey']),'internal object credential removed');
+    assert_same(true,$r['_wpvdmcp_provider_output']['object_normalized']??null,'internal object normalization reported');
 });
 
 parity_test('JsonSerializable provider objects recurse through returned object representations',function(){
