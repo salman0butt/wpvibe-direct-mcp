@@ -35,6 +35,14 @@ parity_test('WPCode reviewed writes preserve dormant classification approval bin
         'action'=>'update','id'=>7,'code'=>'<?php echo "review";','title'=>' Review me ',
         'code_type'=>'PHP Snippet','location'=>'Everywhere','insert_method'=>'Auto','active'=>true,
     );
+
+    $GLOBALS['current_user_capabilities']['wpcode_edit_snippets']=false;
+    $forbidden=WPVDMCP_Parity::execute('code_snippet',$args);
+    assert_true(is_wp_error($forbidden),'missing WPCode capability must fail closed');
+    assert_same('missing_capability',$forbidden->get_error_code(),'missing WPCode capability must use explicit safety error');
+    assert_same(0,count(WPVibe_Code_Snippet::$calls),'capability denial must happen before the upstream handler');
+    unset($GLOBALS['current_user_capabilities']['wpcode_edit_snippets']);
+
     $pending=WPVDMCP_Parity::execute('code_snippet',$args);
     assert_same('approval_required',$pending['status']??null,'review-required snippet write must pause for Direct approval');
     assert_same('not_disabled',$pending['reason']??null,'upstream review reason must be preserved');
@@ -85,7 +93,4 @@ parity_test('WPCode reviewed writes preserve dormant classification approval bin
     assert_same(true,WPVibe_Code_Snippet::$calls[0]['dormant'],'bypass must classify through dormant path first');
     assert_same(false,WPVibe_Code_Snippet::$calls[1]['dormant'],'bypass may use upstream approved handler only after review-required classification');
     unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
-
-    $source=(string)file_get_contents(dirname(__DIR__,2).'/includes/class-wpvdmcp-code-snippet-safety.php');
-    assert_true(strpos($source,"current_user_can( 'wpcode_edit_snippets' )")!==false,'Direct WPCode bridge must preserve upstream wpcode_edit_snippets capability check');
 });
