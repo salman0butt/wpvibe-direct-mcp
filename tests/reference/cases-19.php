@@ -1,7 +1,9 @@
 <?php
 if(!function_exists('has_filter')){
     function has_filter($tag){
-        return array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_callbacks']??array())||array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_values']??array());
+        $registered=array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_callbacks']??array())||array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_values']??array());
+        if(!$registered)return false;
+        return array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_priorities']??array())?$GLOBALS['wpvdmcp_test_filter_priorities'][$tag]:10;
     }
 }
 if(!function_exists('apply_filters')){
@@ -87,12 +89,13 @@ parity_test('tools discovery detects provider filters without executing them',fu
         'wpvdmcp_search_images'=>function($value,$args=null)use(&$calls){$calls++;return array('results'=>array());},
         'wpvdmcp_reference_screenshot_page'=>function($value,$args=null)use(&$calls){$calls++;return array('url'=>'https://img.test/s.png');},
     );
+    $GLOBALS['wpvdmcp_test_filter_priorities']=array('wpvdmcp_search_images'=>0,'wpvdmcp_reference_screenshot_page'=>0);
     $images=provider_meta_tool('search_images');
     $shot=provider_meta_tool('screenshot_page');
-    unset($GLOBALS['wpvdmcp_test_filter_callbacks']);
+    unset($GLOBALS['wpvdmcp_test_filter_callbacks'],$GLOBALS['wpvdmcp_test_filter_priorities']);
     assert_same(0,$calls,'tools/list metadata never executes provider filters');
-    assert_same(true,$images['_meta']['io.wpvibe.direct/provider']['configured']??null,'local filter detected');
-    assert_same(true,$shot['_meta']['io.wpvibe.direct/provider']['configured']??null,'reference filter detected');
+    assert_same(true,$images['_meta']['io.wpvibe.direct/provider']['configured']??null,'local priority-zero filter detected');
+    assert_same(true,$shot['_meta']['io.wpvibe.direct/provider']['configured']??null,'reference priority-zero filter detected');
 });
 
 parity_test('provider metadata composes with existing MCP Apps metadata and omits native tools',function(){

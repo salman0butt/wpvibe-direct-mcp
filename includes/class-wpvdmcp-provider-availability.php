@@ -100,6 +100,6 @@ final class WPVDMCP_Provider_Availability {
 			}
 			$filter = 'wpvdmcp_' . $provider;
 		}
-		return function_exists( 'has_filter' ) && (bool) has_filter( $filter );
+		return function_exists( 'has_filter' ) && false !== has_filter( $filter );
 	}
 }
