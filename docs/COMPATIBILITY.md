@@ -98,6 +98,8 @@ One-time approvals and browser upload tickets use durable atomic claims before p
 
 The official open-source WPVibe repository documents itself as the WordPress-side component while the hosted gateway/account/tool registration lives at wpvibe.ai. Direct MCP replaces only the transport/account dependency needed for one site; it does not recreate account/fleet/plan/cloud services.
 
+The intended deployment model is one Direct MCP installation per WordPress site. Direct MCP does not use `connect_site`, `list_sites`, or `remove_site` to build a local cross-site control plane.
+
 ## Reference audit status
 
 The reference audit compares Direct MCP against the live WPVibe Features page, public Tools Reference, current Works-with-AI compatibility pages, and every REST-registering class in upstream WPVibe 1.20.3. Exact hosted tool names are present as provider-backed adapters where no single-site local equivalent exists. Internal control-plane routes are deliberately not exposed directly to the model.

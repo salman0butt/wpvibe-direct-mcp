@@ -60,6 +60,8 @@ See `docs/MEDIA-UPLOAD.md`.
 
    `Authorization: Bearer YOUR_TOKEN`
 
+Install Direct MCP separately on each WordPress site you want to manage. A Direct MCP instance natively manages only the WordPress installation on which it is installed.
+
 Current unreleased `main` disables query-string authentication by default. If a client genuinely cannot attach authentication headers, a site owner can explicitly enable **Allow query-string token compatibility** in **WPVibe → Direct MCP → Settings**, then use `?token=YOUR_TOKEN` (or the legacy `?access_token=` alias). Query-string credentials can appear in logs, browser history, analytics, referrers, screenshots, support tooling, and proxy telemetry, so keep the option off unless required and rotate the token after suspected exposure. The published `v1.4.1` artifact predates this hardening and still accepts valid query tokens by default.
 
 ## Architecture
@@ -72,7 +74,7 @@ Direct MCP stays thin by design:
 
 ## Hosted-service boundary
 
-Direct MCP exposes audited hosted tool names for account/site registry, fleet and usage-reset workflows, but it does not clone WPVibe's private cloud database or credentials. Those tools require a user-owned provider and otherwise return `provider_unavailable`. Stock search, browser rendering, screenshots and Lighthouse-style audits follow the same fail-closed provider model. MCP Apps approval/upload panels are implemented locally and do not require WPVibe's hosted UI.
+Direct MCP exposes audited hosted tool names for account/site registry, fleet and usage-reset workflows, but it does not clone WPVibe's private cloud database or credentials. Those tools require a user-owned provider and otherwise return `provider_unavailable`. In particular, `connect_site`, `list_sites`, and `remove_site` are exact-name compatibility adapters only; they do not create or manage a Direct-owned remote-site registry. Stock search, browser rendering, screenshots and Lighthouse-style audits follow the same fail-closed provider model. MCP Apps approval/upload panels are implemented locally and do not require WPVibe's hosted UI.
 
 Current unreleased source keeps those exact public tool names visible in MCP discovery and adds non-secret provider readiness under each provider-backed tool's `_meta['io.wpvibe.direct/provider']`. Discovery checks only whether a callback/filter is registered; it never calls the provider. `get_page_html` is marked as a hybrid capability because same-site HTML can still fall back to WPVibe's native rendered-HTML path while external JavaScript rendering requires the configured browser provider.
 
