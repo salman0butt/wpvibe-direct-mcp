@@ -10,6 +10,7 @@ final class WPVDMCP_Server {
 
 	const MODERN_PROTOCOL = '2026-07-28';
 	const LEGACY_PROTOCOL = '2025-11-25';
+	const LAST_ACTIVE_WRITE_INTERVAL = 60;
 
 	public static function supported_protocol_versions() {
 		return array( self::MODERN_PROTOCOL, self::LEGACY_PROTOCOL, '2025-06-18', '2025-03-26', '2024-11-05' );
@@ -399,8 +400,18 @@ final class WPVDMCP_Server {
 		}
 		wp_set_current_user( $user_id );
 		$this->authenticated_user = $user_id;
-		update_option( 'wpvdmcp_last_active', time(), false );
+		$this->touch_last_active();
 		return true;
+	}
+
+	/** Keep the admin diagnostic fresh without forcing a database write per request. */
+	private function touch_last_active() {
+		$now = time();
+		$last = (int) get_option( 'wpvdmcp_last_active', 0 );
+		if ( $last > 0 && $last <= $now && ( $now - $last ) < self::LAST_ACTIVE_WRITE_INTERVAL ) {
+			return;
+		}
+		update_option( 'wpvdmcp_last_active', $now, false );
 	}
 
 	private function log_call( $name, $args, $success, $message ) {
