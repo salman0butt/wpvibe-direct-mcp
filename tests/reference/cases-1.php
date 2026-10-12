@@ -68,6 +68,7 @@ parity_test('reference parity manifest classifies every audited tool and interna
     foreach(array('site_info','audit_page','rest_api_write','save_skill','connect_site','use_usage_reset') as $name)assert_true(isset($by[$name]),'manifest missing '.$name);
     assert_same('provider_backed',$by['connect_site']['status']??null,'connect classification');
     assert_same('local_equivalent',$by['audit_page']['status']??null,'audit classification');
+    assert_same('local_equivalent',$by['code_snippet']['status']??null,'code_snippet must be classified as the Direct in-process safety bridge, not a model-facing WPVibe REST route');
     assert_true(in_array('/wpvibe/v1/cli/run-approved',$manifest['internal_not_tools']??array(),true),'approved CLI remains internal');
 });
 

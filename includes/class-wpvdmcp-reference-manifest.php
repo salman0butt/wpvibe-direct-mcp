@@ -15,7 +15,7 @@ final class WPVDMCP_Reference_Manifest {
 
 	public static function build( $hosted_provider_tools ) {
 		$provider = array_merge( $hosted_provider_tools, array( 'search_images' ) );
-		$local = array( 'audit_page','check_approval_status','check_upload','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','rest_api_write','run_ability','save_skill','show_approval_panel' );
+		$local = array( 'audit_page','check_approval_status','check_upload','code_snippet','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','rest_api_write','run_ability','save_skill','show_approval_panel' );
 		$tools = array();
 		foreach ( self::audited_tools() as $name ) {
 			$status = in_array( $name, $provider, true ) ? 'provider_backed' : ( in_array( $name, $local, true ) ? 'local_equivalent' : 'native_route' );
