@@ -20,11 +20,14 @@ A token in `?token=` or `?access_token=` can leak through access logs, reverse p
 
 Direct MCP sets the current WordPress user to the configured token owner and internally dispatches the requested route. It does **not** bypass the permission callback of the destination REST route. WPVibe/native-plugin capability checks remain authoritative.
 
-The generic `rest_api` tool explicitly blocks:
+The generic `rest_api` / `rest_api_write` bridge explicitly blocks before dispatch and before approval creation:
 
 - every `/wpvibe-direct/v1/*` route, so the MCP cannot rewrite its own authentication state;
 - WordPress Application Password management routes;
+- audited WPVibe Worker/control-plane routes such as authorization/preflight, connection challenge/status, operation-proof checks, approved CLI execution, executable code approval, builder-login minting, detached Worker jobs, audit-log recording, and self-update control plane;
 - methods outside GET/POST/PUT/PATCH/DELETE.
+
+The block is an explicit route classification, not a blanket `/wpvibe/v1/*` denylist. Legitimate model-facing WPVibe routes remain available. The disposable current-main E2E lane also compares the live installed `/wpvibe/v1` route registry with the parity manifest and fails if an operational route is unclassified.
 
 ## Device/browser media upload
 
@@ -54,7 +57,14 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 - Write/destructive abilities require a Direct MCP browser approval unless the administrator has explicitly enabled WPVibe's **Dangerously bypass approvals** setting in wp-admin.
 - Approval IDs are random, expire, are bound to an operation + canonical payload hash + token owner, and can be consumed only once.
 - Direct MCP does not expose an MCP tool capable of turning WPVibe approval bypass on.
-- WPVibe route-backed commands keep their upstream approval URLs/receipts; Direct MCP does not forge approved state or expose the private `run-approved` path as an MCP tool.
+- For destructive `run_wp_cli` calls, the public `/wpvibe/v1/cli/run` response remains the classifier. When WPVibe returns `approval_required`, Direct MCP preserves the exact upstream operation/dry-run snapshot and binds a one-time browser approval to that snapshot plus the exact command.
+- A changed command or changed approved payload fails closed; a consumed CLI approval cannot be replayed.
+- After Direct approval, execution uses WPVibe's trusted in-process approved executor with the preserved snapshot. The Worker-only `/wpvibe/v1/cli/run-approved` route and operation-proof secrets are never exposed to the model or generic REST bridge.
+- WPVibe route-backed commands keep their upstream capability checks, allowlist, destructive classification, and approved execution semantics; Direct MCP does not forge Worker proof state.
+
+## Armored retry boundary
+
+`call_armored` is a Direct-only transport helper for WAF-sensitive payloads. It accepts a base64-encoded JSON object and can retry only an already-exposed model tool. Decoding does not grant a new capability: the target tool's normal schema, approval, route classification, provider boundary, and replay protection still apply. The helper cannot target itself, approval-decision internals, or unexposed tools, and invalid/oversized payloads fail closed.
 
 ## Threat model
 
@@ -66,7 +76,10 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 | Path traversal / arbitrary file write | Theme writes delegated to WPVibe file sandbox; device upload never chooses a server directory |
 | Arbitrary executable upload | Browser transfer accepts image MIME only; SVG requires sanitizer |
 | PHP upload / polyglot risk | Raster MIME detected from bytes; SVG handled by WPVibe path; no arbitrary extension allowlist |
-| REST credential abuse | Direct MCP auth namespace + Application Password routes blocked in generic REST |
+| REST credential/control-plane abuse | Direct MCP auth namespace, Application Password routes, and audited WPVibe Worker/control-plane routes blocked in generic REST |
+| Destructive CLI proof forgery | Model receives only Direct approval IDs; Worker operation-proof secrets and approved route stay inaccessible |
+| Destructive CLI drift/replay | Approval binds exact command + upstream snapshot and is single-use |
+| Armored payload used as a bypass | Only already-exposed tools can be targeted; normal target-tool safety semantics still run |
 | Token/log leakage | Hash-only token storage; tool log summaries exclude token/body/binary data |
 | SVG stored XSS | Current WPVibe SVG sanitizer required; no Direct-MCP bypass |
 | Malicious redirects / DNS rebind | WPVibe public URL downloader validates redirect destinations and pins validated public IPs where supported |
