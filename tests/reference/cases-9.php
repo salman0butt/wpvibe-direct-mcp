@@ -8,6 +8,7 @@ parity_test('generic REST blocks WPVibe worker control-plane routes before dispa
         '/wpvibe/v1/op-proof/check',
         '/wpvibe/v1/cli/run-approved',
         '/wpvibe/v1/code-snippet',
+        '/wpvibe/v1/code-snippet/dormant',
         '/wpvibe/v1/builder-login',
         '/wpvibe/v1/detached/run',
         '/wpvibe/v1/audit-log/record',

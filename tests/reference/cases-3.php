@@ -6,7 +6,7 @@ parity_test('upstream 1.20.3 route inventory classifies every model or infrastru
         '/wpvibe/v1/ping','/wpvibe/v1/health','/wpvibe/v1/connection-check-challenge',
         '/wpvibe/v1/audit-log/record','/wpvibe/v1/cli/run-approved','/wpvibe/v1/authorize',
         '/wpvibe/v1/authorize/preflight','/wpvibe/v1/connection-status','/wpvibe/v1/op-proof/check',
-        '/wpvibe/v1/code-snippet','/wpvibe/v1/builder-login','/wpvibe/v1/detached/run',
+        '/wpvibe/v1/code-snippet','/wpvibe/v1/code-snippet/dormant','/wpvibe/v1/builder-login','/wpvibe/v1/detached/run',
         '/wpvibe/v1/self-update/health','/wpvibe/v1/self-update/run'
     ) as $route){
         assert_true(in_array($route,$internal,true),'unclassified infrastructure route '.$route);
@@ -24,8 +24,7 @@ parity_test('upstream 1.20.3 route inventory classifies every model or infrastru
         '/wpvibe/v1/elementor/save-page','/wpvibe/v1/elementor/save-template',
         '/wpvibe/v1/beaver/modules','/wpvibe/v1/beaver/schema','/wpvibe/v1/beaver/save-page',
         '/wpvibe/v1/bricks/get-page','/wpvibe/v1/bricks/elements','/wpvibe/v1/bricks/save-page',
-        '/wpvibe/v1/breakdance/get-page','/wpvibe/v1/breakdance/elements','/wpvibe/v1/breakdance/save-page',
-        '/wpvibe/v1/code-snippet/dormant'
+        '/wpvibe/v1/breakdance/get-page','/wpvibe/v1/breakdance/elements','/wpvibe/v1/breakdance/save-page'
     ) as $route){
         assert_true(isset($model_routes[$route]),'unclassified model route '.$route);
     }
@@ -33,7 +32,7 @@ parity_test('upstream 1.20.3 route inventory classifies every model or infrastru
 
 parity_test('reference manifest covers infrastructure-only routes and MCP options',function(){
     $m=WPVDMCP_Parity::execute('reference_parity_manifest',array());
-    foreach(array('/wpvibe/v1/ping','/wpvibe/v1/health','/wpvibe/v1/connection-check-challenge','/wpvibe/v1/audit-log/record','/wpvibe/v1/cli/run-approved','/wpvibe/v1/authorize','/wpvibe/v1/authorize/preflight','/wpvibe/v1/connection-status','/wpvibe/v1/op-proof/check','/wpvibe/v1/code-snippet','/wpvibe/v1/builder-login','/wpvibe/v1/detached/run','/wpvibe/v1/self-update/health','/wpvibe/v1/self-update/run') as $route){
+    foreach(array('/wpvibe/v1/ping','/wpvibe/v1/health','/wpvibe/v1/connection-check-challenge','/wpvibe/v1/audit-log/record','/wpvibe/v1/cli/run-approved','/wpvibe/v1/authorize','/wpvibe/v1/authorize/preflight','/wpvibe/v1/connection-status','/wpvibe/v1/op-proof/check','/wpvibe/v1/code-snippet','/wpvibe/v1/code-snippet/dormant','/wpvibe/v1/builder-login','/wpvibe/v1/detached/run','/wpvibe/v1/self-update/health','/wpvibe/v1/self-update/run') as $route){
         assert_true(in_array($route,$m['internal_not_tools']??array(),true),'internal route missing '.$route);
     }
     assert_same('2026-07-28',$m['mcp']['primary_protocol']??null,'primary MCP version');
