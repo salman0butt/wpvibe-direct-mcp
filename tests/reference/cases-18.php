@@ -15,9 +15,19 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'AWSAccessKeyId'=>'aws-acronym-access-value',
                 'AWSSecretAccessKey'=>'aws-acronym-secret-value',
                 'XApiKey'=>'x-acronym-api-value',
+                'authorizationHeader'=>'Bearer contextual-secret',
+                'authHeader'=>'Basic contextual-secret',
+                'cookieHeader'=>'session=contextual-secret',
+                'passwordValue'=>'contextual-password',
+                'secretValue'=>'contextual-secret-value',
+                'accessTokenValue'=>'contextual-access-token',
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
+            'apiKeyCount'=>2,
+            'consumer_key_count'=>3,
+            'password_reset_required'=>true,
+            'public_key'=>'public-material-is-not-a-private-key',
             '_wpvdmcp_provider_output'=>array('redacted_fields'=>0,'truncated'=>false),
         );
     });
@@ -35,10 +45,20 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['AWSAccessKeyId']),'leading-acronym AWS access key credential must be removed');
     assert_true(!isset($r['results'][0]['AWSSecretAccessKey']),'leading-acronym AWS secret access key credential must be removed');
     assert_true(!isset($r['results'][0]['XApiKey']),'leading-acronym API key credential must be removed');
+    assert_true(!isset($r['results'][0]['authorizationHeader']),'authorization header credential must be removed');
+    assert_true(!isset($r['results'][0]['authHeader']),'auth header credential must be removed');
+    assert_true(!isset($r['results'][0]['cookieHeader']),'cookie header credential must be removed');
+    assert_true(!isset($r['results'][0]['passwordValue']),'password value credential must be removed');
+    assert_true(!isset($r['results'][0]['secretValue']),'secret value credential must be removed');
+    assert_true(!isset($r['results'][0]['accessTokenValue']),'access token value credential must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
-    assert_same(11,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same(2,$r['apiKeyCount']??null,'API-key count metadata preserved');
+    assert_same(3,$r['consumer_key_count']??null,'consumer-key count metadata preserved');
+    assert_same(true,$r['password_reset_required']??null,'password reset state preserved');
+    assert_same('public-material-is-not-a-private-key',$r['public_key']??null,'public key material preserved');
+    assert_same(17,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 
@@ -145,6 +165,29 @@ parity_test('provider WP_Error bounds the complete model-visible error envelope'
     assert_true(is_array($decoded),'provider error text must remain valid JSON after invalid UTF-8 input');
     assert_true(strlen((string)($decoded['code']??''))<=256,'provider error code is bounded');
     assert_same(true,$decoded['data']['_wpvdmcp_provider_output']['truncated']??null,'provider error envelope truncation is explicit');
+});
+
+parity_test('provider WP_Error envelope accounts for JSON unicode escaping expansion',function(){
+    $emoji=str_repeat("\xF0\x9F\x92\xA5",15000); // 60,000 UTF-8 bytes, ~180,000 JSON-escaped bytes.
+    $GLOBALS['wpvdmcp_providers']=array('page_audit'=>function($args)use($emoji){
+        return new WP_Error('unicode_error','Unicode-heavy provider failure.',array(
+            'part_a'=>$emoji,
+            'part_b'=>$emoji,
+            'part_c'=>$emoji,
+            'part_d'=>$emoji,
+        ));
+    });
+    $payload=array('jsonrpc'=>'2.0','id'=>'provider-error-unicode','method'=>'tools/call','params'=>array('name'=>'audit_page','arguments'=>array('page_url'=>'https://example.test/')));
+    $response=WPVDMCP_Server::instance()->handle(test_request($payload));
+    unset($GLOBALS['wpvdmcp_providers']);
+
+    $body=response_data($response);
+    $text=$body['result']['content'][0]['text']??null;
+    assert_true(is_string($text),'unicode-heavy provider error must serialize');
+    assert_true(strlen($text)<=262144,'model-visible provider error must account for JSON unicode escaping expansion');
+    $decoded=json_decode($text,true);
+    assert_true(is_array($decoded),'unicode-heavy provider error remains valid JSON');
+    assert_same(true,$decoded['data']['_wpvdmcp_provider_output']['error_envelope_limit']??null,'unicode expansion triggers full-envelope fallback');
 });
 
 parity_test('provider object output is normalized before nested credential filtering',function(){

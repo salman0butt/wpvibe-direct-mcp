@@ -137,6 +137,19 @@ final class WPVDMCP_Provider_Output {
 		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_consumer_key', '_access_key', '_access_key_id', '_nonce', '_cookie', '_credential' ) as $suffix ) {
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
 		}
+		$context_bases = array(
+			'auth', 'authorization', 'bearer', 'cookie', 'password', 'passwd', 'secret',
+			'api_key', 'access_token', 'refresh_token', 'id_token', 'private_key', 'secret_key',
+			'consumer_key', 'access_key', 'access_key_id', 'credential', 'credentials', 'nonce',
+		);
+		foreach ( $context_bases as $base ) {
+			foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded' ) as $context ) {
+				$credential_context = $base . '_' . $context;
+				if ( $normalized === $credential_context ) { return true; }
+				$suffix = '_' . $credential_context;
+				if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
+			}
+		}
 		return false;
 	}
 
@@ -240,7 +253,9 @@ final class WPVDMCP_Provider_Output {
 
 	private static function enforce_error_envelope_bound( $code, $message, $data, $state, $provider_name ) {
 		$envelope = array( 'code' => $code, 'message' => $message, 'data' => $data );
-		$encoded = wp_json_encode( $envelope, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		// Match WPVDMCP_Server's model-visible WP_Error encoding exactly. Omitting
+		// JSON_UNESCAPED_UNICODE is intentional: escaped Unicode can expand by ~3x.
+		$encoded = wp_json_encode( $envelope, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		if ( false !== $encoded && strlen( $encoded ) <= self::MAX_TOTAL_BYTES ) { return $data; }
 
 		$state['truncated'] = true;
