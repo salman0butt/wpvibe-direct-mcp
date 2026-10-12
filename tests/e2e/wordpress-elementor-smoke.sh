@@ -134,10 +134,14 @@ $known = array_fill_keys( array_merge( $model, $internal ), true );
 $routes = array_keys( $server->get_routes( "wpvibe/v1" ) );
 $unknown = array();
 foreach ( $routes as $route ) {
+    $normalized = rtrim( $route, "/" );
+    if ( "/wpvibe/v1" === $normalized ) {
+        continue;
+    }
     $normalized = preg_replace_callback(
         "/\\(\\?P<([^>]+)>[^)]+\\)/",
         static function ( $match ) { return "{" . $match[1] . "}"; },
-        rtrim( $route, "/" )
+        $normalized
     );
     if ( ! isset( $known[ $normalized ] ) ) {
         $unknown[] = $route;
