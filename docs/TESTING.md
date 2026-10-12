@@ -11,7 +11,7 @@ php tests/reference-run.php
 php tests/abilities-json-body-run.php
 ```
 
-Release **1.4.0** contains **27 legacy tests + 14 core parity tests + 62 reference parity tests (103 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
+Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
 ### MCP transport
 
@@ -25,12 +25,14 @@ Release **1.4.0** contains **27 legacy tests + 14 core parity tests + 62 referen
 - missing/wrong/valid bearer, `X-WPVibe-Direct-Token`, and query tokens;
 - revoked tokens and owners who lost Administrator access;
 - single-use approvals and replay rejection;
+- deterministic concurrent-consumption coverage proving exactly one claimant can consume an approved receipt, old/ambiguous claims are not stolen, and persistence uncertainty fails closed;
 - generic REST mutations require approval unless the WPVibe bypass setting is explicitly enabled;
 - approval/status aliases (`approval_id`, `op_id`) and fleet-provider delegation;
 - destructive WP-CLI converts the upstream `approval_required` result into a one-time Direct approval bound to the exact command plus the exact upstream operation/dry-run snapshot;
 - changed commands/snapshots and consumed CLI approvals fail before the native approved executor can run;
 - WPCode reviewed writes run the upstream dormant classifier first, preserve the `wpcode_edit_snippets` capability gate, use exact-payload one-time Direct approval only for `snippet_review_required`, reject drift/replay before approved execution, and discard model-supplied activation input;
 - the model never receives a Worker operation-proof credential or direct `/wpvibe/v1/cli/run-approved` / approved WPCode route tool.
+- MCP 2025-06-18+ batches are rejected before tool execution; retained 2024 batches strip app-only approval metadata from model-visible structured content/text for normal, duplicate-ID, notification, explicit-null-ID, and malformed-first cases.
 
 ### Public REST and mutation safety
 
@@ -79,6 +81,8 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - `request_upload` / `check_upload` exposure;
 - main MCP token never appears in the upload URL;
 - upload secret stored only as a hash, wrong secret rejected, successful tickets non-replayable;
+- browser POST atomically reserves a waiting ticket before media creation, concurrent claims cannot both create attachments, and only one finalizer can complete;
+- partial multi-file failures and finalization persistence failures roll back attachments already created by that attempt;
 - ready results omit filesystem paths;
 - raster allowlist rejects HTML/PHP/JS/SVG from the raster path.
 
@@ -96,7 +100,7 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - required workflow skill catalog and version metadata;
 - current `load_skill` Direct and WPVibe forms (`skill`, `name`, `query`, `resource`), bounded catalog metadata/search, and exact saved reference reads;
 - compatibility summary and secret-free admin status;
-- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.4.0 release metadata;
+- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.4.1 release metadata;
 - current manifest records `call_armored` as a Direct-only extension;
 - the release workflow invariant requires the focused Abilities raw-JSON regression in both source and extracted-package verification.
 
@@ -122,7 +126,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-The 1.4.0 acceptance lane verifies:
+The 1.4.1 acceptance lane verifies:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -143,7 +147,7 @@ This is real disposable-site E2E evidence for that bounded Elementor workflow an
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. For 1.4.0, publication requires all of the following:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. For 1.4.1, publication requires all of the following:
 
 1. source PHP syntax validation;
 2. source legacy, parity, reference, and focused Abilities raw-JSON request-body regression suites;
@@ -151,9 +155,10 @@ The release workflow first resolves plugin-header/version/stable-tag consistency
 4. extraction of the built ZIP;
 5. extracted legacy, parity, reference, and focused Abilities raw-JSON regression suites;
 6. extracted PHP syntax validation;
-7. immutable `v1.4.0` tag verification/creation and release publication only after those checks pass.
+7. a fresh current-remote-`main` check plus the latest exact-SHA `PHP parity checks` and `WordPress Elementor E2E` runs both reporting `completed:success` immediately before tag creation;
+8. immutable `v1.4.1` tag verification/creation and release publication only after those checks pass.
 
-Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0ebb428577bddf5718cef84f8a2ec3c586e`; the 1.4.0 workflow must create a new tag rather than move or overwrite it.
+Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0ebb428577bddf5718cef84f8a2ec3c586e` and the published `v1.4.0` tag remains unchanged; the 1.4.1 workflow must create a new tag rather than move or overwrite either release.
 
 ## Broader manual disposable WordPress integration checklist
 
@@ -179,4 +184,4 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 
 ## Current integration status
 
-Release 1.4.0 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow and live route-classification gate listed above. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Release 1.4.1 retains the real disposable WordPress/Elementor Core CI-backed target for the bounded workflow and live route-classification gate listed above, and adds the concurrency/batch security regressions described in the automated suite. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.

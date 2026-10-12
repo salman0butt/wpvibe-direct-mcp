@@ -41,6 +41,8 @@ The block is an explicit route classification, not a blanket `/wpvibe/v1/*` deny
 - Bound to the current Direct MCP token owner.
 - Limited to at most five images and the lower of the WordPress upload limit or 10 MiB per file.
 - Ticket becomes unusable after the first successful transfer.
+- A browser POST must atomically reserve the ticket from `waiting` to `processing` before any Media Library attachment is created; a concurrent POST cannot claim the same ticket a second time.
+- Partial multi-file failures and finalization failures roll back attachments created by that attempt rather than leaving orphaned side effects.
 - JPEG, PNG, GIF, WebP only as raster formats.
 - SVG accepted only through the current WPVibe sanitizer/sideload implementation.
 - PHP, JavaScript, HTML, documents, arbitrary binary uploads, path traversal, and arbitrary destination paths are not accepted.
@@ -58,6 +60,7 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 - WordPress Abilities marked readonly execute directly.
 - Write/destructive abilities require a Direct MCP browser approval unless the administrator has explicitly enabled WPVibe's **Dangerously bypass approvals** setting in wp-admin.
 - Approval IDs are random, expire, are bound to an operation + canonical payload hash + token owner, and can be consumed only once.
+- Consumption is protected by an atomic claim before the guarded operation executes. A concurrent consumer, ambiguous existing claim, or failure to persist the consumed state fails closed.
 - Direct MCP does not expose an MCP tool capable of turning WPVibe approval bypass on.
 - For destructive `run_wp_cli` calls, the public `/wpvibe/v1/cli/run` response remains the classifier. When WPVibe returns `approval_required`, Direct MCP preserves the exact upstream operation/dry-run snapshot and binds a one-time browser approval to that snapshot plus the exact command.
 - A changed command or changed approved payload fails closed; a consumed CLI approval cannot be replayed.
@@ -92,6 +95,8 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 | SVG stored XSS | Current WPVibe SVG sanitizer required; no Direct-MCP bypass |
 | Malicious redirects / DNS rebind | WPVibe public URL downloader validates redirect destinations and pins validated public IPs where supported |
 | Replay | Browser upload and Direct approvals use expiring one-time state |
+| Concurrent approval replay | Atomic approval claim permits one consumer; ambiguous/persistence-failure states fail closed |
+| Concurrent browser upload / partial upload | Ticket is reserved before media side effects; failed attempts roll back created attachments |
 | Approval bypass | Direct MCP honors, but cannot enable, WPVibe's browser-admin bypass setting |
 | MCP prompt/tool injection | Skills require read-first behavior; authorization is enforced in code, not trusted prompt text |
 | Secret disclosure via wp-content diagnostics | WPVibe's scoped diagnostic reader/redaction remains authoritative |
@@ -106,7 +111,7 @@ For vulnerabilities in this Direct MCP bridge, report them privately to the repo
 
 ## MCP Apps security
 
-Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
+Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. MCP 2025-06-18+ batches are rejected before execution; retained 2024 legacy batches sanitize each tool result so this app-only token is removed from model-visible structured content and text. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
 
 The MCP App HTML currently imports the official `@modelcontextprotocol/ext-apps` browser client from a version-pinned `esm.sh` URL. The app CSP allows that resource domain; production operators with stricter supply-chain policies should proxy/vendor an audited copy before enabling inline apps in a locked-down environment.
 

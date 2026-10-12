@@ -1,7 +1,15 @@
 # Changelog
 
 ## Unreleased
-- Refreshed the live WPVibe Works-with-AI/Cookbook audit through 2026-10-12 and added dedicated Direct playbooks for Advanced Custom Fields 6.8+, Ultimate Addons for Elementor 2.9.5+, and Disable Comments 2.9+, including their current setup gates and destructive-operation safety notes. These are post-1.4.0 main changes and do not modify the published 1.4.0 release.
+
+## 1.4.1 - 2026-10-12
+- Closed the MCP Apps approval-boundary leak: MCP 2025-06-18 and newer now reject JSON-RPC batches before tool execution, while retained 2024 legacy batches sanitize app-only metadata per result so approval-panel tokens never remain in model-visible structured content or text.
+- Made one-time Direct approvals concurrency-safe with an atomic claim before destructive execution. Competing consumers, stale/ambiguous claims, and consumed-state persistence failures fail closed instead of allowing duplicate execution.
+- Hardened browser upload tickets with an atomic `waiting` → `processing` reservation before Media Library side effects, one-winner finalization, fail-closed persistence handling, and rollback of attachments created by partial or unfinalized multi-file attempts.
+- Hardened release provenance: publication now targets only the current remote `main` SHA after both exact-SHA PHP parity and disposable WordPress/Elementor E2E gates complete successfully, and those gates are revalidated immediately before immutable tag creation.
+- Blocked the Worker-proof-protected `/wpvibe/v1/code-snippet/dormant` route from generic REST alongside the approved snippet route. The public `code_snippet` tool remains available only through Direct's capability-preserving in-process safety bridge and is now classified correctly as a local equivalent in the parity manifest.
+- Refreshed the live WPVibe Works-with-AI/Cookbook audit through 2026-10-12 and added dedicated Direct playbooks for Advanced Custom Fields 6.8+, Ultimate Addons for Elementor 2.9.5+, and Disable Comments 2.9+, including their current setup gates and destructive-operation safety notes.
+- Release verification now contains 35 core/legacy + 14 parity + 70 reference cases = 119 suite cases on PHP 7.4, 8.2, and 8.4, plus the focused Abilities raw-JSON regression; the disposable WordPress 6.9 / WPVibe 1.20.3 / Elementor Core 4.3.4 lane remains the bounded live E2E gate.
 
 ## 1.4.0 - 2026-10-12
 - Hardened generic `rest_api` / `rest_api_write` so audited WPVibe Worker/control-plane routes are rejected before dispatch or approval creation, while model-facing WPVibe routes remain available.
