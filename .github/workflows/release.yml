@@ -2,23 +2,21 @@ name: Release
 
 on:
   workflow_run:
-    workflows: ["PHP parity checks"]
+    workflows: ["PHP parity checks", "WordPress Elementor E2E"]
     types: [completed]
-  workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   release:
     if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main') ||
-      github.event_name == 'workflow_dispatch'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     env:
-      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
       GH_TOKEN: ${{ github.token }}
 
     steps:
@@ -28,8 +26,52 @@ jobs:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
 
+      - name: Verify exact current-main CI gates
+        id: gates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          CURRENT_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$TARGET_SHA" != "$CURRENT_MAIN_SHA" ]; then
+            echo "Release target $TARGET_SHA is stale; current origin/main is $CURRENT_MAIN_SHA."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RUNS_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=100")"
+          latest_gate() {
+            local workflow_name="$1"
+            jq -r --arg workflow_name "$workflow_name" '
+              [.workflow_runs[] | select(.name == $workflow_name)]
+              | sort_by(.run_number)
+              | last
+              | if . == null then "missing" else (.status + ":" + (.conclusion // "")) end
+            ' <<<"$RUNS_JSON"
+          }
+
+          PHP_GATE="$(latest_gate 'PHP parity checks')"
+          E2E_GATE="$(latest_gate 'WordPress Elementor E2E')"
+          echo "PHP parity gate: $PHP_GATE"
+          echo "WordPress Elementor E2E gate: $E2E_GATE"
+
+          if [ "$PHP_GATE" != "completed:success" ]; then
+            echo "Required exact-SHA PHP parity gate is not green; release remains closed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$E2E_GATE" != "completed:success" ]; then
+            echo "Required exact-SHA WordPress Elementor E2E gate is not green; release remains closed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Resolve and verify release metadata
         id: meta
+        if: steps.gates.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -123,6 +165,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          git fetch --no-tags origin main
+          CURRENT_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$TARGET_SHA" != "$CURRENT_MAIN_SHA" ]; then
+            echo "Release target $TARGET_SHA became stale while building; current origin/main is $CURRENT_MAIN_SHA." >&2
+            exit 1
+          fi
+
+          RUNS_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=100")"
+          latest_gate() {
+            local workflow_name="$1"
+            jq -r --arg workflow_name "$workflow_name" '
+              [.workflow_runs[] | select(.name == $workflow_name)]
+              | sort_by(.run_number)
+              | last
+              | if . == null then "missing" else (.status + ":" + (.conclusion // "")) end
+            ' <<<"$RUNS_JSON"
+          }
+
+          PHP_GATE="$(latest_gate 'PHP parity checks')"
+          E2E_GATE="$(latest_gate 'WordPress Elementor E2E')"
+          if [ "$PHP_GATE" != "completed:success" ]; then
+            echo "Exact-SHA PHP parity gate changed before tag: $PHP_GATE" >&2
+            exit 1
+          fi
+          if [ "$E2E_GATE" != "completed:success" ]; then
+            echo "Exact-SHA WordPress Elementor E2E gate changed before tag: $E2E_GATE" >&2
+            exit 1
+          fi
+
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             EXISTING_SHA="$(git rev-list -n1 "$TAG")"
             if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
