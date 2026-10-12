@@ -36,6 +36,120 @@ parity_test('MCP Apps advertise inline approval and upload panels with readable 
     assert_true(strpos($content['text']??'','Approve')!==false,'approval HTML');
 });
 
+parity_test('modern MCP rejects JSON-RPC batches before app-only approval metadata can be minted',function(){
+    $GLOBALS['wp_current_user']=1;
+    $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>77),'Delete user #77');
+    $payload=array(array(
+        'jsonrpc'=>'2.0',
+        'id'=>'batch-modern',
+        'method'=>'tools/call',
+        'params'=>array(
+            'name'=>'show_approval_panel',
+            'arguments'=>array('approval_id'=>$pending['approval_id']),
+            '_meta'=>array('io.modelcontextprotocol/protocolVersion'=>'2026-07-28'),
+        ),
+    ));
+    $request=test_request($payload,'2026-07-28');
+    $response=WPVDMCP_Server::instance()->handle($request);
+    $data=response_data($response);
+    assert_same(400,$response instanceof WP_REST_Response?$response->get_status():null,'modern batch must be rejected at the transport boundary');
+    assert_same(-32600,$data['error']['code']??null,'modern batch rejection must use Invalid Request');
+    assert_true(strpos(wp_json_encode($data),'wpvdmcpApprovalPanelToken')===false,'rejected modern batch must not mint or expose an approval panel token');
+    $panel_key='transient:wpvdmcp_ui_panel_'.hash('sha256',$pending['approval_id']);
+    assert_same(false,get_option($panel_key,false),'rejected modern batch must not execute show_approval_panel or mint panel state');
+    $status=WPVDMCP_Approvals::status($pending['approval_id']);
+    assert_same('pending',$status['status']??null,'rejected batch must leave the destructive approval pending');
+});
+
+parity_test('legacy MCP batches keep app-only approval metadata out of model-visible content',function(){
+    $GLOBALS['wp_current_user']=1;
+    $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>78),'Delete user #78');
+    $payload=array(array(
+        'jsonrpc'=>'2.0',
+        'id'=>'batch-legacy',
+        'method'=>'tools/call',
+        'params'=>array(
+            'name'=>'show_approval_panel',
+            'arguments'=>array('approval_id'=>$pending['approval_id']),
+        ),
+    ));
+    $request=test_request($payload,'2024-11-05');
+    $response=WPVDMCP_Server::instance()->handle($request);
+    $response=WPVDMCP_MCP_App_Transport::filter_response($response,null,$request);
+    $data=response_data($response);
+    $result=$data[0]['result']??array();
+    assert_true(!isset($result['structuredContent']['__mcp_meta']),'legacy batch must strip app-only metadata from structuredContent');
+    $token=$result['_meta']['wpvdmcpApprovalPanelToken']??'';
+    assert_true(is_string($token)&&strlen($token)>20,'legacy batch must preserve app metadata only in result _meta');
+    assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch model-visible text must not contain the approval token');
+});
+
+parity_test('legacy batch sanitizes app-only metadata even for notifications and duplicate ids',function(){
+    $GLOBALS['wp_current_user']=1;
+    $a=WPVDMCP_Approvals::request('delete_user',array('user_id'=>79),'Delete user #79');
+    $b=WPVDMCP_Approvals::request('delete_user',array('user_id'=>80),'Delete user #80');
+    $payload=array(
+        array('jsonrpc'=>'2.0','id'=>'dup','method'=>'ping','params'=>array()),
+        array('jsonrpc'=>'2.0','id'=>'dup','method'=>'tools/call','params'=>array('name'=>'show_approval_panel','arguments'=>array('approval_id'=>$a['approval_id']))),
+        array('jsonrpc'=>'2.0','method'=>'tools/call','params'=>array('name'=>'show_approval_panel','arguments'=>array('approval_id'=>$b['approval_id']))),
+    );
+    $request=test_request($payload,'2024-11-05');
+    $response=WPVDMCP_Server::instance()->handle($request);
+    $response=WPVDMCP_MCP_App_Transport::filter_response($response,null,$request);
+    $data=response_data($response);
+    $metadata_tokens=0;
+    foreach((array)$data as $item){
+        $result=$item['result']??array();
+        if(!is_array($result)){continue;}
+        assert_true(!isset($result['structuredContent']['__mcp_meta']),'legacy batch must strip app metadata regardless of request id ambiguity');
+        assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch text must never expose app approval token');
+        if(!empty($result['_meta']['wpvdmcpApprovalPanelToken'])){$metadata_tokens++;}
+    }
+    assert_same(2,$metadata_tokens,'both app results must retain their token only in result _meta');
+});
+
+parity_test('legacy batch sanitizes app metadata when the first batch item is malformed null',function(){
+    $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>82),'Delete user #82');
+    $payload=array(
+        null,
+        array('jsonrpc'=>'2.0','id'=>'after-null','method'=>'tools/call','params'=>array('name'=>'show_approval_panel','arguments'=>array('approval_id'=>$pending['approval_id']))),
+    );
+    $request=test_request($payload,'2024-11-05');
+    $response=WPVDMCP_Server::instance()->handle($request);
+    $response=WPVDMCP_MCP_App_Transport::filter_response($response,null,$request);
+    $encoded=wp_json_encode(response_data($response));
+    assert_true(strpos($encoded,'__mcp_meta')===false,'malformed-first legacy batch must not retain app-only metadata in structured content');
+    foreach((array)response_data($response) as $item){
+        if(!is_array($item)||!isset($item['result'])||!is_array($item['result'])){continue;}
+        assert_true(strpos($item['result']['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'malformed-first batch text must not expose panel token');
+    }
+});
+
+parity_test('handshake-era batches reject versions where MCP removed JSON-RPC batching before tool execution',function(){
+    foreach(array('2025-06-18','2025-11-25') as $version){
+        $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>81),'Delete user #81');
+        $payload=array(
+            array('jsonrpc'=>'2.0','id'=>'init-'.$version,'method'=>'initialize','params'=>array('protocolVersion'=>$version)),
+            array('jsonrpc'=>'2.0','id'=>'tool-'.$version,'method'=>'tools/call','params'=>array('name'=>'show_approval_panel','arguments'=>array('approval_id'=>$pending['approval_id']))),
+        );
+        $request=test_request($payload);
+        $response=WPVDMCP_Server::instance()->handle($request);
+        $data=response_data($response);
+        assert_same(400,$response instanceof WP_REST_Response?$response->get_status():null,'initialize batch must reject '.$version);
+        assert_same(-32600,$data['error']['code']??null,'initialize batch must reject before negotiation for '.$version);
+        $panel_key='transient:wpvdmcp_ui_panel_'.hash('sha256',$pending['approval_id']);
+        assert_same(false,get_option($panel_key,false),'rejected initialize batch must not execute later tool for '.$version);
+    }
+});
+
+parity_test('empty batch is rejected for post-batching MCP versions',function(){
+    $request=test_request(array(),'2025-06-18');
+    $response=WPVDMCP_Server::instance()->handle($request);
+    $data=response_data($response);
+    assert_same(400,$response instanceof WP_REST_Response?$response->get_status():null,'empty post-2025-06-18 batch must be rejected');
+    assert_same(-32600,$data['error']['code']??null,'empty batch rejection must use Invalid Request');
+});
+
 parity_test('inline approval decision requires opaque app token and consumes it once',function(){
     $GLOBALS['wp_current_user']=1;
     $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>55,'password'=>'redact-me'),'Delete user #55');
@@ -103,4 +217,3 @@ parity_test('reference manifest records live website capabilities and cookbook c
     assert_true(!empty($m['reference_sources']['tools_reference']),'tools source recorded');
     assert_true(!empty($m['reference_sources']['upstream_github']),'upstream source recorded');
 });
-

@@ -13,11 +13,44 @@ final class WPVDMCP_MCP_App_Transport {
 		if ( '/wpvibe-direct/v1/mcp' !== $route ) { return $response; }
 		if ( ! $response instanceof WP_REST_Response ) { return $response; }
 		$rpc = method_exists( $request, 'get_json_params' ) ? $request->get_json_params() : array();
-		if ( ! is_array( $rpc ) || isset( $rpc[0] ) ) { return $response; }
-		$method = isset( $rpc['method'] ) ? (string) $rpc['method'] : '';
-		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
+		if ( ! is_array( $rpc ) ) { return $response; }
 		$data = $response->get_data();
 		if ( ! is_array( $data ) ) { return $response; }
+		if ( self::is_batch_payload( $rpc ) ) {
+			foreach ( $data as $index => $item ) {
+				if ( ! is_array( $item ) ) { continue; }
+				$item = self::move_app_meta( $item );
+				$matched = self::batch_request_for_response( $rpc, $item );
+				$data[ $index ] = null === $matched ? $item : self::filter_data( $item, $matched );
+			}
+			$response->set_data( $data );
+			return $response;
+		}
+		$response->set_data( self::filter_data( $data, $rpc ) );
+		return $response;
+	}
+
+	private static function is_batch_payload( $rpc ) {
+		if ( ! is_array( $rpc ) || empty( $rpc ) ) {
+			return false;
+		}
+		return array_keys( $rpc ) === range( 0, count( $rpc ) - 1 );
+	}
+
+	private static function batch_request_for_response( $batch, $response_item ) {
+		if ( ! array_key_exists( 'id', $response_item ) ) { return null; }
+		foreach ( (array) $batch as $rpc ) {
+			if ( is_array( $rpc ) && array_key_exists( 'id', $rpc ) && $rpc['id'] === $response_item['id'] ) {
+				return $rpc;
+			}
+		}
+		return null;
+	}
+
+	private static function filter_data( $data, $rpc ) {
+		$data = self::move_app_meta( $data );
+		$method = isset( $rpc['method'] ) ? (string) $rpc['method'] : '';
+		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
 
 		if ( 'resources/list' === $method ) {
 			if ( isset( $data['result'] ) && is_array( $data['result'] ) ) {
@@ -35,17 +68,22 @@ final class WPVDMCP_MCP_App_Transport {
 				$data = array( 'jsonrpc' => '2.0', 'id' => $id, 'result' => $result );
 			}
 		}
-		if ( 'tools/call' === $method && isset( $data['result']['structuredContent']['__mcp_meta'] ) && is_array( $data['result']['structuredContent']['__mcp_meta'] ) ) {
-			$data['result']['_meta'] = $data['result']['structuredContent']['__mcp_meta'];
-			unset( $data['result']['structuredContent']['__mcp_meta'] );
-			if ( isset( $data['result']['content'][0]['text'] ) ) {
-				$data['result']['content'][0]['text'] = wp_json_encode( $data['result']['structuredContent'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-			}
-		}
 		if ( in_array( $method, array( 'server/discover', 'initialize' ), true ) && isset( $data['result']['capabilities'] ) && is_array( $data['result']['capabilities'] ) ) {
 			$data['result']['capabilities']['extensions'] = array( WPVDMCP_MCP_Apps::EXTENSION_ID => array( 'mimeTypes' => array( WPVDMCP_MCP_Apps::MIME_TYPE ) ) );
 		}
-		$response->set_data( $data );
-		return $response;
+		return $data;
+	}
+
+	private static function move_app_meta( $data ) {
+		if ( ! isset( $data['result'] ) || ! is_array( $data['result'] ) || ! isset( $data['result']['structuredContent']['__mcp_meta'] ) || ! is_array( $data['result']['structuredContent']['__mcp_meta'] ) ) {
+			return $data;
+		}
+		$current = isset( $data['result']['_meta'] ) && is_array( $data['result']['_meta'] ) ? $data['result']['_meta'] : array();
+		$data['result']['_meta'] = array_merge( $current, $data['result']['structuredContent']['__mcp_meta'] );
+		unset( $data['result']['structuredContent']['__mcp_meta'] );
+		if ( isset( $data['result']['content'][0]['text'] ) ) {
+			$data['result']['content'][0]['text'] = wp_json_encode( $data['result']['structuredContent'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		}
+		return $data;
 	}
 }
