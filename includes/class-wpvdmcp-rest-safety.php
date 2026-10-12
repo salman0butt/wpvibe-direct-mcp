@@ -298,6 +298,7 @@ final class WPVDMCP_REST_Safety {
 			'/wpvibe/v1/builder-login',
 			'/wpvibe/v1/detached/run',
 			'/wpvibe/v1/audit-log/record',
+			'/wpvibe/v1/classic-theme-safety',
 			'/wpvibe/v1/self-update/health',
 			'/wpvibe/v1/self-update/run',
 		);
