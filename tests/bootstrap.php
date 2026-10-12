@@ -15,6 +15,7 @@ $GLOBALS['wp_options'] = array(
 $GLOBALS['wp_routes'] = array();
 $GLOBALS['wp_current_user'] = 0;
 $GLOBALS['user_can_manage_options'] = true;
+$GLOBALS['current_user_capabilities'] = array();
 $wp_version = '7.1.3';
 
 class WP_Error {
@@ -71,7 +72,9 @@ function rest_url($path=''){return 'https://example.test/wp-json/'.ltrim($path,'
 function get_option($k,$default=false){return array_key_exists($k,$GLOBALS['wp_options'])?$GLOBALS['wp_options'][$k]:$default;}
 function update_option($k,$v,$autoload=null){$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){unset($GLOBALS['wp_options'][$k]);return true;}
 function get_user_by($field,$value){if($field==='id' && (int)$value===1){return (object)array('ID'=>1,'user_login'=>'admin');} return false;}
-function user_can($user,$cap){if($cap==='manage_options')return !empty($GLOBALS['user_can_manage_options']); if($cap==='upload_files')return true; return true;} function current_user_can($cap){return true;} function get_current_user_id(){return (int)$GLOBALS['wp_current_user'];} function wp_set_current_user($id){$GLOBALS['wp_current_user']=$id;return true;}
+function user_can($user,$cap){if($cap==='manage_options')return !empty($GLOBALS['user_can_manage_options']); if($cap==='upload_files')return true; return true;}
+function current_user_can($cap){if(array_key_exists($cap,$GLOBALS['current_user_capabilities']))return (bool)$GLOBALS['current_user_capabilities'][$cap]; return true;}
+function get_current_user_id(){return (int)$GLOBALS['wp_current_user'];} function wp_set_current_user($id){$GLOBALS['wp_current_user']=$id;return true;}
 function wp_date($f,$t){return gmdate($f,$t);} function checked(){return '';} function wp_nonce_field(){return '';} function wp_safe_redirect(){return true;} function wp_die($m=''){throw new RuntimeException((string)$m);}
 function set_transient($k,$v,$ttl){$GLOBALS['wp_options']['transient:'.$k]=array('value'=>$v,'expires'=>time()+$ttl);return true;}
 function get_transient($k){$x=get_option('transient:'.$k,false);if(!$x||$x['expires']<time())return false;return $x['value'];}
