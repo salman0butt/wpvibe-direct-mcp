@@ -8,6 +8,7 @@ parity_test('current Works-with-AI additions are audited and ship dedicated safe
         assert_true(in_array($slug,$manifest['cookbook_integrations']??array(),true),'cookbook manifest missing '.$slug);
         $skill=WPVDMCP_Parity::execute('load_skill',array('skill'=>$slug));
         assert_true(!is_wp_error($skill),'skill must load: '.$slug);
+        assert_same('6.9',$skill['metadata']['min_wordpress']??null,'skill must advertise its WordPress 6.9 minimum: '.$slug);
         assert_true(strlen($skill['instructions']??'')>500,'skill must contain a substantive workflow: '.$slug);
     }
 
