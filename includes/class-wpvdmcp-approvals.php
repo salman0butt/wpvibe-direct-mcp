@@ -66,19 +66,43 @@ final class WPVDMCP_Approvals {
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		if ( 'approved' !== $record['status'] ) {
-			return new WP_Error( 'approval_not_approved', 'This operation does not have an unused approval.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
+		$claim = self::acquire_claim( $id );
+		if ( is_wp_error( $claim ) ) {
+			return $claim;
 		}
-		if ( sanitize_key( $operation ) !== $record['operation'] || ! hash_equals( $record['payload_hash'], self::payload_hash( $payload ) ) ) {
-			return new WP_Error( 'approval_payload_mismatch', 'The approved operation does not match this request.', array( 'status' => 409 ) );
-		}
-		if ( (int) get_option( 'wpvdmcp_user_id', 0 ) !== (int) $record['owner_user_id'] ) {
-			return new WP_Error( 'approval_owner_changed', 'The Direct MCP token owner changed after approval.', array( 'status' => 409 ) );
-		}
-		$record['status'] = 'consumed';
-		$record['consumed_at'] = time();
-		set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
-		return true;
+		$release_claim = true;
+		try {
+			// Re-read only after the atomic claim. Another request may have consumed
+			// the approval between the optimistic read above and acquiring this lock.
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) {
+				return $record;
+			}
+			if ( 'approved' !== $record['status'] ) {
+				return new WP_Error( 'approval_not_approved', 'This operation does not have an unused approval.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
+			}
+			if ( sanitize_key( $operation ) !== $record['operation'] || ! hash_equals( $record['payload_hash'], self::payload_hash( $payload ) ) ) {
+				return new WP_Error( 'approval_payload_mismatch', 'The approved operation does not match this request.', array( 'status' => 409 ) );
+			}
+			if ( (int) get_option( 'wpvdmcp_user_id', 0 ) !== (int) $record['owner_user_id'] ) {
+				return new WP_Error( 'approval_owner_changed', 'The Direct MCP token owner changed after approval.', array( 'status' => 409 ) );
+				}
+				$record['status'] = 'consumed';
+				$record['consumed_at'] = time();
+				$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+				if ( ! $stored ) {
+					// The destructive caller must not run when we cannot prove the receipt
+					// was durably consumed. Keep the claim until the receipt expires so a
+					// later request cannot replay an approval whose state is uncertain.
+					$release_claim = false;
+					return new WP_Error( 'approval_persist_failed', 'The approval could not be durably marked as consumed. The operation was not executed and this approval is locked until it expires.', array( 'status' => 503 ) );
+				}
+				return true;
+			} finally {
+				if ( $release_claim ) {
+					delete_option( self::claim_key( $id ) );
+				}
+			}
 	}
 
 	public static function status( $id ) {
@@ -101,10 +125,12 @@ final class WPVDMCP_Approvals {
 		}
 		$record = get_transient( self::key( $id ) );
 		if ( ! is_array( $record ) ) {
+			delete_option( self::claim_key( $id ) );
 			return new WP_Error( 'approval_expired', 'Approval was not found or has expired.', array( 'status' => 410 ) );
 		}
 		if ( empty( $record['expires_at'] ) || (int) $record['expires_at'] < time() ) {
 			delete_transient( self::key( $id ) );
+			delete_option( self::claim_key( $id ) );
 			return new WP_Error( 'approval_expired', 'Approval has expired.', array( 'status' => 410 ) );
 		}
 		return $record;
@@ -148,6 +174,19 @@ final class WPVDMCP_Approvals {
 
 	private static function key( $id ) {
 		return 'wpvdmcp_approval_' . $id;
+	}
+
+	private static function claim_key( $id ) {
+		return 'wpvdmcp_approval_claim_' . hash( 'sha256', (string) $id );
+	}
+
+	private static function acquire_claim( $id ) {
+		$key = self::claim_key( $id );
+		$claim = array( 'claimed_at' => time() );
+		if ( add_option( $key, $claim, '', false ) ) {
+			return true;
+		}
+		return new WP_Error( 'approval_in_progress', 'This one-time approval is already being consumed by another request.', array( 'status' => 409 ) );
 	}
 
 	private static function payload_hash( $payload ) {
