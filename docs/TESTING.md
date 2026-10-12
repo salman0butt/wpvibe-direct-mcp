@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased `main` additionally contains the self-contained MCP Apps and query-token-default-off regressions, bringing the source suite to **39 core/legacy + 14 parity + 72 reference cases (125 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, and provider-output-boundary regressions, bringing the source suite to **39 core/legacy + 14 parity + 86 reference cases (139 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -92,6 +92,8 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 ### Hosted/provider-backed public contracts
 
 - exact public hosted names fail closed without a user-owned provider;
+- local and hosted/reference provider responses share the same credential-key redaction and output-bounding layer;
+- provider-output tests cover nested/camelCase/leading-acronym and compact all-uppercase secret keys (including OAuth consumer and AWS access-key forms), prefixed auth/authorization and provider-secret-key fields, arbitrary plural credential/secret/token/API-key collections with boolean capability-predicate controls, recursive header/value/data/hash/PEM wrapper chains, safe count/status/public-key false-positive controls, normal prose preservation, fake sanitizer-metadata removal, 65,536-byte value **and map-key** / 200-item collection / 8-level depth limits, a 1.5 MB source payload, escaping-heavy and pretty-print serialized-size fallbacks at 262,144 bytes, hosted callback and WordPress-filter provider paths, stdClass/JsonSerializable **and native JSON-encodable internal-object** normalization, bounded/redacted provider `WP_Error` data, huge error-code containment, invalid-UTF8 error safety, code-point-safe multibyte truncation, Unicode escaping expansion, and the complete model-visible error-envelope ceiling;
 - `search_images` accepts current count/orientation plus Direct `per_page`;
 - `audit_page` accepts `page_url`, categories, refresh, and local-site default;
 - `get_page_html` accepts current URL/selector/max-length forms; native fallback is same-site only while external rendering requires a browser provider;

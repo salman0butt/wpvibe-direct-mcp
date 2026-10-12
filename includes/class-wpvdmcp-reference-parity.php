@@ -1,5 +1,6 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+require_once __DIR__ . '/class-wpvdmcp-provider-output.php';
 
 /**
  * Exact-name compatibility layer for the audited public WPVibe MCP surface.
@@ -172,7 +173,7 @@ final class WPVDMCP_Reference_Parity {
 		);
 		$result = self::call_reference_provider( 'seedprod_compile_page', $provider_args );
 		if ( is_wp_error( $result ) ) { return $result; }
-		return self::redact_provider_secrets( $result );
+		return $result;
 	}
 
 	private static function reference_provider_available( $name ) {
@@ -182,20 +183,13 @@ final class WPVDMCP_Reference_Parity {
 
 	private static function call_reference_provider( $name, $args ) {
 		if ( isset( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) && is_callable( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) ) {
-			return call_user_func( $GLOBALS['wpvdmcp_reference_providers'][ $name ], $args );
+			return WPVDMCP_Provider_Output::normalize( call_user_func( $GLOBALS['wpvdmcp_reference_providers'][ $name ], $args ), 'reference_' . $name );
 		}
 		if ( function_exists( 'apply_filters' ) ) {
 			$value = apply_filters( 'wpvdmcp_reference_' . $name, null, $args );
-			if ( null !== $value && false !== $value ) { return $value; }
+			if ( null !== $value && false !== $value ) { return WPVDMCP_Provider_Output::normalize( $value, 'reference_' . $name ); }
 		}
 		return new WP_Error( 'provider_unavailable', 'No provider is configured for ' . $name . '.', array( 'status' => 501, 'provider' => 'wpvdmcp_reference_' . $name ) );
-	}
-
-	private static function redact_provider_secrets( $value ) {
-		if ( ! is_array( $value ) ) { return $value; }
-		foreach ( array( 'login_url', 'token', 'secret', 'cookie', 'authorization', 'password' ) as $key ) { unset( $value[ $key ] ); }
-		foreach ( $value as $key => $item ) { if ( is_array( $item ) ) { $value[ $key ] = self::redact_provider_secrets( $item ); } }
-		return $value;
 	}
 
 	private static function hosted_provider_tools() {
@@ -204,14 +198,14 @@ final class WPVDMCP_Reference_Parity {
 
 	private static function provider( $name, $args ) {
 		if ( isset( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) && is_callable( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) ) {
-			return call_user_func( $GLOBALS['wpvdmcp_reference_providers'][ $name ], $args );
+			return WPVDMCP_Provider_Output::normalize( call_user_func( $GLOBALS['wpvdmcp_reference_providers'][ $name ], $args ), 'reference_' . $name );
 		}
 		$value = null;
 		if ( function_exists( 'apply_filters' ) ) {
 			$value = apply_filters( 'wpvdmcp_reference_' . $name, null, $args );
 		}
 		if ( null !== $value && false !== $value ) {
-			return $value;
+			return WPVDMCP_Provider_Output::normalize( $value, 'reference_' . $name );
 		}
 		return new WP_Error(
 			'provider_unavailable',
