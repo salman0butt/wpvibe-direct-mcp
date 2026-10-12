@@ -11,9 +11,7 @@ php tests/reference-run.php
 php tests/abilities-json-body-run.php
 ```
 
-Published release **1.3.3** contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)** plus one focused Abilities raw-JSON request-body regression. Its source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
-
-Current post-1.3.3 **`main`** contains **27 legacy + 14 parity + 62 reference tests (103 suite cases)** plus the focused Abilities regression. The same PHP 7.4/8.2/8.4 matrix is green on current main.
+Release **1.4.0** contains **27 legacy tests + 14 core parity tests + 62 reference parity tests (103 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
 ### MCP transport
 
@@ -67,7 +65,7 @@ Current post-1.3.3 **`main`** contains **27 legacy + 14 parity + 62 reference te
 - the explicit site-owner WPVibe approval bypass is honored only after upstream dormant classification says review is required;
 - model-provided `active` input never reaches the upstream handler and Direct never raises snippet activation.
 
-These are PHP/reference tests using a contract-faithful upstream handler double plus source invariants. The disposable WordPress/Elementor job does **not** install WPCode, so this project does not claim live WPCode E2E from that lane.
+These are PHP/reference tests using a contract-faithful upstream handler double plus source invariants. The disposable WordPress/Elementor job does **not** install WPCode, so this release does not claim live WPCode E2E from that lane.
 
 ### Direct-only armored transport
 
@@ -98,9 +96,9 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - required workflow skill catalog and version metadata;
 - current `load_skill` Direct and WPVibe forms (`skill`, `name`, `query`, `resource`), bounded catalog metadata/search, and exact saved reference reads;
 - compatibility summary and secret-free admin status;
-- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.3.3 release metadata;
+- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.4.0 release metadata;
 - current manifest records `call_armored` as a Direct-only extension;
-- future release workflow invariant requires the focused Abilities raw-JSON regression in both source and extracted-package verification.
+- the release workflow invariant requires the focused Abilities raw-JSON regression in both source and extracted-package verification.
 
 ## PHP syntax verification
 
@@ -114,7 +112,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 ## Disposable WordPress + Elementor CI acceptance
 
-`.github/workflows/wordpress-elementor-e2e.yml` provisions an isolated WordPress environment and never accepts a production/customer URL. The verified lane currently pins:
+`.github/workflows/wordpress-elementor-e2e.yml` provisions an isolated WordPress environment and never accepts a production/customer URL. The verified lane pins:
 
 - WordPress **6.9**;
 - official WPVibe **1.20.3** at exact upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`;
@@ -124,7 +122,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-The 1.3.3 release acceptance lane verifies:
+The 1.4.0 acceptance lane verifies:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -138,15 +136,14 @@ The 1.3.3 release acceptance lane verifies:
 10. `elementor/publish-document` publishes through the destructive + idempotent **DELETE** path;
 11. the rendered frontend contains the requested Elementor heading;
 12. no PHP fatal/uncaught error is present after the acceptance sequence;
-13. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable.
+13. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable;
+14. the live installed `/wpvibe/v1` REST registry is normalized and every operational route is present in either the model-facing or infrastructure-only parity-manifest classification, ignoring only WordPress core's generated namespace index.
 
-Current post-1.3.3 `main` retains that bounded acceptance and adds a runtime inventory gate before the Elementor mutation sequence. The gate reads the live installed `/wpvibe/v1` REST registry, normalizes named regex parameters to the parity-manifest form, ignores only WordPress core's generated `/wpvibe/v1` namespace index, and fails if any operational WPVibe route is absent from both the model-facing and infrastructure-only manifest classifications.
-
-This is real disposable-site E2E evidence for that bounded Elementor workflow and current route-classification gate. It is **not** evidence that Elementor Pro Theme Builder, every Elementor element/style/global-setting mutation, WPCode runtime behavior, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+This is real disposable-site E2E evidence for that bounded Elementor workflow and route-classification gate. It is **not** evidence that Elementor Pro Theme Builder, every Elementor element/style/global-setting mutation, WPCode runtime behavior, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. When a new release is actually required, current `main` requires all of the following before publication:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. For 1.4.0, publication requires all of the following:
 
 1. source PHP syntax validation;
 2. source legacy, parity, reference, and focused Abilities raw-JSON request-body regression suites;
@@ -154,9 +151,9 @@ The release workflow first resolves plugin-header/version/stable-tag consistency
 4. extraction of the built ZIP;
 5. extracted legacy, parity, reference, and focused Abilities raw-JSON regression suites;
 6. extracted PHP syntax validation;
-7. immutable tag verification/creation and release publication only after those checks pass.
+7. immutable `v1.4.0` tag verification/creation and release publication only after those checks pass.
 
-The post-merge workflow after the current release-verification hardening correctly detected that version 1.3.3 was already published at `0654f0ebb428577bddf5718cef84f8a2ec3c586e` and skipped package/tag/publish steps, leaving the existing release untouched.
+Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0ebb428577bddf5718cef84f8a2ec3c586e`; the 1.4.0 workflow must create a new tag rather than move or overwrite it.
 
 ## Broader manual disposable WordPress integration checklist
 
@@ -182,4 +179,4 @@ The post-merge workflow after the current release-verification hardening correct
 
 ## Current integration status
 
-Release 1.3.3 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow listed above. Current post-release `main` keeps that lane green and additionally verifies the live WPVibe route inventory classification. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Release 1.4.0 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow and live route-classification gate listed above. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
