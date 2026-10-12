@@ -133,3 +133,23 @@ parity_test('MCP tools list exposes only non-secret provider readiness metadata'
     assert_same(0,$calls,'actual tools/list does not invoke provider');
     assert_true(strpos(json_encode($body),$secret)===false,'actual tools/list contains no provider-return secret');
 });
+
+parity_test('hosted site registry names remain external-provider-only in single-site Direct MCP',function(){
+    unset($GLOBALS['wpvdmcp_reference_providers'],$GLOBALS['wpvdmcp_test_filter_callbacks'],$GLOBALS['wpvdmcp_test_filter_values']);
+    foreach(array(
+        'connect_site'=>array('site_url'=>'https://remote.example.test/'),
+        'list_sites'=>array(),
+        'remove_site'=>array('site_id'=>'remote-1'),
+    ) as$tool=>$args){
+        $result=WPVDMCP_Parity::execute($tool,$args);
+        assert_true(is_wp_error($result),$tool.' fails closed without provider');
+        assert_same('provider_unavailable',$result->get_error_code(),$tool.' provider-only boundary');
+    }
+    $GLOBALS['wpvdmcp_reference_providers']=array(
+        'list_sites'=>function($args){return array('sites'=>array(array('id'=>'external-1','name'=>'External provider site')));},
+    );
+    $result=WPVDMCP_Parity::execute('list_sites',array());
+    unset($GLOBALS['wpvdmcp_reference_providers']);
+    assert_true(!is_wp_error($result),'explicit external provider remains supported');
+    assert_same('external-1',$result['sites'][0]['id']??null,'explicit provider remains authoritative');
+});

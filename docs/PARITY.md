@@ -14,10 +14,10 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 
 | Reference tool | Direct MCP 1.4.1 |
 |---|---|
-| `connect_site` | Provider-backed exact name; current auth options normalized; no fake WPVibe cloud registry |
-| `list_sites` | Provider-backed exact name |
+| `connect_site` | External-provider-backed exact name; current auth options normalized; no Direct local registry is created and no fake WPVibe cloud registry is synthesized |
+| `list_sites` | External-provider-backed exact name; Direct does not fabricate the current site as a one-item hosted registry |
 | `site_info` | Native WPVibe route |
-| `remove_site` | Provider-backed exact name |
+| `remove_site` | External-provider-backed exact name; Direct has no local remote-site record to remove |
 | `rest_api` | Hardened REST bridge with current WPVibe/Direct option aliases, approval-gated mutations, and explicit Worker/control-plane route blocks |
 | `rest_api_write` | Write-only hardened alias with the same normalized query/body/approval/control-plane contract |
 | `upload_media` | Native WPVibe route |
@@ -73,7 +73,7 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 - **Validated Block Output:** recursive installed-block schema validation before `save_validated_blocks` mutations.
 - **Bulk Operations & SQL:** installed WPVibe WP-CLI dispatcher, including upstream destructive classification, approval/dry-run semantics and read-only SQL rules.
 - **Safe Code Snippets:** WPVibe dormant classifier + Direct reviewed-write approval bridge; Direct never raises activation and human WPCode activation remains authoritative.
-- **Every Site You Manage:** exact account/fleet tool names are provider-backed; Direct MCP does not clone WPVibe’s private cloud registry.
+- **Every Site You Manage:** exact account/fleet tool names are available only through an external provider/hosted integration; the native Direct deployment model is one independent installation per WordPress site, and Direct MCP does not clone WPVibe’s private cloud registry.
 - **Editable Fields:** persistent field/group/setting declarations replay through WPVibe’s native field registry, covering all 13 upstream post-field types and native meta/settings UI/REST exposure.
 
 ## Builder/workflow parity
