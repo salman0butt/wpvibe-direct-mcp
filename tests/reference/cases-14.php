@@ -1,5 +1,6 @@
 <?php
 parity_test('WPCode snippets use a Direct reviewed-write safety bridge',function(){
+    set_test_routes(array('/wpvibe/v1/code-snippet/dormant'=>array('POST')));
     $tool=parity_tool('code_snippet');
     assert_true(is_array($tool),'code_snippet tool missing');
     assert_true(isset($tool['inputSchema']['properties']->approval_id),'code_snippet must expose one-time Direct approval_id for reviewed writes');
