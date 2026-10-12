@@ -155,6 +155,45 @@ parity_test('Elementor build composition clean preflight runs again before appro
     assert_same('abc123',$result['data']['root_element_ids'][0]??null,'final build result preserved');
 });
 
+parity_test('Elementor explicit dry run preserves validation warnings without claiming a write',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/build-composition'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/build-composition',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/build-composition/run'===$route){
+            return new WP_REST_Response(array(
+                'success'=>true,
+                'post_id'=>42,
+                'warnings'=>array('[hero-title] Property "not_real" is not supported and was skipped.'),
+                'root_element_ids'=>array(),
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $GLOBALS['wp_options']['wpvibe_bypass_approvals']=array('enabled'=>true);
+    $result=WPVDMCP_Parity::execute('run_ability',array(
+        'ability_name'=>'elementor/build-composition',
+        'input'=>array(
+            'post_id'=>42,
+            'xml_structure'=>'<e-heading configuration-id="hero-title"></e-heading>',
+            'element_config'=>array('hero-title'=>array('not_real'=>'Dropped')),
+            'dry_run'=>true,
+        ),
+    ));
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(!is_wp_error($result),'explicit Elementor dry run should return validation output instead of write-failure semantics');
+    assert_same(true,$result['data']['success']??null,'explicit dry run success result preserved');
+    assert_same(1,count($result['data']['warnings']??array()),'explicit dry run warnings remain visible to the caller');
+});
+
 parity_test('Elementor manage elements partial failures are not reported as successful MCP mutations',function(){
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $GLOBALS['wp_current_user']=1;

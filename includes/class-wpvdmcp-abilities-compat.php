@@ -140,8 +140,8 @@ final class WPVDMCP_Abilities_Compat {
 		if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
-		$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
-		return self::normalize_elementor_mutation_result( $name, $result );
+			$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
+			return self::normalize_elementor_mutation_result( $name, $result, $input );
 	}
 
 	/**
@@ -177,12 +177,16 @@ final class WPVDMCP_Abilities_Compat {
 	}
 
 	/** Surface Elementor's partial-success mutation contracts as actionable MCP errors. */
-	private static function normalize_elementor_mutation_result( $name, $result ) {
-		if ( is_wp_error( $result ) || ! is_array( $result ) ) { return $result; }
-		$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array();
+		private static function normalize_elementor_mutation_result( $name, $result, $input = null ) {
+			if ( is_wp_error( $result ) || ! is_array( $result ) ) { return $result; }
+			$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array();
 
-		if ( 'elementor/build-composition' === $name ) {
-			$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
+			if ( 'elementor/build-composition' === $name ) {
+				// An explicit dry run is validation, not persistence. Preserve Elementor's
+				// warning payload so the caller can correct it without implying that a
+				// partial document write happened.
+				if ( is_array( $input ) && ! empty( $input['dry_run'] ) ) { return $result; }
+				$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
 			if ( $warnings ) {
 				return new WP_Error(
 					'elementor_composition_write_warning',
