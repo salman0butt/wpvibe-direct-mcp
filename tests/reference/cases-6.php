@@ -65,6 +65,144 @@ parity_test('run ability rejects invalid input_json before dispatch',function(){
     assert_same(0,$called,'invalid input_json must not dispatch');
 });
 
+parity_test('Elementor build composition preflights before requesting approval and rejects warnings',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $run_calls=array();
+    $GLOBALS['rest_dispatch_callback']=function($r) use (&$run_calls){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/build-composition'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/build-composition',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/build-composition/run'===$route){
+            $json=$r->get_json_params();
+            $run_calls[]=$json['input']??null;
+            return new WP_REST_Response(array(
+                'success'=>true,
+                'post_id'=>42,
+                'warnings'=>array('[hero-title] Property "content" is not supported on element type "e-heading" and was skipped.'),
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $result=WPVDMCP_Parity::execute('run_ability',array(
+        'ability_name'=>'elementor/build-composition',
+        'input'=>array(
+            'post_id'=>42,
+            'xml_structure'=>'<e-heading configuration-id="hero-title"></e-heading>',
+            'element_config'=>array('hero-title'=>array('content'=>'Dropped heading')),
+        ),
+    ));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(is_wp_error($result),'lossy Elementor preflight warnings must fail before approval');
+    assert_same('elementor_composition_preflight_failed',$result->get_error_code(),'strict Elementor preflight error code');
+    assert_same(1,count($run_calls),'warning preflight should dispatch exactly once');
+    assert_same(true,$run_calls[0]['dry_run']??null,'warning preflight must force dry_run');
+});
+
+parity_test('Elementor build composition clean preflight runs again before approved write',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $run_calls=array();
+    $GLOBALS['rest_dispatch_callback']=function($r) use (&$run_calls){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/build-composition'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/build-composition',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/build-composition/run'===$route){
+            $json=$r->get_json_params();
+            $input=$json['input']??array();
+            $run_calls[]=$input;
+            return new WP_REST_Response(array(
+                'success'=>true,
+                'post_id'=>42,
+                'root_element_ids'=>!empty($input['dry_run'])?array():array('abc123'),
+                'resolved_xml'=>'<e-heading configuration-id="hero-title" id="abc123"></e-heading>',
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $input=array(
+        'post_id'=>42,
+        'xml_structure'=>'<e-heading configuration-id="hero-title"></e-heading>',
+        'element_config'=>array('hero-title'=>array('title'=>'Good heading')),
+    );
+    $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/build-composition','input'=>$input));
+    assert_same('approval_required',$pending['status']??null,'clean preflight should proceed to approval');
+    assert_same(1,count($run_calls),'clean initial call should preflight once');
+    assert_same(true,$run_calls[0]['dry_run']??null,'initial preflight must force dry_run');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'approval should succeed');
+
+    $result=WPVDMCP_Parity::execute('run_ability',array(
+        'ability_name'=>'elementor/build-composition',
+        'input'=>$input,
+        'approval_id'=>$pending['approval_id'],
+    ));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(!is_wp_error($result),'clean approved composition should execute');
+    assert_same(3,count($run_calls),'approved call should preflight again then write once');
+    assert_same(true,$run_calls[1]['dry_run']??null,'approved call must re-run dry preflight');
+    assert_true(empty($run_calls[2]['dry_run']),'final write must use original non-dry-run input');
+    assert_same('abc123',$result['data']['root_element_ids'][0]??null,'final build result preserved');
+});
+
+parity_test('Elementor manage elements partial failures are not reported as successful MCP mutations',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/manage-elements'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/manage-elements',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/manage-elements/run'===$route){
+            return new WP_REST_Response(array(
+                'status'=>'partial_error',
+                'post_id'=>42,
+                'results'=>array(
+                    array('index'=>0,'action'=>'update','status'=>'ok','element_id'=>'abc123'),
+                    array('index'=>1,'action'=>'update','status'=>'error','element_id'=>'def456','code'=>'elementor_v3_not_supported','message'=>'Cannot update this element.'),
+                ),
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $input=array(
+        'post_id'=>42,
+        'operations'=>array(
+            array('action'=>'update','element_id'=>'abc123','settings'=>array('title'=>'Updated')),
+            array('action'=>'update','element_id'=>'def456','settings'=>array('title'=>'Dropped')),
+        ),
+    );
+    $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-elements','input'=>$input));
+    assert_same('approval_required',$pending['status']??null,'manage-elements write should request approval');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'manage-elements approval should succeed');
+    $result=WPVDMCP_Parity::execute('run_ability',array(
+        'ability_name'=>'elementor/manage-elements',
+        'input'=>$input,
+        'approval_id'=>$pending['approval_id'],
+    ));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(is_wp_error($result),'partial Elementor element mutation must surface as an MCP error');
+    assert_same('elementor_manage_elements_partial_failure',$result->get_error_code(),'partial Elementor mutation error code');
+    $data=$result->get_error_data();
+    assert_same(true,$data['partial_applied']??null,'error must disclose that sibling operations may already be applied');
+    assert_same('partial_error',$data['response']['status']??null,'upstream partial result retained for repair');
+});
+
 parity_test('ability metadata overrides conflicting fallback annotation hints',function(){
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $method='';

@@ -107,6 +107,39 @@ run_approved_ability() {
   printf '%s' "$result"
 }
 
+run_readonly_ability() {
+  local ability="$1"
+  local input_json="$2"
+  local args result
+  args="$(jq -cn --arg ability "$ability" --argjson input "$input_json" '{ability_name:$ability,input:$input}')"
+  result="$(tool_call run_ability "$args")"
+  assert_jq "$result" '(.result.isError // false) == false' "$ability readonly call failed"
+  printf '%s' "$result"
+}
+
+tool_error_code() {
+  jq -r '.result.content[0].text | fromjson | .code // empty' <<<"$1"
+}
+
+resolved_element_id() {
+  local xml="$1"
+  local configuration_id="$2"
+  printf '%s' "$xml" | php -r '
+    $xml = stream_get_contents(STDIN);
+    $configuration_id = $argv[1] ?? "";
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    if (!$dom->loadXML("<root>" . $xml . "</root>")) { exit(2); }
+    foreach ($dom->getElementsByTagName("*") as $node) {
+      if ($node->getAttribute("configuration-id") === $configuration_id) {
+        echo $node->getAttribute("id");
+        exit(0);
+      }
+    }
+    exit(3);
+  ' "$configuration_id"
+}
+
 note 'Checking authenticated Direct MCP health endpoint'
 health="$(curl --fail-with-body --silent --show-error "${auth_headers[@]}" "$HEALTH_URL")"
 assert_jq "$health" '.name == "WPVibe Direct MCP" and .wpvibe_active == true' 'Direct MCP health did not report an active WPVibe bridge'
@@ -163,6 +196,9 @@ assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elemen
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/build-composition"))' 'Elementor build-composition ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-page-structure"))' 'Elementor get-page-structure ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/publish-document"))' 'Elementor publish-document ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/list-widget-schemas"))' 'Elementor list-widget-schemas ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-widget-schema"))' 'Elementor get-widget-schema ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-elements"))' 'Elementor manage-elements ability was not discovered'
 
 note 'Verifying live ability annotations used by Direct MCP routing'
 build_info="$(tool_call get_ability_info '{"ability_name":"elementor/build-composition"}')"
@@ -175,16 +211,103 @@ create_result="$(run_approved_ability 'elementor/create-page' '{"title":"WPVibe 
 PAGE_ID="$(jq -r '.result.structuredContent.data.id // empty' <<<"$create_result")"
 [[ "$PAGE_ID" =~ ^[0-9]+$ ]] || fail 'create-page did not return a numeric page id'
 
-note "Building Atomic composition on page ${PAGE_ID}; this proves destructive+non-idempotent routes as POST"
-build_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,xml_structure:"<e-flexbox configuration-id=\"hero-section\"><e-heading configuration-id=\"hero-title\"></e-heading></e-flexbox>",element_config:{"hero-title":{tag:"h2",title:"WPVibe Direct MCP E2E Heading"}}}')"
+note 'Discovering live Elementor widget schemas before page composition'
+widget_summary="$(run_readonly_ability 'elementor/list-widget-schemas' '{"summary":true}')"
+for widget_type in e-flexbox e-heading e-paragraph e-button; do
+  assert_jq "$widget_summary" "([.result.structuredContent.data.widgets[].type] | index(\"${widget_type}\")) != null" "Elementor widget schema summary did not expose ${widget_type}"
+done
+
+heading_schema="$(run_readonly_ability 'elementor/get-widget-schema' '{"widget_type":"e-heading"}')"
+assert_jq "$heading_schema" '.result.structuredContent.data.properties.title != null and .result.structuredContent.data.properties.tag != null' 'e-heading schema did not expose canonical title/tag props'
+paragraph_schema="$(run_readonly_ability 'elementor/get-widget-schema' '{"widget_type":"e-paragraph"}')"
+assert_jq "$paragraph_schema" '.result.structuredContent.data.properties.paragraph != null' 'e-paragraph schema did not expose canonical paragraph prop'
+button_schema="$(run_readonly_ability 'elementor/get-widget-schema' '{"widget_type":"e-button"}')"
+assert_jq "$button_schema" '.result.structuredContent.data.properties.text != null' 'e-button schema did not expose canonical text prop'
+flexbox_schema="$(run_readonly_ability 'elementor/get-widget-schema' '{"widget_type":"e-flexbox"}')"
+assert_jq "$flexbox_schema" '.result.structuredContent.data.properties.tag != null' 'e-flexbox schema did not expose canonical tag prop'
+
+note 'Proving strict composition preflight rejects a lossy Elementor build before approval/persistence'
+bad_build_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,xml_structure:"<e-heading configuration-id=\"invalid-heading\"></e-heading>",element_config:{"invalid-heading":{definitely_not_a_real_prop:"This must never persist"}}}')"
+bad_build_args="$(jq -cn --argjson input "$bad_build_input" '{ability_name:"elementor/build-composition",input:$input}')"
+bad_build_result="$(tool_call run_ability "$bad_build_args")"
+assert_jq "$bad_build_result" '.result.isError == true' 'Lossy Elementor composition unexpectedly reached approval or succeeded'
+[[ "$(tool_error_code "$bad_build_result")" == 'elementor_composition_preflight_failed' ]] || fail 'Lossy Elementor composition did not return strict preflight error'
+prebuild_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id}')")"
+assert_jq "$prebuild_structure" '(.result.structuredContent.data.elements | tostring | contains("invalid-heading")) == false' 'Rejected lossy Elementor composition still persisted content'
+
+note "Building a styled multi-section Atomic page on ${PAGE_ID}; this proves real page-design fidelity"
+build_input="$(jq -cn --argjson post_id "$PAGE_ID" '
+  {
+    post_id:$post_id,
+    xml_structure:"<e-flexbox configuration-id=\"page-shell\"><e-flexbox configuration-id=\"hero-section\"><e-heading configuration-id=\"hero-title\"></e-heading><e-paragraph configuration-id=\"hero-copy\"></e-paragraph><e-button configuration-id=\"hero-cta\"></e-button></e-flexbox><e-flexbox configuration-id=\"proof-section\"><e-heading configuration-id=\"proof-title\"></e-heading><e-paragraph configuration-id=\"proof-copy\"></e-paragraph></e-flexbox></e-flexbox>",
+    element_config:{
+      "page-shell":{tag:"main"},
+      "hero-section":{tag:"section"},
+      "hero-title":{tag:"h1",title:"Build Elementor pages reliably"},
+      "hero-copy":{paragraph:"Direct MCP now validates Elementor schemas before saving so requested content is not silently dropped."},
+      "hero-cta":{text:"Verified Elementor design"},
+      "proof-section":{tag:"section"},
+      "proof-title":{tag:"h2",title:"Schema-first page building"},
+      "proof-copy":{paragraph:"This second section proves a realistic multi-section Elementor composition survives structure, styling, updates, and publishing."}
+    },
+    style:{
+      "page-shell":"display: flex; flex-direction: column; gap: 0px;",
+      "hero-section":"background-color: #111827; padding: 96px 32px; flex-direction: column; align-items: center; gap: 20px; @media (--mobile) { padding: 56px 20px; }",
+      "hero-title":"color: #ffffff; font-size: 56px; font-weight: 700; line-height: 1.1em; text-align: center; max-width: 900px; @media (--mobile) { font-size: 38px; }",
+      "hero-copy":"color: #d1d5db; font-size: 20px; line-height: 1.6em; text-align: center; max-width: 760px;",
+      "hero-cta":"background-color: #2563eb; color: #ffffff; padding: 14px 24px; border-radius: 8px;",
+      "proof-section":"padding: 72px 32px; flex-direction: column; align-items: center; gap: 16px;",
+      "proof-title":"color: #111827; font-size: 36px; font-weight: 700; text-align: center;",
+      "proof-copy":"color: #374151; font-size: 18px; line-height: 1.6em; text-align: center; max-width: 760px;"
+    }
+  }')"
 build_result="$(run_approved_ability 'elementor/build-composition' "$build_input")"
 assert_jq "$build_result" '.result.structuredContent.data.success == true' 'Elementor build-composition did not report success'
+assert_jq "$build_result" '((.result.structuredContent.data.warnings // []) | length) == 0' 'Elementor build-composition returned warnings for the schema-derived page design'
+assert_jq "$build_result" '(.result.structuredContent.data.resolved_xml | contains("hero-title")) and (.result.structuredContent.data.resolved_xml | contains("proof-section"))' 'Elementor build-composition did not return resolved ids for the designed sections'
+
+resolved_xml="$(jq -r '.result.structuredContent.data.resolved_xml // empty' <<<"$build_result")"
+HERO_SECTION_ID="$(resolved_element_id "$resolved_xml" 'hero-section')"
+HERO_TITLE_ID="$(resolved_element_id "$resolved_xml" 'hero-title')"
+[[ "$HERO_SECTION_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve hero-section server element id from build-composition resolved_xml'
+[[ "$HERO_TITLE_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve hero-title server element id from build-composition resolved_xml'
 
 note 'Reading Elementor page structure through readonly GET ability'
 structure_args="$(jq -cn --argjson post_id "$PAGE_ID" '{ability_name:"elementor/get-page-structure",input:{post_id:$post_id}}')"
 structure="$(tool_call run_ability "$structure_args")"
 assert_jq "$structure" '(.result.isError // false) == false' 'get-page-structure failed'
 assert_jq "$structure" '(.result.structuredContent.data.elements | tostring | contains("e-heading"))' 'Created Atomic heading was not present in page structure'
+assert_jq "$structure" '(.result.structuredContent.data.elements | tostring | contains("e-paragraph")) and (.result.structuredContent.data.elements | tostring | contains("e-button"))' 'Designed Elementor page was missing paragraph/button structure'
+
+hero_content_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_SECTION_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')"
+hero_content="$(run_readonly_ability 'elementor/get-page-structure' "$hero_content_input")"
+assert_jq "$hero_content" '(.result.structuredContent.data.elements[0].styles.css // "") | contains("background")' 'Hero section styling did not survive into Elementor structure'
+assert_jq "$hero_content" '(.result.structuredContent.data.elements | tostring | contains("Build Elementor pages reliably")) and (.result.structuredContent.data.elements | tostring | contains("Verified Elementor design"))' 'Hero content did not survive into Elementor structure'
+
+note 'Updating one element using only the fresh id returned by build-composition'
+update_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Build Elementor pages reliably — verified"}}]}')"
+update_result="$(run_approved_ability 'elementor/manage-elements' "$update_input")"
+assert_jq "$update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor manage-elements did not apply the fresh-id update cleanly'
+
+note 'Proving partial Elementor bulk mutations surface as errors instead of false success'
+partial_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Partial write applied — repair required"}},{action:"update",element_id:"deadbeef",settings:{title:"Must fail"}}]}')"
+partial_pending_args="$(jq -cn --argjson input "$partial_input" '{ability_name:"elementor/manage-elements",input:$input}')"
+partial_pending="$(tool_call run_ability "$partial_pending_args")"
+assert_jq "$partial_pending" '.result.structuredContent.status == "approval_required"' 'Partial manage-elements test did not request approval'
+partial_approval="$(approval_id_from "$partial_pending")"
+approve_operation "$partial_approval"
+partial_approved_args="$(jq -cn --argjson input "$partial_input" --arg approval "$partial_approval" '{ability_name:"elementor/manage-elements",input:$input,approval_id:$approval}')"
+partial_result="$(tool_call run_ability "$partial_approved_args")"
+assert_jq "$partial_result" '.result.isError == true' 'Partial Elementor mutation was incorrectly reported as MCP success'
+[[ "$(tool_error_code "$partial_result")" == 'elementor_manage_elements_partial_failure' ]] || fail 'Partial Elementor mutation did not expose the expected error code'
+assert_jq "$partial_result" '(.result.content[0].text | fromjson | .data.partial_applied) == true' 'Partial Elementor mutation did not disclose that a sibling operation had already applied'
+
+note 'Re-reading and repairing after partial mutation using current page state'
+after_partial_content="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
+assert_jq "$after_partial_content" '.result.structuredContent.data.elements[0].settings.title == "Partial write applied — repair required"' 'Expected valid sibling from partial Elementor mutation was not persisted'
+repair_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Build Elementor pages reliably — verified"}}]}')"
+repair_result="$(run_approved_ability 'elementor/manage-elements' "$repair_input")"
+assert_jq "$repair_result" '.result.structuredContent.data.status == "ok"' 'Elementor repair after partial mutation did not succeed'
 
 note "Publishing page ${PAGE_ID}; this proves destructive+idempotent routes as DELETE"
 publish_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id}')"
@@ -196,7 +319,14 @@ note 'Verifying rendered frontend output, not only mutation responses'
 # Apache permalink rewrite rules in the disposable runner.
 PAGE_URL="${BASE_URL}/?page_id=${PAGE_ID}"
 frontend="$(curl --fail-with-body --silent --show-error "$PAGE_URL")"
-grep -Fq 'WPVibe Direct MCP E2E Heading' <<<"$frontend" || fail 'Published frontend did not contain the expected Elementor heading'
+grep -Fq 'Build Elementor pages reliably — verified' <<<"$frontend" || fail 'Published frontend did not contain the repaired Elementor hero heading'
+grep -Fq 'Direct MCP now validates Elementor schemas before saving' <<<"$frontend" || fail 'Published frontend did not contain the hero paragraph'
+grep -Fq 'Verified Elementor design' <<<"$frontend" || fail 'Published frontend did not contain the Elementor CTA button'
+grep -Fq 'Schema-first page building' <<<"$frontend" || fail 'Published frontend did not contain the second-section heading'
+grep -Fq 'realistic multi-section Elementor composition' <<<"$frontend" || fail 'Published frontend did not contain the second-section paragraph'
+if grep -Fq 'This must never persist' <<<"$frontend"; then
+  fail 'Rejected invalid Elementor content leaked into the published page'
+fi
 
 note 'Turning Elementor Atomic Editor off and checking failure/fallback behavior'
 "$WP_BIN" --path="$WP_ROOT" eval 'foreach ( array( "e_opt_in_v4", "e_atomic_elements" ) as $feature ) { $key = Elementor\Plugin::$instance->experiments->get_feature_option_key( $feature ); update_option( $key, Elementor\Core\Experiments\Manager::STATE_INACTIVE ); }' >/dev/null
