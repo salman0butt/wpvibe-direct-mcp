@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Refreshed the live WPVibe Works-with-AI/Cookbook audit through 2026-10-12 and added dedicated Direct playbooks for Advanced Custom Fields 6.8+, Ultimate Addons for Elementor 2.9.5+, and Disable Comments 2.9+, including their current setup gates and destructive-operation safety notes. These are post-1.4.0 main changes and do not modify the published 1.4.0 release.
 
 ## 1.4.0 - 2026-10-12
 - Hardened generic `rest_api` / `rest_api_write` so audited WPVibe Worker/control-plane routes are rejected before dispatch or approval creation, while model-facing WPVibe routes remain available.
