@@ -226,12 +226,20 @@ assert_jq "$button_schema" '.result.structuredContent.data.properties.text != nu
 flexbox_schema="$(run_readonly_ability 'elementor/get-widget-schema' '{"widget_type":"e-flexbox"}')"
 assert_jq "$flexbox_schema" '.result.structuredContent.data.properties.tag != null' 'e-flexbox schema did not expose canonical tag prop'
 
-note 'Proving strict composition preflight rejects a lossy Elementor build before approval/persistence'
+note 'Proving strict composition preflight runs only after approval and rejects a lossy build before persistence'
 bad_build_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,xml_structure:"<e-heading configuration-id=\"invalid-heading\"></e-heading>",element_config:{"invalid-heading":{definitely_not_a_real_prop:"This must never persist"}}}')"
 bad_build_args="$(jq -cn --argjson input "$bad_build_input" '{ability_name:"elementor/build-composition",input:$input}')"
-bad_build_result="$(tool_call run_ability "$bad_build_args")"
-assert_jq "$bad_build_result" '.result.isError == true' 'Lossy Elementor composition unexpectedly reached approval or succeeded'
+bad_build_pending="$(tool_call run_ability "$bad_build_args")"
+assert_jq "$bad_build_pending" '.result.structuredContent.status == "approval_required"' 'Lossy Elementor composition did not request approval before the compiler preflight'
+bad_build_approval="$(approval_id_from "$bad_build_pending")"
+approve_operation "$bad_build_approval"
+bad_build_approved_args="$(jq -cn --argjson input "$bad_build_input" --arg approval "$bad_build_approval" '{ability_name:"elementor/build-composition",input:$input,approval_id:$approval}')"
+bad_build_result="$(tool_call run_ability "$bad_build_approved_args")"
+assert_jq "$bad_build_result" '.result.isError == true' 'Lossy Elementor composition unexpectedly persisted or succeeded after approval'
 [[ "$(tool_error_code "$bad_build_result")" == 'elementor_composition_preflight_failed' ]] || fail 'Lossy Elementor composition did not return strict preflight error'
+bad_build_replay="$(tool_call run_ability "$bad_build_approved_args")"
+assert_jq "$bad_build_replay" '.result.isError == true' 'Consumed lossy-build approval was unexpectedly reusable'
+[[ "$(tool_error_code "$bad_build_replay")" == 'approval_not_approved' ]] || fail 'Lossy-build approval replay did not fail before another Elementor compiler call'
 prebuild_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id}')")"
 assert_jq "$prebuild_structure" '(.result.structuredContent.data.elements | tostring | contains("invalid-heading")) == false' 'Rejected lossy Elementor composition still persisted content'
 

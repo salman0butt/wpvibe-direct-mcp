@@ -65,7 +65,7 @@ parity_test('run ability rejects invalid input_json before dispatch',function(){
     assert_same(0,$called,'invalid input_json must not dispatch');
 });
 
-parity_test('Elementor build composition preflights before requesting approval and rejects warnings',function(){
+parity_test('Elementor build composition preflights only after approval and rejects warnings before persistence',function(){
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $run_calls=array();
     $GLOBALS['rest_dispatch_callback']=function($r) use (&$run_calls){
@@ -88,20 +88,31 @@ parity_test('Elementor build composition preflights before requesting approval a
         return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
     };
 
-    $result=WPVDMCP_Parity::execute('run_ability',array(
+    $args=array(
         'ability_name'=>'elementor/build-composition',
         'input'=>array(
             'post_id'=>42,
             'xml_structure'=>'<e-heading configuration-id="hero-title"></e-heading>',
             'element_config'=>array('hero-title'=>array('content'=>'Dropped heading')),
         ),
-    ));
-    unset($GLOBALS['rest_dispatch_callback']);
+    );
+    $pending=WPVDMCP_Parity::execute('run_ability',$args);
+    assert_same('approval_required',$pending['status']??null,'Elementor composition must request approval before calling mutation endpoint');
+    assert_same(0,count($run_calls),'no build-composition run call may occur before approval');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'composition approval should succeed');
 
-    assert_true(is_wp_error($result),'lossy Elementor preflight warnings must fail before approval');
+    $result=WPVDMCP_Parity::execute('run_ability',$args+array('approval_id'=>$pending['approval_id']));
+
+    assert_true(is_wp_error($result),'lossy Elementor preflight warnings must fail before persistence');
     assert_same('elementor_composition_preflight_failed',$result->get_error_code(),'strict Elementor preflight error code');
     assert_same(1,count($run_calls),'warning preflight should dispatch exactly once');
     assert_same(true,$run_calls[0]['dry_run']??null,'warning preflight must force dry_run');
+
+    $replay=WPVDMCP_Parity::execute('run_ability',$args+array('approval_id'=>$pending['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+    assert_true(is_wp_error($replay),'consumed approval must not be reusable after failed preflight');
+    assert_same('approval_not_approved',$replay->get_error_code(),'failed preflight still consumes one-time approval');
+    assert_same(1,count($run_calls),'replayed approval must fail before another Elementor run call');
 });
 
 parity_test('Elementor build composition clean preflight runs again before approved write',function(){
@@ -136,9 +147,8 @@ parity_test('Elementor build composition clean preflight runs again before appro
         'element_config'=>array('hero-title'=>array('title'=>'Good heading')),
     );
     $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/build-composition','input'=>$input));
-    assert_same('approval_required',$pending['status']??null,'clean preflight should proceed to approval');
-    assert_same(1,count($run_calls),'clean initial call should preflight once');
-    assert_same(true,$run_calls[0]['dry_run']??null,'initial preflight must force dry_run');
+    assert_same('approval_required',$pending['status']??null,'clean composition should request approval before preflight');
+    assert_same(0,count($run_calls),'clean initial call must not invoke Elementor mutation endpoint before approval');
     assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'approval should succeed');
 
     $result=WPVDMCP_Parity::execute('run_ability',array(
@@ -149,9 +159,9 @@ parity_test('Elementor build composition clean preflight runs again before appro
     unset($GLOBALS['rest_dispatch_callback']);
 
     assert_true(!is_wp_error($result),'clean approved composition should execute');
-    assert_same(3,count($run_calls),'approved call should preflight again then write once');
-    assert_same(true,$run_calls[1]['dry_run']??null,'approved call must re-run dry preflight');
-    assert_true(empty($run_calls[2]['dry_run']),'final write must use original non-dry-run input');
+    assert_same(2,count($run_calls),'approved call should preflight then write once');
+    assert_same(true,$run_calls[0]['dry_run']??null,'approved call must run dry preflight first');
+    assert_true(empty($run_calls[1]['dry_run']),'final write must use original non-dry-run input');
     assert_same('abc123',$result['data']['root_element_ids'][0]??null,'final build result preserved');
 });
 

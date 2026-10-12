@@ -119,13 +119,8 @@ final class WPVDMCP_Abilities_Compat {
 		$approval_payload = array( 'name' => $name, 'input' => $input, 'method' => $method );
 		$route = '/wp-abilities/v1/abilities/' . $name . '/run';
 
-		if ( 'elementor/build-composition' === $name && is_array( $input ) && empty( $input['dry_run'] ) ) {
-			$preflight = self::preflight_elementor_build_composition( $route, $input );
-			if ( is_wp_error( $preflight ) ) { return $preflight; }
-		}
-
-		// Direct MCP deliberately remains stricter than the hosted wrapper: every
-		// non-readonly local ability mutation is approved, not only destructive ones.
+			// Direct MCP deliberately remains stricter than the hosted wrapper: every
+			// non-readonly local ability mutation is approved, not only destructive ones.
 		if ( ! $readonly && ! WPVDMCP_Approvals::bypass_enabled() ) {
 			$approval_id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
 			if ( '' === $approval_id ) {
@@ -133,11 +128,20 @@ final class WPVDMCP_Abilities_Compat {
 				if ( is_wp_error( $approval ) ) { return $approval; }
 				return array_merge( $approval, array( 'status' => 'approval_required', 'approval_status' => isset( $approval['status'] ) ? $approval['status'] : 'pending', 'ability' => $name, 'annotations' => $annotations ) );
 			}
-			$consumed = WPVDMCP_Approvals::consume( $approval_id, 'run_ability', $approval_payload );
-			if ( is_wp_error( $consumed ) ) { return $consumed; }
-		}
+				$consumed = WPVDMCP_Approvals::consume( $approval_id, 'run_ability', $approval_payload );
+				if ( is_wp_error( $consumed ) ) { return $consumed; }
+			}
 
-		if ( 'GET' === $method || 'DELETE' === $method ) {
+			// Never call a mutation endpoint before Direct approval. Once the exact
+			// payload is approved/consumed (or the owner explicitly enabled bypass),
+			// use Elementor's own non-persistent compiler to catch lossy warnings
+			// before the real composition write.
+			if ( 'elementor/build-composition' === $name && is_array( $input ) && empty( $input['dry_run'] ) ) {
+				$preflight = self::preflight_elementor_build_composition( $route, $input );
+				if ( is_wp_error( $preflight ) ) { return $preflight; }
+			}
+
+			if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
 			$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
@@ -145,7 +149,7 @@ final class WPVDMCP_Abilities_Compat {
 	}
 
 	/**
-	 * Compile an Elementor composition without saving it before approval/write.
+		 * Compile an approved Elementor composition without saving it before the real write.
 	 *
 	 * Elementor intentionally treats unsupported props/CSS as non-fatal warnings
 	 * and still returns success. Direct MCP is stricter for page-building: a

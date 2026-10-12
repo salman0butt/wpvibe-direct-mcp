@@ -144,7 +144,7 @@ The 1.4.1 acceptance lane verifies:
 6. one-time approval-required → administrator approval → execution flow, including replay rejection;
 7. `elementor/create-page` creates a draft;
 8. live widget-schema discovery confirms the canonical Atomic props used for flexbox, heading, paragraph, and button composition;
-9. an intentionally unsupported Elementor property is rejected by Direct's strict dry-run preflight before approval/persistence instead of being silently dropped behind an upstream success response;
+9. an intentionally unsupported Elementor property first requires the normal exact-payload approval, then is rejected by Direct's strict dry-run preflight before persistence; the consumed approval cannot be replayed and the invalid content never reaches the document;
 10. `elementor/build-composition` creates a styled, responsive, multi-section Atomic page through the destructive + non-idempotent **POST** path with no upstream warnings and with server-generated IDs returned in `resolved_xml`;
 11. `elementor/get-page-structure` re-reads the generated hierarchy and content/styles through the readonly **GET** path;
 12. `elementor/manage-elements` updates an element by the fresh ID returned from `resolved_xml`;
