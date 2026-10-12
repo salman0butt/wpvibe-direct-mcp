@@ -4,7 +4,7 @@ Audit date: **2026-10-12**. Direct MCP release target: **1.4.0**. Official WordP
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
-Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while preserving the immutable history of the earlier releases.
+Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while preserving the immutable history of the earlier releases. Current `main` may contain later Unreleased playbook/audit updates without changing the published 1.4.0 artifact.
 
 ## Public MCP tool-name parity
 
@@ -80,9 +80,9 @@ Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while p
 
 ## Current Works-with-AI playbooks
 
-Direct MCP ships explicit playbooks for Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, and Kadence. `abilities-plugin` remains the generic Abilities-first fallback for newly compliant plugins; capabilities are discovered rather than inferred from private storage.
+Direct MCP ships explicit playbooks for Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, Kadence, Advanced Custom Fields, Ultimate Addons for Elementor, and Disable Comments. `abilities-plugin` remains the generic Abilities-first fallback for newly compliant plugins; capabilities are discovered rather than inferred from private storage.
 
-A fresh 2026-10-11 website audit also found newly documented WPVibe Works-with-AI coverage for **Ultimate Addons for Elementor 2.9.5** and **Advanced Custom Fields 6.8.10**. The generic Abilities bridge can discover and run compliant abilities when those plugins expose them, but dedicated Direct MCP playbooks/live plugin E2E for those newly documented integrations are a separate parity milestone and are not claimed complete by the Elementor Core E2E lane.
+The 2026-10-12 live Works-with-AI/Cookbook audit added dedicated post-1.4.0 playbooks for **Advanced Custom Fields 6.8.10**, **Ultimate Addons for Elementor 2.9.5**, and **Disable Comments 2.9.0**. They use the existing WordPress Abilities execution surface and add the setup/safety context generic discovery alone does not provide: ACF's human-enabled `acf/settings/enable_acf_ai` WPCode filter plus per-object AI access and REST exposure, UAE's `Enable Abilities` / `Enable Edit Abilities` settings and classic-theme boundary, and Disable Comments' multisite/WooCommerce/replace-all/permanent-delete safeguards. These playbooks are reference-tested and source-audited; this work does not claim live plugin E2E for ACF, UAE, or Disable Comments and does not modify the published 1.4.0 release artifact.
 
 ## MCP protocol/options parity
 
@@ -103,8 +103,8 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Release **1.4.0** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. The release workflow repeats the full PHP suites and focused regression against the extracted release ZIP before publication.
+Release **1.4.0** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. The release workflow repeats the full PHP suites and focused regression against the extracted release ZIP before publication. The post-release Works-with-AI playbook unit adds one reference regression on current `main`; it does not retroactively change 1.4.0's published test count.
 
 The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. WPCode is not installed in the disposable Elementor lane, so no live WPCode E2E claim is made. The disposable lane verifies the live WPVibe REST route-classification inventory together with the bounded Elementor Core acceptance.
 
-The live lane remains intentionally bounded: it proves the listed Elementor Core flow and runtime route inventory on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, WPCode runtime behavior, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
+The live lane remains intentionally bounded: it proves the listed Elementor Core flow and runtime route inventory on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, WPCode runtime behavior, ACF/UAE/Disable Comments runtime behavior, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
