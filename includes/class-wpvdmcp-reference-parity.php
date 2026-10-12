@@ -178,7 +178,7 @@ final class WPVDMCP_Reference_Parity {
 
 	private static function reference_provider_available( $name ) {
 		if ( isset( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) && is_callable( $GLOBALS['wpvdmcp_reference_providers'][ $name ] ) ) { return true; }
-		return function_exists( 'has_filter' ) && false !== has_filter( 'wpvdmcp_reference_' . $name );
+		return function_exists( 'has_filter' ) && (bool) has_filter( 'wpvdmcp_reference_' . $name );
 	}
 
 	private static function call_reference_provider( $name, $args ) {
