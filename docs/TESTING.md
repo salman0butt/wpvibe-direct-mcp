@@ -13,6 +13,8 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
+Current unreleased `main` additionally contains the self-contained MCP Apps and query-token-default-off regressions, bringing the source suite to **39 core/legacy + 14 parity + 72 reference cases (125 suite cases)** plus the focused Abilities regression.
+
 ### MCP transport
 
 - modern `server/discover` and current/legacy protocol negotiation;
@@ -22,7 +24,8 @@ Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 referen
 
 ### Authentication and approvals
 
-- missing/wrong/valid bearer, `X-WPVibe-Direct-Token`, and query tokens;
+- missing/wrong/valid bearer and `X-WPVibe-Direct-Token` headers;
+- query-token and legacy `access_token` authentication rejected by default, then accepted only after explicit site-owner opt-in;
 - revoked tokens and owners who lost Administrator access;
 - single-use approvals and replay rejection;
 - deterministic concurrent-consumption coverage proving exactly one claimant can consume an approved receipt, old/ambiguous claims are not stolen, and persistence uncertainty fails closed;
@@ -164,7 +167,7 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 
 **Do not run destructive tests against production.** Use a disposable/staging site with current WPVibe and Direct MCP.
 
-1. Generate Direct MCP token; test Bearer, X header, and query compatibility.
+1. Generate a Direct MCP token; verify Bearer and X-header authentication first, verify query authentication fails while compatibility is disabled, then explicitly enable the setting and verify both `?token=` and `?access_token=` work.
 2. Call health and `site_info`.
 3. Inspect an active theme file.
 4. Create a draft theme, make a trivial CSS change, get/inspect preview, then delete without publishing.

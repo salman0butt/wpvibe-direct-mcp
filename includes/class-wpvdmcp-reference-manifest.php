@@ -118,7 +118,7 @@ final class WPVDMCP_Reference_Manifest {
 				'primary_protocol' => '2026-07-28',
 				'legacy_protocols' => array( '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05' ),
 				'transport' => 'stateless-streamable-http-json',
-				'auth' => array( 'bearer', 'x-wpvibe-direct-token', 'query-token-compatibility' ),
+				'auth' => array( 'bearer', 'x-wpvibe-direct-token', 'query-token-explicit-opt-in' ),
 				'primitives' => array( 'tools', 'prompts', 'resources' ),
 				'extensions' => array( 'mcp-apps' ),
 			),

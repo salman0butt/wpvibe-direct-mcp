@@ -10,11 +10,11 @@ WPVibe Direct MCP gives an MCP client administrator-scoped access to a WordPress
 - The user must still exist and retain `manage_options` at request time.
 - Regeneration immediately invalidates the old token; revocation removes the token/owner mapping.
 - Plaintext tokens are shown only immediately after generation and are not returned by health/status tools.
-- Bearer authentication is preferred. `X-WPVibe-Direct-Token` and query-token authentication are retained for compatibility.
+- Bearer authentication is preferred and `X-WPVibe-Direct-Token` remains available by default. Query-token authentication is retained only as an explicit site-owner compatibility opt-in on current unreleased `main`.
 
 ## Query-token risk
 
-A token in `?token=` or `?access_token=` can leak through access logs, reverse proxies, browser history, analytics, referrers, screenshots, and support tooling. Use the Authorization header whenever the MCP client supports it and rotate URL credentials after exposure.
+A token in `?token=` or `?access_token=` can leak through access logs, reverse proxies, browser history, analytics, referrers, screenshots, and support tooling. Current unreleased `main` rejects query-only authentication unless the site owner enables **Allow query-string token compatibility** in Direct MCP settings. Use the Authorization header whenever the MCP client supports it, keep URL compatibility disabled otherwise, and rotate URL credentials after exposure. The published `v1.4.1` artifact predates this default-off hardening.
 
 ## Downstream authorization
 

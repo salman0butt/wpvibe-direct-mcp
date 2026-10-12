@@ -41,12 +41,6 @@ register_activation_hook( __FILE__, function() {
 } );
 
 add_action( 'plugins_loaded', function() {
-	if ( false !== get_option( 'wpvdmcp_allow_query_token', false ) ) {
-		delete_option( 'wpvdmcp_allow_query_token' );
-	}
-}, 5 );
-
-add_action( 'plugins_loaded', function() {
 	WPVDMCP_Parity::bootstrap();
 	WPVDMCP_MCP_App_Transport::bootstrap();
 	WPVDMCP_Server::instance();

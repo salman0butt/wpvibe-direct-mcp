@@ -95,7 +95,7 @@ The 2026-10-12 live Works-with-AI/Cookbook audit added dedicated playbooks for *
 - Tools, prompts and resources primitives.
 - MCP Apps extension with `text/html;profile=mcp-app` resources/read.
 - Stateless Streamable-HTTP JSON; no standalone SSE/session store.
-- Bearer, `X-WPVibe-Direct-Token`, and query-token compatibility authentication.
+- Bearer and `X-WPVibe-Direct-Token` authentication, plus query-token compatibility only after explicit site-owner opt-in on current unreleased `main` (`v1.4.1` predates this default-off hardening).
 
 ## Upstream routes intentionally kept internal
 

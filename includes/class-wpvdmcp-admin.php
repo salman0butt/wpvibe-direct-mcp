@@ -61,6 +61,7 @@ final class WPVDMCP_Admin {
 	public function save() {
 		$this->guard();
 		update_option( 'wpvdmcp_enabled', isset( $_POST['enabled'] ) ? '1' : '0', false ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
+		update_option( 'wpvdmcp_allow_query_token', isset( $_POST['allow_query_token'] ) ? '1' : '0', false ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&settings_updated=1' ) );
 		exit;
 	}
@@ -102,6 +103,7 @@ final class WPVDMCP_Admin {
 			'health_endpoint'       => rest_url( 'wpvibe-direct/v1/health' ),
 			'enabled'               => '1' === get_option( 'wpvdmcp_enabled', '1' ),
 			'authentication_configured' => (bool) get_option( 'wpvdmcp_token_hash', '' ),
+			'query_token_enabled'    => '1' === get_option( 'wpvdmcp_allow_query_token', '0' ),
 			'token_owner_user_id'   => (int) get_option( 'wpvdmcp_user_id', 0 ),
 			'last_request'          => (int) get_option( 'wpvdmcp_last_active', 0 ),
 			'tool_count'            => count( WPVDMCP_Tools::definitions() ),
@@ -171,13 +173,14 @@ final class WPVDMCP_Admin {
 
 			<h2>Access token</h2>
 			<p>Preferred: <code>Authorization: Bearer YOUR_TOKEN</code>. Regenerating immediately revokes the previous token.</p>
-			<p><strong>Compatibility URL:</strong> <code><?php echo esc_html( $status['endpoint'] ); ?>?token=YOUR_TOKEN</code></p>
+			<p><strong>Query-string compatibility:</strong> <?php echo $status['query_token_enabled'] ? '<strong>enabled</strong>' : '<strong>disabled by default</strong>'; ?>.</p>
+			<?php if ( $status['query_token_enabled'] ) : ?><p><strong>Compatibility URL:</strong> <code><?php echo esc_html( $status['endpoint'] ); ?>?token=YOUR_TOKEN</code></p><?php endif; ?>
 			<p><em>Security warning:</em> query-string tokens can enter browser history, proxy logs, analytics, and server logs. Use Bearer authentication whenever the client supports headers, and rotate a URL token if it may have leaked.</p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px"><input type="hidden" name="action" value="wpvdmcp_generate_token"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><button class="button button-primary"><?php echo $status['authentication_configured'] ? 'Regenerate token' : 'Generate token'; ?></button></form>
 			<?php if ( $status['authentication_configured'] ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block"><input type="hidden" name="action" value="wpvdmcp_revoke_token"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><button class="button" onclick="return confirm('Revoke the current MCP token?')">Revoke token</button></form><?php endif; ?>
 
 			<h2>Settings</h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="wpvdmcp_save"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><p><label><input type="checkbox" name="enabled" <?php checked( $status['enabled'] ); ?>> Enable direct MCP endpoint</label></p><p><button class="button button-primary">Save settings</button></p></form>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="wpvdmcp_save"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><p><label><input type="checkbox" name="enabled" <?php checked( $status['enabled'] ); ?>> Enable direct MCP endpoint</label></p><p><label><input type="checkbox" name="allow_query_token" <?php checked( $status['query_token_enabled'] ); ?>> Allow query-string token compatibility for clients that cannot send authentication headers</label><br><span class="description">Disabled by default because URL credentials can leak through logs, browser history, analytics, referrers, screenshots, and support tooling.</span></p><p><button class="button button-primary">Save settings</button></p></form>
 
 			<h2>Client configuration</h2>
 			<pre style="max-width:1100px;overflow:auto;background:#fff;border:1px solid #ccd0d4;padding:16px">{
