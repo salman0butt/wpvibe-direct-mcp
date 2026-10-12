@@ -36,6 +36,26 @@ parity_test('MCP Apps advertise inline approval and upload panels with readable 
     assert_true(strpos($content['text']??'','Approve')!==false,'approval HTML');
 });
 
+parity_test('MCP Apps are self-contained and load no external runtime code',function(){
+    foreach(array(
+        'ui://wpvibe-direct/approval-panel',
+        'ui://wpvibe-direct/upload-panel',
+    ) as $uri){
+        $resource=WPVDMCP_MCP_Apps::read_resource($uri);
+        assert_true(!is_wp_error($resource),'MCP App resource must load: '.$uri);
+        $content=$resource['contents'][0]??array();
+        $html=(string)($content['text']??'');
+        $domains=$content['_meta']['ui']['csp']['resourceDomains']??array();
+        assert_same(array(),array_values((array)$domains),'MCP App resourceDomains must not allow external code: '.$uri);
+        assert_true(!preg_match('/(?:src|href)\\s*=\\s*["\\\']https?:\\/\\/|(?:from|import)\\s*["\\\']https?:\\/\\//i',$html),'MCP App must not load or import external HTTP(S) runtime code: '.$uri);
+        assert_true(strpos($html,"'ui/initialize'")!==false,'MCP App keeps the UI initialize handshake: '.$uri);
+        assert_true(strpos($html,"'ui/notifications/initialized'")!==false,'MCP App keeps the initialized notification: '.$uri);
+        assert_true(strpos($html,"'ui/notifications/tool-result'")!==false,'MCP App keeps tool-result delivery: '.$uri);
+        assert_true(strpos($html,"'tools/call'")!==false,'MCP App keeps app-to-server tool calls: '.$uri);
+        assert_true(strpos($html,'event.source!==window.parent')!==false,'MCP App ignores messages from non-parent windows: '.$uri);
+    }
+});
+
 parity_test('modern MCP rejects JSON-RPC batches before app-only approval metadata can be minted',function(){
     $GLOBALS['wp_current_user']=1;
     $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>77),'Delete user #77');

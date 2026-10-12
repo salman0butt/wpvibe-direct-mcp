@@ -113,7 +113,7 @@ For vulnerabilities in this Direct MCP bridge, report them privately to the repo
 
 Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. MCP 2025-06-18+ batches are rejected before execution; retained pre-2025-06-18 legacy batches sanitize each tool result so this app-only token is removed from model-visible structured content and text. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
 
-The MCP App HTML currently imports the official `@modelcontextprotocol/ext-apps` browser client from a version-pinned `esm.sh` URL. The app CSP allows that resource domain; production operators with stricter supply-chain policies should proxy/vendor an audited copy before enabling inline apps in a locked-down environment.
+The MCP App HTML is self-contained and does not load runtime JavaScript from a third-party CDN. A bounded local postMessage bridge implements only the protocol subset these two panels need: Apps initialization, initialized/tool-result notifications, app-to-server tool calls, ping/teardown replies, and size notifications. Incoming messages are accepted only from the parent frame, while the browser approval/upload fallbacks remain available if inline Apps transport is unavailable.
 
 ## Hosted/provider boundary
 

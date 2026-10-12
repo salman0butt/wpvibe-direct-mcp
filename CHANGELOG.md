@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Removed the MCP Apps runtime dependency on `esm.sh`. The inline approval and upload resources now use a small self-contained postMessage bridge for the MCP Apps initialize/tool-result/tool-call lifecycle, keep browser fallbacks, and advertise no external script resource domain inside the approval boundary.
 
 ## 1.4.1 - 2026-10-12
 - Closed the MCP Apps approval-boundary leak: MCP 2025-06-18 and newer now reject JSON-RPC batches before tool execution, while retained pre-2025-06-18 legacy batches sanitize app-only metadata per result so approval-panel tokens never remain in model-visible structured content or text.
