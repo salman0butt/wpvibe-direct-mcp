@@ -117,6 +117,7 @@ final class WPVDMCP_Abilities_Compat {
 		$idempotent = ! empty( $annotations['idempotent'] );
 		$method = $readonly ? 'GET' : ( $destructive && $idempotent ? 'DELETE' : 'POST' );
 		$approval_payload = array( 'name' => $name, 'input' => $input, 'method' => $method );
+		$route = '/wp-abilities/v1/abilities/' . $name . '/run';
 
 		// Direct MCP deliberately remains stricter than the hosted wrapper: every
 		// non-readonly local ability mutation is approved, not only destructive ones.
@@ -131,11 +132,105 @@ final class WPVDMCP_Abilities_Compat {
 			if ( is_wp_error( $consumed ) ) { return $consumed; }
 		}
 
-		$route = '/wp-abilities/v1/abilities/' . $name . '/run';
+		// Never call a mutation endpoint before Direct approval. Once the exact
+		// payload is approved/consumed (or the owner explicitly enabled bypass),
+		// use Elementor's own non-persistent compiler to catch lossy warnings
+		// before the real composition write.
+		if ( 'elementor/build-composition' === $name && is_array( $input ) && empty( $input['dry_run'] ) ) {
+			$preflight = self::preflight_elementor_build_composition( $route, $input );
+			if ( is_wp_error( $preflight ) ) { return $preflight; }
+		}
+
 		if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
-		return self::dispatch_json_post( $route, array( 'input' => $input ) );
+		$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
+		return self::normalize_elementor_mutation_result( $name, $result, $input );
+	}
+
+	/**
+	 * Compile an approved Elementor composition without saving it before the real write.
+	 *
+	 * Elementor intentionally treats unsupported props/CSS as non-fatal warnings
+	 * and still returns success. Direct MCP is stricter for page-building: a
+	 * composition with warnings must be corrected before any partial design is
+	 * persisted, otherwise the model can report success while requested content
+	 * or styles were silently dropped.
+	 */
+	private static function preflight_elementor_build_composition( $route, $input ) {
+		$dry_input = $input;
+		$dry_input['dry_run'] = true;
+		$preflight = self::dispatch_json_post( $route, array( 'input' => $dry_input ) );
+		if ( is_wp_error( $preflight ) ) { return $preflight; }
+
+		$data = isset( $preflight['data'] ) && is_array( $preflight['data'] ) ? $preflight['data'] : array();
+		$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
+		if ( $warnings ) {
+			return new WP_Error(
+				'elementor_composition_preflight_failed',
+				'Elementor composition validation returned warnings. Fix the widget settings/styles before saving so requested page content is not silently dropped.',
+				array(
+					'status' => 422,
+					'post_id' => isset( $data['post_id'] ) ? $data['post_id'] : ( isset( $input['post_id'] ) ? $input['post_id'] : null ),
+					'warnings' => $warnings,
+				)
+			);
+		}
+
+		return true;
+	}
+
+	/** Surface Elementor's partial-success mutation contracts as actionable MCP errors. */
+	private static function normalize_elementor_mutation_result( $name, $result, $input = null ) {
+		if ( is_wp_error( $result ) || ! is_array( $result ) ) { return $result; }
+		$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array();
+
+		if ( 'elementor/build-composition' === $name ) {
+			// An explicit dry run is validation, not persistence. Preserve Elementor's
+			// warning payload so the caller can correct it without implying that a
+			// partial document write happened.
+			if ( is_array( $input ) && ! empty( $input['dry_run'] ) ) { return $result; }
+			$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
+			if ( $warnings ) {
+				return new WP_Error(
+					'elementor_composition_write_warning',
+					'Elementor returned warnings after saving the composition. Re-read the page structure and repair the affected content before reporting success.',
+					array( 'status' => 409, 'partial_applied' => true, 'response' => $data, 'warnings' => $warnings )
+				);
+			}
+			return $result;
+		}
+
+		if ( 'elementor/manage-elements' !== $name ) { return $result; }
+
+		$status = isset( $data['status'] ) ? (string) $data['status'] : '';
+		$rows = isset( $data['results'] ) && is_array( $data['results'] ) ? $data['results'] : array();
+		$warnings = array();
+		$applied = false;
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) { continue; }
+			if ( 'ok' === ( $row['status'] ?? '' ) ) { $applied = true; }
+			if ( ! empty( $row['warnings'] ) && is_array( $row['warnings'] ) ) {
+				$warnings = array_merge( $warnings, $row['warnings'] );
+			}
+		}
+
+		if ( 'partial_error' === $status || 'error' === $status ) {
+			return new WP_Error(
+				'elementor_manage_elements_partial_failure',
+				'Elementor did not apply every requested element operation. Re-read the current page structure and repair only the failed operations before reporting success.',
+				array( 'status' => 409, 'partial_applied' => $applied, 'response' => $data )
+			);
+		}
+		if ( $warnings ) {
+			return new WP_Error(
+				'elementor_manage_elements_warning',
+				'Elementor applied the element mutation with warnings. Re-read the current page structure and verify the affected content/styles before reporting success.',
+				array( 'status' => 409, 'partial_applied' => $applied, 'response' => $data, 'warnings' => array_values( $warnings ) )
+			);
+		}
+
+		return $result;
 	}
 
 	/**

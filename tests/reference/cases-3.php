@@ -62,7 +62,12 @@ parity_test('Elementor v4 skill covers current abilities, Atomic boundaries, set
     ) as $ability){
         assert_true(strpos($text,$ability)!==false,'Elementor skill missing current ability '.$ability);
     }
-    assert_true(strpos(strtolower($text),'replaces')!==false,'Elementor replace-not-merge warning documented');
+    assert_true(strpos($text,'dry_run')!==false,'Elementor build preflight documented');
+    assert_true(strpos($text,'warnings')!==false,'Elementor warning inspection documented');
+    assert_true(strpos($text,'resolved_xml')!==false,'Elementor post-build id source documented');
+    assert_true(strpos($text,'partial_error')!==false,'Elementor partial manage-elements failure documented');
+    assert_true(strpos(strtolower($text),'partial')!==false&&strpos(strtolower($text),'settings')!==false,'Elementor partial page-settings merge documented');
+    assert_true(strpos($text,'replaces the complete current settings object')===false,'stale whole-settings replacement guidance removed');
     assert_true(strpos($text,'Atomic Editor')!==false,'Elementor Atomic capability boundary documented');
     assert_true(strpos($text,'elementor_save_page')!==false,'Elementor native fallback documented');
     assert_true(strpos($text,'elementor_save_template')!==false,'Elementor Pro template fallback documented');
