@@ -26,7 +26,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 | `navigate` | Native WPVibe route |
 | `load_skill` | Built-in + saved catalog; Direct and current WPVibe `name/query/resource` lookup forms |
 | `save_skill` | Exact alias to approval-gated local skill create/update |
-| `code_snippet` | Native dormant WPCode route; no silent activation |
+| `code_snippet` | Direct safety bridge over upstream `WPVibe_Code_Snippet::handle()`: preserves `wpcode_edit_snippets`, runs dormant classification first, requires exact-payload one-time Direct approval only for upstream `snippet_review_required`, keeps Worker proofs hidden, and never raises activation |
 | `show_approval_panel`, `check_approval_status` | Native Direct approval state + MCP App/browser UI; `approval_id`/`op_id` compatibility |
 | `audit_page` | User-owned Lighthouse/PageSpeed provider with current page URL/category/refresh options |
 | `get_profile` | Provider-backed exact hosted name |
@@ -45,6 +45,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 - Abilities accept `ability_name`/`name` and `input_json`/structured `input`; fetched ability metadata is authoritative, with fallback hints used only when metadata cannot be read.
 - WordPress 6.9+ POST Ability execution uses an actual `application/json` raw body matching the core Abilities run-controller contract; readonly GET and destructive+idempotent DELETE retain query-param execution.
 - Destructive `run_wp_cli` preserves the exact upstream `operation` and `dry_run` snapshot, binds that state plus the exact command to a one-time Direct browser approval, rejects payload drift/replay, and invokes WPVibe's in-process approved executor only after authorization. The Worker-only `/wpvibe/v1/cli/run-approved` route and operation-proof secrets remain model-inaccessible.
+- Both upstream WPCode snippet REST routes are Worker-proof-protected, so Direct does not dispatch either one or mint a proof. It re-checks `wpcode_edit_snippets`, invokes the same upstream handler in-process with dormant semantics first, and adds a payload-bound one-time Direct approval only when that classifier returns `snippet_review_required`. Model-supplied activation is discarded and activation remains under WPCode's human wp-admin flow.
 - `load_skill` supports current `name`, `query`, and `resource` forms, no-argument bounded catalog metadata, metadata-only search, and exact bounded saved-reference reads.
 - Provider-backed public tools normalize the current documented options but still fail closed without user-owned infrastructure; no private WPVibe cloud credentials or account data are copied.
 - `call_armored` is a bounded Direct-only transport retry for already-exposed tools. Base64 decoding does not bypass the target tool's schema, approval, route, provider, or replay protections; self/approval-internal/unexposed targets and invalid/oversized payloads fail closed.
@@ -63,7 +64,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 - **Interactive Panels:** MCP Apps approval/upload `ui://` resources plus secure browser fallbacks.
 - **Validated Block Output:** recursive installed-block schema validation before `save_validated_blocks` mutations.
 - **Bulk Operations & SQL:** installed WPVibe WP-CLI dispatcher, including upstream destructive classification, approval/dry-run semantics and read-only SQL rules.
-- **Safe Code Snippets:** dormant WPCode creation/update only; activation stays human/upstream-approved.
+- **Safe Code Snippets:** WPVibe dormant classifier + Direct reviewed-write approval bridge; Direct never raises activation and human WPCode activation remains authoritative.
 - **Every Site You Manage:** exact account/fleet tool names are provider-backed; Direct MCP does not clone WPVibe’s private cloud registry.
 - **Editable Fields:** persistent field/group/setting declarations replay through WPVibe’s native field registry, covering all 13 upstream post-field types and native meta/settings UI/REST exposure.
 
@@ -94,7 +95,7 @@ A fresh 2026-10-11 website audit also found newly documented WPVibe Works-with-A
 
 ## Upstream routes intentionally kept internal
 
-These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/ping`, `/health`, `/connection-check-challenge`, `/audit-log/record`, `/cli/run-approved`, `/authorize`, `/authorize/preflight`, `/connection-status`, `/op-proof/check`, `/code-snippet` approved path, `/builder-login`, `/detached/run`, `/self-update/health`, `/self-update/run`, and `/classic-theme-safety`. Higher-level safe tools may consume trusted in-process equivalents where that preserves upstream semantics, but generic REST cannot reach these endpoints. The related `/wpvibe/v1/draft-theme/compile-sources` snapshot route is explicitly classified model-facing.
+These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/ping`, `/health`, `/connection-check-challenge`, `/audit-log/record`, `/cli/run-approved`, `/authorize`, `/authorize/preflight`, `/connection-status`, `/op-proof/check`, `/code-snippet` approved path, `/builder-login`, `/detached/run`, `/self-update/health`, `/self-update/run`, and `/classic-theme-safety`. Higher-level safe tools may consume trusted in-process equivalents where that preserves upstream semantics, but generic REST cannot reach these endpoints. The related `/wpvibe/v1/code-snippet/dormant` route remains the upstream dormant-classification capability marker, but Direct executes the trusted snippet handler in-process because that REST route itself also requires Worker proof. The related `/wpvibe/v1/draft-theme/compile-sources` snapshot route is explicitly classified model-facing.
 
 ## Direct extensions beyond the public named surface
 
@@ -104,6 +105,6 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 Published release **1.3.3** runs 94 suite cases (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4 plus a focused Abilities raw-JSON request-body regression. Its disposable Elementor acceptance workflow verifies the bounded Core 4.3.4 flow described above.
 
-Current post-1.3.3 **`main`** runs **101 suite cases (27 legacy + 14 parity + 60 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities regression. The current disposable lane also verifies the live WPVibe REST route-classification inventory. Future release packaging requires the focused Abilities request-body regression both before packaging and again after extracting the release ZIP.
+Current post-1.3.3 **`main`** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities regression. The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. WPCode is not installed in the disposable Elementor lane, so no live WPCode E2E claim is made. The current disposable lane verifies the live WPVibe REST route-classification inventory. Future release packaging requires the focused Abilities request-body regression both before packaging and again after extracting the release ZIP.
 
-The live lane remains intentionally bounded: it proves the listed Elementor Core flow and runtime route inventory on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
+The live lane remains intentionally bounded: it proves the listed Elementor Core flow and runtime route inventory on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, WPCode runtime behavior, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
