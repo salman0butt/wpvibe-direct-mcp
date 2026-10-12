@@ -6,6 +6,8 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 
 Provider-backed parity is also bounded on output in current unreleased source: local and hosted/reference provider callbacks share one recursive sanitizer for credential-key redaction plus string/collection/depth/total-size limits, including provider `WP_Error` data. Sanitizer metadata is explicit when a result is changed; this is a Direct safety boundary, not evidence that the underlying hosted WPVibe infrastructure has been cloned.
 
+Provider-backed tool definitions also carry non-secret current registration metadata in unreleased source. Required external capabilities remain listed for exact-name parity with `configured: false` when absent; `get_page_html` advertises its optional browser provider plus same-site native fallback. Discovery never invokes the provider while computing this metadata.
+
 Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Works-with-AI playbook refresh while preserving the immutable history of earlier releases.
 
 ## Public MCP tool-name parity
@@ -50,6 +52,7 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 - Both upstream WPCode snippet REST routes are Worker-proof-protected, so Direct does not dispatch either one or mint a proof. It re-checks `wpcode_edit_snippets`, invokes the same upstream handler in-process with dormant semantics first, and adds a payload-bound one-time Direct approval only when that classifier returns `snippet_review_required`. Model-supplied activation is discarded and activation remains under WPCode's human wp-admin flow.
 - `load_skill` supports current `name`, `query`, and `resource` forms, no-argument bounded catalog metadata, metadata-only search, and exact bounded saved-reference reads.
 - Provider-backed public tools normalize the current documented options but still fail closed without user-owned infrastructure; no private WPVibe cloud credentials or account data are copied.
+- MCP discovery decorates provider-backed tools with non-secret registration metadata without executing callbacks/filters. Exact names remain visible; absence is signaled rather than hidden, and `get_page_html` identifies its same-site native fallback.
 - `call_armored` is a bounded Direct-only transport retry for already-exposed tools. Base64 decoding does not bypass the target tool's schema, approval, route, provider, or replay protections; self/approval-internal/unexposed targets and invalid/oversized payloads fail closed.
 - MCP protocol revisions that removed JSON-RPC batching (2025-06-18 and newer, including 2026-07-28) reject batches before tool execution. Retained pre-2025-06-18 legacy batches sanitize each MCP Apps tool result so app-only approval metadata is moved out of model-visible structured content/text.
 - Direct approval consumption uses an atomic claim before a protected operation may execute. Competing consumers and uncertain persistence states fail closed rather than allowing duplicate destructive execution.

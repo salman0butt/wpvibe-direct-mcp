@@ -74,6 +74,8 @@ Direct MCP stays thin by design:
 
 Direct MCP exposes audited hosted tool names for account/site registry, fleet and usage-reset workflows, but it does not clone WPVibe's private cloud database or credentials. Those tools require a user-owned provider and otherwise return `provider_unavailable`. Stock search, browser rendering, screenshots and Lighthouse-style audits follow the same fail-closed provider model. MCP Apps approval/upload panels are implemented locally and do not require WPVibe's hosted UI.
 
+Current unreleased source keeps those exact public tool names visible in MCP discovery and adds non-secret provider readiness under each provider-backed tool's `_meta['io.wpvibe.direct/provider']`. Discovery checks only whether a callback/filter is registered; it never calls the provider. `get_page_html` is marked as a hybrid capability because same-site HTML can still fall back to WPVibe's native rendered-HTML path while external JavaScript rendering requires the configured browser provider.
+
 Current unreleased source also treats provider **responses** as an external trust boundary. Local and hosted/reference provider results pass through one bounded normalizer before becoming model-visible: credential-shaped keys are removed by key context, nested structures are depth/item bounded, individual strings and the overall output have explicit size limits, provider `WP_Error` data is sanitized, and any changed result carries `_wpvdmcp_provider_output` metadata. Ordinary prose containing words such as “token” is not redacted merely for using that word. The published `v1.4.1` artifact predates this hardening.
 
 See `docs/PARITY.md` for the complete matrix.

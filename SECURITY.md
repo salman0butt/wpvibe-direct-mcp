@@ -128,3 +128,5 @@ The MCP App HTML is self-contained and does not load runtime JavaScript from a t
 ## Hosted/provider boundary
 
 Account/site registry, fleet, usage reset, stock search, Lighthouse, screenshots, browser rendering and SeedProd browser automation do not silently call WPVibe private infrastructure. They fail closed unless a site owner configures a provider. Provider code is responsible for its own network egress, credential storage, SSRF policy, retention and licensing.
+
+Current unreleased MCP tool discovery exposes only non-secret provider **registration state** for these public tools. The readiness metadata is built from `is_callable()` / WordPress `has_filter()` checks and never invokes provider callbacks or filters, never includes provider return values or credentials, and does not grant authorization. Exact public tool names remain listed even when `configured: false`; runtime execution still enforces the existing `provider_unavailable` and approval/fallback rules.
