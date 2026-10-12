@@ -111,7 +111,7 @@ For vulnerabilities in this Direct MCP bridge, report them privately to the repo
 
 ## MCP Apps security
 
-Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. MCP 2025-06-18+ batches are rejected before execution; retained 2024 legacy batches sanitize each tool result so this app-only token is removed from model-visible structured content and text. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
+Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. MCP 2025-06-18+ batches are rejected before execution; retained pre-2025-06-18 legacy batches sanitize each tool result so this app-only token is removed from model-visible structured content and text. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
 
 The MCP App HTML currently imports the official `@modelcontextprotocol/ext-apps` browser client from a version-pinned `esm.sh` URL. The app CSP allows that resource domain; production operators with stricter supply-chain policies should proxy/vendor an audited copy before enabling inline apps in a locked-down environment.
 

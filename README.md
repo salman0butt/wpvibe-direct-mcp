@@ -15,7 +15,7 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## What 1.4.1 adds and verifies
 
-- MCP 2025-06-18 and newer reject JSON-RPC batches before tool execution. Retained 2024 legacy batching sanitizes MCP Apps metadata per result so inline approval-panel tokens cannot leak into model-visible content.
+- MCP 2025-06-18 and newer reject JSON-RPC batches before tool execution. Retained pre-2025-06-18 legacy batching sanitizes MCP Apps metadata per result so inline approval-panel tokens cannot leak into model-visible content.
 - One-time approvals now use an atomic claim before protected execution; concurrent reuse, ambiguous claims, and persistence uncertainty fail closed.
 - Browser upload tickets atomically reserve `waiting` → `processing` before Media Library side effects, allow exactly one finalizer, and roll back attachments after partial upload or finalization failure.
 - Generic REST blocks both Worker-proof-protected WPCode snippet endpoints; the public `code_snippet` capability continues through the capability-preserving in-process safety bridge and is classified as a Direct local equivalent.

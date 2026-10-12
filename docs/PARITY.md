@@ -49,7 +49,7 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 - `load_skill` supports current `name`, `query`, and `resource` forms, no-argument bounded catalog metadata, metadata-only search, and exact bounded saved-reference reads.
 - Provider-backed public tools normalize the current documented options but still fail closed without user-owned infrastructure; no private WPVibe cloud credentials or account data are copied.
 - `call_armored` is a bounded Direct-only transport retry for already-exposed tools. Base64 decoding does not bypass the target tool's schema, approval, route, provider, or replay protections; self/approval-internal/unexposed targets and invalid/oversized payloads fail closed.
-- MCP protocol revisions that removed JSON-RPC batching (2025-06-18 and newer, including 2026-07-28) reject batches before tool execution. Retained 2024 legacy batches sanitize each MCP Apps tool result so app-only approval metadata is moved out of model-visible structured content/text.
+- MCP protocol revisions that removed JSON-RPC batching (2025-06-18 and newer, including 2026-07-28) reject batches before tool execution. Retained pre-2025-06-18 legacy batches sanitize each MCP Apps tool result so app-only approval metadata is moved out of model-visible structured content/text.
 - Direct approval consumption uses an atomic claim before a protected operation may execute. Competing consumers and uncertain persistence states fail closed rather than allowing duplicate destructive execution.
 - Browser media tickets atomically reserve `waiting` → `processing` before attachment creation, permit exactly one finalizer, and roll back attachments if a multi-file attempt or final persistence step fails.
 
@@ -91,7 +91,7 @@ The 2026-10-12 live Works-with-AI/Cookbook audit added dedicated playbooks for *
 
 - Modern `2026-07-28` `server/discover`, routing headers and cache hints; JSON-RPC batches are rejected for 2025-06-18+ revisions where batching is no longer supported.
 - Legacy 2025/2024 initialize/ping compatibility.
-- Retained 2024 batch compatibility sanitizes MCP Apps metadata independently for every returned batch result.
+- Retained pre-2025-06-18 batch compatibility sanitizes MCP Apps metadata independently for every returned batch result.
 - Tools, prompts and resources primitives.
 - MCP Apps extension with `text/html;profile=mcp-app` resources/read.
 - Stateless Streamable-HTTP JSON; no standalone SSE/session store.

@@ -90,7 +90,7 @@ Release 1.4.1 retains `call_armored` as a Direct-only local extension. It base64
 
 ## MCP batching and concurrency boundaries
 
-MCP revisions 2025-06-18 and newer reject JSON-RPC batches before any batch member executes. Older 2024 batch compatibility remains for legacy clients, but MCP Apps metadata is sanitized independently per result so app-only panel tokens do not survive in model-visible structured content or text.
+MCP revisions 2025-06-18 and newer reject JSON-RPC batches before any batch member executes. Pre-2025-06-18 legacy batch compatibility remains for supported older clients, but MCP Apps metadata is sanitized independently per result so app-only panel tokens do not survive in model-visible structured content or text.
 
 One-time approvals and browser upload tickets use durable atomic claims before protected side effects. A competing request cannot steal a claim by age, and uncertain persistence fails closed. Upload processing additionally rolls back attachments created by a partial attempt if a later file or final ticket transition fails.
 

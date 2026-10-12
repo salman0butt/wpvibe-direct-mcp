@@ -3,7 +3,7 @@
 ## Unreleased
 
 ## 1.4.1 - 2026-10-12
-- Closed the MCP Apps approval-boundary leak: MCP 2025-06-18 and newer now reject JSON-RPC batches before tool execution, while retained 2024 legacy batches sanitize app-only metadata per result so approval-panel tokens never remain in model-visible structured content or text.
+- Closed the MCP Apps approval-boundary leak: MCP 2025-06-18 and newer now reject JSON-RPC batches before tool execution, while retained pre-2025-06-18 legacy batches sanitize app-only metadata per result so approval-panel tokens never remain in model-visible structured content or text.
 - Made one-time Direct approvals concurrency-safe with an atomic claim before destructive execution. Competing consumers, stale/ambiguous claims, and consumed-state persistence failures fail closed instead of allowing duplicate execution.
 - Hardened browser upload tickets with an atomic `waiting` → `processing` reservation before Media Library side effects, one-winner finalization, fail-closed persistence handling, and rollback of attachments created by partial or unfinalized multi-file attempts.
 - Hardened release provenance: publication now targets only the current remote `main` SHA after both exact-SHA PHP parity and disposable WordPress/Elementor E2E gates complete successfully, and those gates are revalidated immediately before immutable tag creation.

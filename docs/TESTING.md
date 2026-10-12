@@ -32,7 +32,7 @@ Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 referen
 - changed commands/snapshots and consumed CLI approvals fail before the native approved executor can run;
 - WPCode reviewed writes run the upstream dormant classifier first, preserve the `wpcode_edit_snippets` capability gate, use exact-payload one-time Direct approval only for `snippet_review_required`, reject drift/replay before approved execution, and discard model-supplied activation input;
 - the model never receives a Worker operation-proof credential or direct `/wpvibe/v1/cli/run-approved` / approved WPCode route tool.
-- MCP 2025-06-18+ batches are rejected before tool execution; retained 2024 batches strip app-only approval metadata from model-visible structured content/text for normal, duplicate-ID, notification, explicit-null-ID, and malformed-first cases.
+- MCP 2025-06-18+ batches are rejected before tool execution; retained pre-2025-06-18 legacy batches strip app-only approval metadata from model-visible structured content/text for normal, duplicate-ID, notification, explicit-null-ID, and malformed-first cases.
 
 ### Public REST and mutation safety
 
