@@ -12,7 +12,7 @@
 ## 1.3.3 - 2026-10-12
 - Fixed WordPress Abilities POST execution to send the structured `input` as a real raw `application/json` request body, matching the WordPress 6.9 Abilities run-controller contract used by current Elementor abilities.
 - Added a focused request-body regression to the PHP 7.4, 8.2, and 8.4 parity matrix while preserving readonly GET, destructive+idempotent DELETE, one-time approval binding, and replay rejection.
-- Added a real disposable WordPress 6.9 / WPVibe 1.20.3 (`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`) / Elementor Core 4.3.4 CI lane that exercises Direct MCP health/discovery, runtime Ability discovery, approval flow, draft page creation, Atomic composition, structure read, publishing, rendered frontend verification, PHP-fatal checks, and Atomic-OFF fallback behavior.
+- Added a real disposable WordPress 6.9 / WPVibe 1.20.3 (`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`) / Elementor Core 4.3.4 CI lane that exercises Direct MCP health/discovery, runtime Ability discovery, approval flow, draft page creation, Atomic composition, structure read, publish, rendered frontend verification, PHP-fatal checks, and Atomic-OFF fallback behavior.
 - The Elementor Core E2E boundary is now verified in CI. Elementor Pro Theme Builder, broader global-style/element mutation coverage, other builders, provider-backed hosted/browser services, media edge cases, and production/client sites remain explicitly outside this release's verified E2E scope.
 
 ## 1.3.2 - 2026-10-11
