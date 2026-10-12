@@ -71,7 +71,7 @@ final class WPVDMCP_REST_Safety {
 			return new WP_Error( 'invalid_path', 'A WordPress REST path/route is required.', array( 'status' => 400 ) );
 		}
 		if ( self::is_blocked_path( $path ) ) {
-			return new WP_Error( 'blocked_route', 'This authentication-sensitive REST route is blocked by the direct MCP bridge.', array( 'status' => 403 ) );
+			return new WP_Error( 'blocked_route', 'This authentication- or worker-sensitive REST route is blocked by the direct MCP bridge.', array( 'status' => 403 ) );
 		}
 
 		$embedded = self::embedded_query( $raw_path );
@@ -287,7 +287,23 @@ final class WPVDMCP_REST_Safety {
 
 	private static function is_blocked_path( $path ) {
 		$lower = strtolower( $path );
-		return 0 === strpos( $lower, '/wpvibe-direct/v1/' ) || false !== strpos( $lower, '/application-passwords' );
+		$control_plane = array(
+			'/wpvibe/v1/authorize',
+			'/wpvibe/v1/authorize/preflight',
+			'/wpvibe/v1/connection-status',
+			'/wpvibe/v1/connection-check-challenge',
+			'/wpvibe/v1/op-proof/check',
+			'/wpvibe/v1/cli/run-approved',
+			'/wpvibe/v1/code-snippet',
+			'/wpvibe/v1/builder-login',
+			'/wpvibe/v1/detached/run',
+			'/wpvibe/v1/audit-log/record',
+			'/wpvibe/v1/self-update/health',
+			'/wpvibe/v1/self-update/run',
+		);
+		return 0 === strpos( $lower, '/wpvibe-direct/v1/' )
+			|| false !== strpos( $lower, '/application-passwords' )
+			|| in_array( rtrim( $lower, '/' ), $control_plane, true );
 	}
 
 	private static function rest_schema( $props ) {
