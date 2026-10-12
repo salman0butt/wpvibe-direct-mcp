@@ -28,9 +28,10 @@ The development branch has additional verified hardening that is **not part of t
 - Generic REST rejects audited WPVibe Worker/control-plane endpoints before dispatch or approval creation while preserving explicitly classified model-facing routes.
 - Destructive `run_wp_cli` operations preserve WPVibe's upstream dry-run/operation snapshot, require a one-time Direct browser approval bound to the exact command and snapshot, reject drift/replay, and use WPVibe's trusted in-process approved executor without exposing the Worker-only `/wpvibe/v1/cli/run-approved` route or operation-proof secrets.
 - Classic-theme fresh-proof generation remains infrastructure-only while the draft compile snapshot stays model-facing.
+- `code_snippet` no longer depends on the Worker-proof-protected WPVibe snippet REST routes. Direct reuses `WPVibe_Code_Snippet::handle()` in-process, preserves the `wpcode_edit_snippets` capability check, runs upstream dormant classification first, and adds a one-time exact-payload browser approval only when WPVibe returns `snippet_review_required`. Direct never forwards an activation flag or exposes a Worker proof; activation remains a human wp-admin action under WPCode's own checks.
 - `call_armored` provides a bounded base64 transport retry for already-exposed tools without weakening their normal approval, routing, provider, or replay protections.
-- The disposable WordPress lane now compares the live installed WPVibe `/wpvibe/v1` route registry with the parity manifest and fails if an operational route is not classified as model-facing or infrastructure-only.
-- Current `main` CI runs 27 legacy + 14 parity + 60 reference cases = **101 suite cases**, plus the focused Abilities raw-JSON regression, on PHP 7.4, 8.2, and 8.4. Future release packaging also requires that focused regression on both source and the extracted ZIP.
+- The disposable WordPress lane compares the live installed WPVibe `/wpvibe/v1` route registry with the parity manifest and fails if an operational route is not classified as model-facing or infrastructure-only.
+- Current `main` CI runs 27 legacy + 14 parity + 62 reference cases = **103 suite cases**, plus the focused Abilities raw-JSON regression, on PHP 7.4, 8.2, and 8.4. Future release packaging also requires that focused regression on both source and the extracted ZIP.
 
 See `CHANGELOG.md`, `docs/PARITY.md`, and `docs/TESTING.md` for the evidence boundary. No version/tag has been moved or republished for these development changes.
 
@@ -73,7 +74,7 @@ Some clients cannot attach custom headers. For those clients only, `?token=YOUR_
 
 Direct MCP stays thin by design:
 
-- **WPVibe owns WordPress mutation safety.** Route permission callbacks, file sandboxing, PHP checks, WP-CLI restrictions, WPCode rules, SVG sanitization, builder APIs, and upstream approval receipts stay in WPVibe.
+- **WPVibe owns WordPress mutation safety.** Route permission callbacks, file sandboxing, PHP checks, WP-CLI restrictions, WPCode rules, SVG sanitization, builder APIs, and upstream approval receipts stay in WPVibe. Where a Worker-proof REST endpoint cannot be used directly, Direct may call the same trusted upstream PHP handler in-process while re-checking the skipped REST capability boundary.
 - **Direct MCP owns transport/auth and compatibility.** It provides MCP JSON-RPC, directly managed tokens, capability discovery, browser upload tickets, approvals, and adapters that normalize current public WPVibe option contracts without weakening downstream WordPress/WPVibe checks.
 - **Feature detection wins over version coupling.** Route-backed tools are listed only when corresponding routes exist; Elementor and other Abilities are discovered from the installed site at runtime.
 
@@ -87,10 +88,11 @@ See `docs/PARITY.md` for the complete matrix.
 
 - High-entropy access token, stored as SHA-256 only.
 - Token owner must still exist and retain `manage_options`.
-- Every downstream WordPress route still performs its own permission checks.
+- Every ordinary downstream WordPress route still performs its own permission checks; in-process safety bridges explicitly preserve any capability check skipped by not entering a Worker-proof REST permission callback.
 - Generic REST blocks all `/wpvibe-direct/v1/` routes, WordPress Application Password management endpoints, and audited WPVibe Worker/control-plane endpoints.
 - Generic REST writes are one-time approval-gated unless the site owner explicitly enables WPVibe's approval bypass.
 - Destructive WP-CLI approval is command/snapshot-bound, one-time, replay-resistant, and does not reveal Worker operation-proof credentials to the model.
+- WPCode reviewed writes are classified first by WPVibe's dormant handler and, when human review is required, use a payload-bound one-time Direct approval. Worker proofs remain inaccessible and Direct never raises snippet activation.
 - Device upload links never contain the main MCP token.
 - Upload tickets expire, are owner-bound, secret-hashed, and become non-replayable after success.
 - Public URL media remains behind WPVibe's SSRF and redirect protections.
@@ -111,7 +113,9 @@ php tests/abilities-json-body-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 
-Release 1.3.3 verification contains 27 legacy + 14 parity + 53 reference tests = **94 suite cases**, plus the focused Abilities raw-JSON request-body regression. Current development `main` contains 27 legacy + 14 parity + 60 reference tests = **101 suite cases**, plus that focused regression. GitHub Actions runs the source suites on PHP 7.4, 8.2, and 8.4.
+Release 1.3.3 verification contains 27 legacy + 14 parity + 53 reference tests = **94 suite cases**, plus the focused Abilities raw-JSON request-body regression. Current development `main` contains 27 legacy + 14 parity + 62 reference tests = **103 suite cases**, plus that focused regression. GitHub Actions runs the source suites on PHP 7.4, 8.2, and 8.4.
+
+The WPCode reviewed-write bridge is unit/reference verified against the upstream handler contract, including dormant success, review-required approval, payload drift rejection, replay rejection, approval-bypass ordering, ignored activation input, and the preserved capability gate. The disposable WordPress/Elementor lane does not install WPCode, so no live WPCode E2E claim is made.
 
 A separate disposable WordPress/Elementor CI workflow verifies the bounded Elementor Core 4.3.4 integration described above and, on current `main`, the live WPVibe route-classification inventory. The broader manual checklist in `docs/TESTING.md` remains intentionally unmarked until those additional environments/capabilities are actually exercised; production is never used for destructive verification.
 
