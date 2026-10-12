@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- Hardened generic `rest_api` / `rest_api_write` so audited WPVibe Worker/control-plane routes are rejected before dispatch or approval creation, while model-facing WPVibe routes remain available.
+- Added a destructive WP-CLI handoff that preserves WPVibe's upstream `approval_required` dry-run/operation snapshot, binds a one-time Direct MCP browser approval to the exact command and snapshot, rejects drift/replay, and invokes the trusted in-process approved executor without exposing `/wpvibe/v1/cli/run-approved` or operation-proof secrets.
+- Classified the classic-theme fresh-proof helper as infrastructure-only while retaining the draft compile snapshot route as model-facing, preserving the theme trust boundary.
+- Added bounded `call_armored` retries for already-exposed tools so WAF-sensitive UTF-8/code payloads can be base64-armored without bypassing normal approvals, route restrictions, provider boundaries, or replay protection.
+- Added a disposable runtime gate that compares the live installed WPVibe `/wpvibe/v1` REST registry with the parity manifest, normalizes parameterized routes, ignores only WordPress core's generated namespace index, and fails on unclassified operational routes.
+- Hardened future release verification so the focused Abilities raw-JSON request-body regression runs against both the verified source checkout and the extracted release ZIP. Current `main` runs 27 legacy + 14 parity + 60 reference cases on PHP 7.4, 8.2, and 8.4, plus the focused Abilities regression.
+
 ## 1.3.3 - 2026-10-12
 - Fixed WordPress Abilities POST execution to send the structured `input` as a real raw `application/json` request body, matching the WordPress 6.9 Abilities run-controller contract used by current Elementor abilities.
 - Added a focused request-body regression to the PHP 7.4, 8.2, and 8.4 parity matrix while preserving readonly GET, destructive+idempotent DELETE, one-time approval binding, and replay rejection.

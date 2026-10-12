@@ -11,7 +11,9 @@ php tests/reference-run.php
 php tests/abilities-json-body-run.php
 ```
 
-Release 1.3.3 contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)** plus one focused Abilities raw-JSON request-body regression. CI runs all of them plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
+Published release **1.3.3** contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)** plus one focused Abilities raw-JSON request-body regression. Its source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
+
+Current post-1.3.3 **`main`** contains **27 legacy + 14 parity + 60 reference tests (101 suite cases)** plus the focused Abilities regression. The same PHP 7.4/8.2/8.4 matrix is green on current main.
 
 ### MCP transport
 
@@ -26,15 +28,20 @@ Release 1.3.3 contains **27 legacy tests + 14 core parity tests + 53 reference p
 - revoked tokens and owners who lost Administrator access;
 - single-use approvals and replay rejection;
 - generic REST mutations require approval unless the WPVibe bypass setting is explicitly enabled;
-- approval/status aliases (`approval_id`, `op_id`) and fleet-provider delegation.
+- approval/status aliases (`approval_id`, `op_id`) and fleet-provider delegation;
+- destructive WP-CLI converts the upstream `approval_required` result into a one-time Direct approval bound to the exact command plus the exact upstream operation/dry-run snapshot;
+- changed commands/snapshots and consumed CLI approvals fail before the native approved executor can run;
+- the model never receives a Worker operation-proof credential or direct `/wpvibe/v1/cli/run-approved` tool.
 
 ### Public REST and mutation safety
 
 - current file/publish fields and conditional route-backed builders;
-- generic REST credential-route blocks, response field/size limits, and current WPVibe option aliases (`route`, `query`, string/array `fields`, `max_length`);
+- generic REST blocks Direct MCP auth routes, Application Password credential routes, and audited WPVibe Worker/control-plane routes before dispatch or approval creation;
+- response field/size limits and current WPVibe option aliases (`route`, `query`, string/array `fields`, `max_length`);
 - embedded-query normalization with explicit query values winning duplicates;
 - core content delete requests cannot force permanent deletion through the generic bridge;
-- WooCommerce product/batch writes reject accidental loss of protected replace-all list fields unless replacement is explicit.
+- WooCommerce product/batch writes reject accidental loss of protected replace-all list fields unless replacement is explicit;
+- classic-theme fresh-proof route is classified infrastructure-only while draft compile snapshot remains explicitly model-facing.
 
 ### WordPress Abilities / Elementor foundation
 
@@ -47,6 +54,13 @@ Release 1.3.3 contains **27 legacy tests + 14 core parity tests + 53 reference p
 - destructive + non-idempotent POST with approval;
 - POST Abilities mutations use the raw `application/json` request-body contract expected by the WordPress 6.9 Abilities run controller;
 - current Elementor 4.3 Abilities-first workflow, Atomic capability boundary, whole-settings replacement warning, native fallback, preview and live/render verification guidance.
+
+### Direct-only armored transport
+
+- `call_armored` can target only an already-exposed model-facing tool;
+- decoded arguments must be a bounded JSON object;
+- target-tool approvals remain required and one-time replay protection remains active;
+- `call_armored` cannot target itself, approval-decision internals, unknown/unexposed tools, or oversized/invalid payloads.
 
 ### Device media flow
 
@@ -70,7 +84,9 @@ Release 1.3.3 contains **27 legacy tests + 14 core parity tests + 53 reference p
 - required workflow skill catalog and version metadata;
 - current `load_skill` Direct and WPVibe forms (`skill`, `name`, `query`, `resource`), bounded catalog metadata/search, and exact saved reference reads;
 - compatibility summary and secret-free admin status;
-- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.3.3 release metadata.
+- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.3.3 release metadata;
+- current manifest records `call_armored` as a Direct-only extension;
+- future release workflow invariant requires the focused Abilities raw-JSON regression in both source and extracted-package verification.
 
 ## PHP syntax verification
 
@@ -94,7 +110,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-Verified on 2026-10-11 and retained as the 1.3.3 release acceptance lane:
+The 1.3.3 release acceptance lane verifies:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -110,7 +126,23 @@ Verified on 2026-10-11 and retained as the 1.3.3 release acceptance lane:
 12. no PHP fatal/uncaught error is present after the acceptance sequence;
 13. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable.
 
-This is real disposable-site E2E evidence for that bounded Elementor workflow. It is **not** evidence that Elementor Pro Theme Builder, every Elementor element/style/global-setting mutation, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+Current post-1.3.3 `main` retains that bounded acceptance and adds a runtime inventory gate before the Elementor mutation sequence. The gate reads the live installed `/wpvibe/v1` REST registry, normalizes named regex parameters to the parity-manifest form, ignores only WordPress core's generated `/wpvibe/v1` namespace index, and fails if any operational WPVibe route is absent from both the model-facing and infrastructure-only manifest classifications.
+
+This is real disposable-site E2E evidence for that bounded Elementor workflow and current route-classification gate. It is **not** evidence that Elementor Pro Theme Builder, every Elementor element/style/global-setting mutation, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+
+## Release-package verification
+
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. When a new release is actually required, current `main` requires all of the following before publication:
+
+1. source PHP syntax validation;
+2. source legacy, parity, reference, and focused Abilities raw-JSON request-body regression suites;
+3. release ZIP build, ZIP integrity test, and SHA-256 generation;
+4. extraction of the built ZIP;
+5. extracted legacy, parity, reference, and focused Abilities raw-JSON regression suites;
+6. extracted PHP syntax validation;
+7. immutable tag verification/creation and release publication only after those checks pass.
+
+The post-merge workflow after the current release-verification hardening correctly detected that version 1.3.3 was already published at `0654f0ebb428577bddf5718cef84f8a2ec3c586e` and skipped package/tag/publish steps, leaving the existing release untouched.
 
 ## Broader manual disposable WordPress integration checklist
 
@@ -122,7 +154,7 @@ This is real disposable-site E2E evidence for that bounded Elementor workflow. I
 4. Create a draft theme, make a trivial CSS change, get/inspect preview, then delete without publishing.
 5. Recreate the draft, edit and publish only after explicit approval; verify `saved_customizations=set_aside` and `keep` on a test block theme where relevant.
 6. Create a draft page through REST; exercise `search_content` + `edit_content` including unique/no/multiple-match cases.
-7. Run safe WP-CLI read/status and an approval-required reversible/destructive workflow; inspect receipts.
+7. Run safe WP-CLI read/status and an approval-required reversible/destructive workflow; inspect receipts and Direct approval replay/drift rejection.
 8. On WordPress 6.9+, verify all Ability method classes and public aliases/input forms.
 9. With WPCode installed, create/update a dormant snippet and confirm it is not silently activated.
 10. Public URL media: raster types, safe/malicious SVG, wrong MIME, redirects/private IPs, HTTP failures, dotted filenames, large/invalid images, metadata/parenting.
@@ -136,4 +168,4 @@ This is real disposable-site E2E evidence for that bounded Elementor workflow. I
 
 ## Current integration status
 
-Release 1.3.3 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow listed above. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Release 1.3.3 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow listed above. Current post-release `main` keeps that lane green and additionally verifies the live WPVibe route inventory classification. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
