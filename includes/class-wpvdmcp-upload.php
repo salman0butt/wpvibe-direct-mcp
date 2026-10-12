@@ -84,49 +84,93 @@ final class WPVDMCP_Upload {
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		if ( 'waiting' !== $record['status'] || empty( $record['secret_hash'] ) ) {
-			return new WP_Error( 'upload_not_waiting', 'This upload ticket has already been used or closed.', array( 'status' => 409 ) );
-		}
-		$hash = hash( 'sha256', (string) $secret );
-		if ( ! hash_equals( (string) $record['secret_hash'], $hash ) ) {
-			return new WP_Error( 'upload_token_invalid', 'The upload link is invalid.', array( 'status' => 403 ) );
-		}
-		return true;
+		return self::validate_secret_record( $record, $secret, array( 'waiting' ) );
 	}
 
-	/** Finish a ticket atomically after the media library accepted its files. */
-	public static function finalize( $id, $secret, $files ) {
-		$valid = self::validate_ticket( $id, $secret );
-		if ( is_wp_error( $valid ) ) {
-			return $valid;
-		}
+	/** Atomically reserve a waiting ticket before any Media Library side effects. */
+	public static function begin_processing( $id, $secret ) {
 		$record = self::get_record( $id );
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		$safe_files = array();
-		foreach ( (array) $files as $file ) {
-			if ( ! is_array( $file ) ) {
-				continue;
+		$valid = self::validate_secret_record( $record, $secret, array( 'waiting' ) );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+		$claim = self::acquire_transition_claim( $id );
+		if ( is_wp_error( $claim ) ) {
+			return $claim;
+		}
+		$release_claim = true;
+		try {
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) {
+				return $record;
 			}
-			$safe_files[] = array(
-				'attachment_id' => isset( $file['attachment_id'] ) ? absint( $file['attachment_id'] ) : 0,
-				'filename'      => isset( $file['filename'] ) ? sanitize_file_name( $file['filename'] ) : '',
-				'mime_type'     => isset( $file['mime_type'] ) ? sanitize_text_field( $file['mime_type'] ) : '',
-				'url'           => isset( $file['url'] ) ? esc_url_raw( $file['url'] ) : '',
-				'width'         => isset( $file['width'] ) ? absint( $file['width'] ) : null,
-				'height'        => isset( $file['height'] ) ? absint( $file['height'] ) : null,
-			);
+			$valid = self::validate_secret_record( $record, $secret, array( 'waiting' ) );
+			if ( is_wp_error( $valid ) ) {
+				return $valid;
+			}
+			$record['status'] = 'processing';
+			$record['processing_at'] = time();
+			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( ! $stored ) {
+				$release_claim = false;
+				return new WP_Error( 'upload_persist_failed', 'The upload ticket could not be durably reserved. No media was uploaded and this ticket is locked until it expires.', array( 'status' => 503 ) );
+			}
+			return true;
+		} finally {
+			if ( $release_claim ) {
+				delete_option( self::transition_key( $id ) );
+			}
 		}
-		if ( ! $safe_files ) {
-			return new WP_Error( 'upload_empty_result', 'No media attachments were created.', array( 'status' => 422 ) );
+	}
+
+	/** Finish a reserved ticket atomically after the media library accepted its files. */
+	public static function finalize( $id, $secret, $files ) {
+		$record = self::get_record( $id );
+		if ( is_wp_error( $record ) ) {
+			return $record;
 		}
-		$record['files']       = $safe_files;
-		$record['status']      = 'ready';
-		$record['ready_at']    = time();
-		$record['secret_hash'] = ''; // Makes the browser URL non-replayable.
-		set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
-		return true;
+		if ( 'waiting' === ( $record['status'] ?? '' ) ) {
+			$started = self::begin_processing( $id, $secret );
+			if ( is_wp_error( $started ) ) {
+				return $started;
+			}
+		}
+		$claim = self::acquire_transition_claim( $id );
+		if ( is_wp_error( $claim ) ) {
+			return $claim;
+		}
+		$release_claim = true;
+		try {
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) {
+				return $record;
+			}
+			$valid = self::validate_secret_record( $record, $secret, array( 'processing' ) );
+			if ( is_wp_error( $valid ) ) {
+				return $valid;
+			}
+			$safe_files = self::sanitize_files( $files );
+			if ( ! $safe_files ) {
+				return new WP_Error( 'upload_empty_result', 'No media attachments were created.', array( 'status' => 422 ) );
+			}
+			$record['files']       = $safe_files;
+			$record['status']      = 'ready';
+			$record['ready_at']    = time();
+			$record['secret_hash'] = ''; // Makes the browser URL non-replayable.
+			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( ! $stored ) {
+				$release_claim = false;
+				return new WP_Error( 'upload_persist_failed', 'The completed upload could not be durably recorded. The uploaded attachments must be rolled back and this ticket is locked until it expires.', array( 'status' => 503 ) );
+			}
+			return true;
+		} finally {
+			if ( $release_claim ) {
+				delete_option( self::transition_key( $id ) );
+			}
+		}
 	}
 
 	public static function is_allowed_raster_mime( $mime ) {
@@ -160,15 +204,28 @@ final class WPVDMCP_Upload {
 			self::render_form( $id, $secret, $record );
 			return;
 		}
+		$started = self::begin_processing( $id, $secret );
+		if ( is_wp_error( $started ) ) {
+			self::render_page( 'Upload unavailable', $started->get_error_message(), false );
+			return;
+		}
+		$record = self::get_record( $id );
+		if ( is_wp_error( $record ) ) {
+			self::render_page( 'Upload unavailable', $record->get_error_message(), false );
+			return;
+		}
 
 		$result = self::handle_files( $record, isset( $_FILES['files'] ) ? $_FILES['files'] : array() ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- possession of one-time ticket is the authorization.
 		if ( is_wp_error( $result ) ) {
+			self::fail_processing( $id, $secret, $result );
 			self::audit( $id, false, $result->get_error_message(), array() );
 			self::render_page( 'Upload failed', $result->get_error_message(), false );
 			return;
 		}
 		$done = self::finalize( $id, $secret, $result );
 		if ( is_wp_error( $done ) ) {
+			self::rollback_created( $result );
+			self::fail_processing( $id, $secret, $done );
 			self::render_page( 'Upload failed', $done->get_error_message(), false );
 			return;
 		}
@@ -192,14 +249,14 @@ final class WPVDMCP_Upload {
 		$created = array();
 		foreach ( $normalized as $file ) {
 			if ( (int) $file['error'] !== UPLOAD_ERR_OK ) {
-				return new WP_Error( 'upload_php_error', self::php_upload_error( (int) $file['error'] ), array( 'status' => 400 ) );
+				return self::rollback_error( $created, new WP_Error( 'upload_php_error', self::php_upload_error( (int) $file['error'] ), array( 'status' => 400 ) ) );
 			}
 			if ( empty( $file['tmp_name'] ) || ! is_file( $file['tmp_name'] ) ) {
-				return new WP_Error( 'upload_temp_missing', 'PHP did not provide a readable temporary upload file.', array( 'status' => 500 ) );
+				return self::rollback_error( $created, new WP_Error( 'upload_temp_missing', 'PHP did not provide a readable temporary upload file.', array( 'status' => 500 ) ) );
 			}
 			$size = (int) filesize( $file['tmp_name'] );
 			if ( $size <= 0 || $size > self::max_file_bytes() ) {
-				return new WP_Error( 'upload_size', 'The image is empty or exceeds the allowed upload size.', array( 'status' => 413, 'bytes' => $size, 'limit' => self::max_file_bytes() ) );
+				return self::rollback_error( $created, new WP_Error( 'upload_size', 'The image is empty or exceeds the allowed upload size.', array( 'status' => 413, 'bytes' => $size, 'limit' => self::max_file_bytes() ) ) );
 			}
 
 			$name      = sanitize_file_name( (string) $file['name'] );
@@ -213,26 +270,27 @@ final class WPVDMCP_Upload {
 
 			if ( $looks_svg ) {
 				if ( ! class_exists( 'WPVibe_REST' ) || ! method_exists( 'WPVibe_REST', 'sideload_svg' ) || ! class_exists( 'WPVibe_SVG_Sanitizer' ) ) {
-					return new WP_Error( 'svg_support_unavailable', 'Safe SVG upload requires a current WPVibe version with its SVG sanitizer. Use PNG or WebP, or update WPVibe.', array( 'status' => 415 ) );
+					return self::rollback_error( $created, new WP_Error( 'svg_support_unavailable', 'Safe SVG upload requires a current WPVibe version with its SVG sanitizer. Use PNG or WebP, or update WPVibe.', array( 'status' => 415 ) ) );
 				}
 				$svg = WPVibe_REST::sideload_svg( $file['tmp_name'], $name, (int) $record['post_id'], (string) $record['title'] );
 				if ( is_wp_error( $svg ) ) {
-					return $svg;
+					return self::rollback_error( $created, $svg );
 				}
 				$id = (int) $svg['attachment_id'];
 			} else {
 				if ( ! self::is_allowed_raster_mime( $mime ) ) {
-					return new WP_Error( 'unsupported_media_type', 'Only JPEG, PNG, GIF, WebP, and WPVibe-sanitized SVG images are accepted by this upload link.', array( 'status' => 415, 'detected_type' => $mime ? $mime : 'unknown' ) );
+					return self::rollback_error( $created, new WP_Error( 'unsupported_media_type', 'Only JPEG, PNG, GIF, WebP, and WPVibe-sanitized SVG images are accepted by this upload link.', array( 'status' => 415, 'detected_type' => $mime ? $mime : 'unknown' ) ) );
 				}
 				if ( class_exists( 'WPVibe_REST' ) && method_exists( 'WPVibe_REST', 'check_sideload_file' ) ) {
 					$gate = WPVibe_REST::check_sideload_file( $file['tmp_name'], $name, false, $mime );
 					if ( is_wp_error( $gate ) ) {
-						return $gate;
+						return self::rollback_error( $created, $gate );
 					}
 				}
 				$id = media_handle_sideload( array( 'name' => $name, 'tmp_name' => $file['tmp_name'] ), (int) $record['post_id'], (string) $record['title'] );
 				if ( is_wp_error( $id ) ) {
-					return ( class_exists( 'WPVibe_REST' ) && method_exists( 'WPVibe_REST', 'sideload_failure_error' ) ) ? WPVibe_REST::sideload_failure_error( $id ) : $id;
+					$error = ( class_exists( 'WPVibe_REST' ) && method_exists( 'WPVibe_REST', 'sideload_failure_error' ) ) ? WPVibe_REST::sideload_failure_error( $id ) : $id;
+					return self::rollback_error( $created, $error );
 				}
 			}
 
@@ -279,10 +337,12 @@ final class WPVDMCP_Upload {
 		}
 		$record = get_transient( self::key( $id ) );
 		if ( ! is_array( $record ) ) {
+			delete_option( self::transition_key( $id ) );
 			return new WP_Error( 'upload_expired', 'Upload request was not found or has expired.', array( 'status' => 410 ) );
 		}
 		if ( empty( $record['expires_at'] ) || (int) $record['expires_at'] < time() ) {
 			delete_transient( self::key( $id ) );
+			delete_option( self::transition_key( $id ) );
 			return new WP_Error( 'upload_expired', 'Upload request has expired.', array( 'status' => 410 ) );
 		}
 		return $record;
@@ -299,6 +359,80 @@ final class WPVDMCP_Upload {
 
 	private static function key( $id ) {
 		return 'wpvdmcp_upload_' . $id;
+	}
+
+	private static function transition_key( $id ) {
+		return 'wpvdmcp_upload_claim_' . hash( 'sha256', (string) $id );
+	}
+
+	private static function acquire_transition_claim( $id ) {
+		if ( add_option( self::transition_key( $id ), array( 'claimed_at' => time() ), '', false ) ) {
+			return true;
+		}
+		return new WP_Error( 'upload_in_progress', 'This upload ticket is already being changed by another request.', array( 'status' => 409 ) );
+	}
+
+	private static function validate_secret_record( $record, $secret, $allowed_statuses ) {
+		$status = isset( $record['status'] ) ? (string) $record['status'] : '';
+		if ( ! in_array( $status, (array) $allowed_statuses, true ) || empty( $record['secret_hash'] ) ) {
+			return new WP_Error( 'upload_not_waiting', 'This upload ticket has already been used or closed.', array( 'status' => 409, 'upload_status' => $status ) );
+		}
+		$hash = hash( 'sha256', (string) $secret );
+		if ( ! hash_equals( (string) $record['secret_hash'], $hash ) ) {
+			return new WP_Error( 'upload_token_invalid', 'The upload link is invalid.', array( 'status' => 403 ) );
+		}
+		return true;
+	}
+
+	private static function sanitize_files( $files ) {
+		$safe_files = array();
+		foreach ( (array) $files as $file ) {
+			if ( ! is_array( $file ) ) { continue; }
+			$safe_files[] = array(
+				'attachment_id' => isset( $file['attachment_id'] ) ? absint( $file['attachment_id'] ) : 0,
+				'filename'      => isset( $file['filename'] ) ? sanitize_file_name( $file['filename'] ) : '',
+				'mime_type'     => isset( $file['mime_type'] ) ? sanitize_text_field( $file['mime_type'] ) : '',
+				'url'           => isset( $file['url'] ) ? esc_url_raw( $file['url'] ) : '',
+				'width'         => isset( $file['width'] ) ? absint( $file['width'] ) : null,
+				'height'        => isset( $file['height'] ) ? absint( $file['height'] ) : null,
+			);
+		}
+		return $safe_files;
+	}
+
+	private static function rollback_error( $created, $error ) {
+		self::rollback_created( $created );
+		return $error;
+	}
+
+	private static function rollback_created( $created ) {
+		foreach ( (array) $created as $file ) {
+			$id = is_array( $file ) && isset( $file['attachment_id'] ) ? absint( $file['attachment_id'] ) : 0;
+			if ( $id && function_exists( 'wp_delete_attachment' ) ) {
+				wp_delete_attachment( $id, true );
+			}
+		}
+	}
+
+	private static function fail_processing( $id, $secret, $error ) {
+		$claim = self::acquire_transition_claim( $id );
+		if ( is_wp_error( $claim ) ) { return $claim; }
+		try {
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) { return $record; }
+			$valid = self::validate_secret_record( $record, $secret, array( 'processing' ) );
+			if ( is_wp_error( $valid ) ) { return $valid; }
+			$record['status'] = 'failed';
+			$record['failed_at'] = time();
+			$record['secret_hash'] = '';
+			$record['failure_code'] = is_wp_error( $error ) ? sanitize_key( $error->get_error_code() ) : 'upload_failed';
+			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
+				return new WP_Error( 'upload_persist_failed', 'The failed upload state could not be durably recorded.', array( 'status' => 503 ) );
+			}
+			return true;
+		} finally {
+			delete_option( self::transition_key( $id ) );
+		}
 	}
 
 	private static function max_file_bytes() {
