@@ -43,6 +43,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'clientSecrets'=>array('secret-one','secret-two'),
                 'accessTokens'=>array('token-one','token-two'),
                 'apiKeys'=>array('api-one','api-two'),
+                'AWSCREDENTIALS'=>'AKIAUPPER:SECRETUPPER',
+                'CLIENTSECRETS'=>array('upper-secret'),
+                'ACCESSTOKENS'=>array('upper-token'),
+                'APIKEYS'=>array('upper-api-key'),
+                'AUTHORIZATIONHEADERVALUE'=>'Bearer UPPER-WRAPPED',
+                'ACCESSTOKENVALUE'=>'UPPER-TOKEN-VALUE',
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
@@ -55,6 +61,9 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
             'requiresAuthorization'=>false,
             'supportsCredentials'=>true,
             'supportsTokens'=>true,
+            'SUPPORTSCREDENTIALS'=>true,
+            'HASAPIKEYS'=>true,
+            'USESSECRETS'=>true,
             'oauthAuthorization'=>'https://auth.example.test/authorize',
             'tokenExpiresAt'=>'2026-10-12T00:00:00Z',
             '_wpvdmcp_provider_output'=>array('redacted_fields'=>0,'truncated'=>false),
@@ -102,6 +111,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['clientSecrets']),'plural secrets field must be removed');
     assert_true(!isset($r['results'][0]['accessTokens']),'plural access tokens field must be removed');
     assert_true(!isset($r['results'][0]['apiKeys']),'plural API keys field must be removed');
+    assert_true(!isset($r['results'][0]['AWSCREDENTIALS']),'compact uppercase credentials field must be removed');
+    assert_true(!isset($r['results'][0]['CLIENTSECRETS']),'compact uppercase secrets field must be removed');
+    assert_true(!isset($r['results'][0]['ACCESSTOKENS']),'compact uppercase access tokens field must be removed');
+    assert_true(!isset($r['results'][0]['APIKEYS']),'compact uppercase API keys field must be removed');
+    assert_true(!isset($r['results'][0]['AUTHORIZATIONHEADERVALUE']),'compact uppercase wrapped authorization field must be removed');
+    assert_true(!isset($r['results'][0]['ACCESSTOKENVALUE']),'compact uppercase wrapped access token field must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
@@ -114,9 +129,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_same(false,$r['requiresAuthorization']??null,'authorization requirement metadata preserved');
     assert_same(true,$r['supportsCredentials']??null,'credentials capability metadata preserved');
     assert_same(true,$r['supportsTokens']??null,'token capability metadata preserved');
+    assert_same(true,$r['SUPPORTSCREDENTIALS']??null,'uppercase credentials capability metadata preserved');
+    assert_same(true,$r['HASAPIKEYS']??null,'uppercase API-key status metadata preserved');
+    assert_same(true,$r['USESSECRETS']??null,'uppercase secret capability metadata preserved');
     assert_same('https://auth.example.test/authorize',$r['oauthAuthorization']??null,'OAuth authorization endpoint metadata preserved');
     assert_same('2026-10-12T00:00:00Z',$r['tokenExpiresAt']??null,'token expiry metadata preserved');
-    assert_same(39,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same(45,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 

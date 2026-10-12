@@ -179,6 +179,52 @@ final class WPVDMCP_Provider_Output {
 				if ( self::is_sensitive_key( substr( $normalized, 0, -strlen( $suffix ) ), $value ) ) { return true; }
 			}
 		}
+		$compact = preg_replace( '/[^a-z0-9]+/', '', strtolower( (string) $key ) );
+		return self::is_sensitive_compact_key( $compact, $value );
+	}
+
+	private static function is_sensitive_compact_key( $compact, $value = null ) {
+		$compact = preg_replace( '/[^a-z0-9]+/', '', strtolower( (string) $compact ) );
+		if ( '' === $compact ) { return false; }
+		$exact = array(
+			'auth', 'authentication', 'authorization', 'proxyauthorization', 'bearer', 'cookie', 'setcookie',
+			'password', 'passwd', 'secret', 'apikey', 'accesstoken', 'refreshtoken', 'idtoken', 'token',
+			'privatekey', 'secretkey', 'consumerkey', 'accesskey', 'accesskeyid', 'awsaccesskeyid',
+			'awssecretaccesskey', 'passwordhash', 'credential', 'credentials', 'loginurl', 'nonce',
+		);
+		if ( in_array( $compact, $exact, true ) ) { return true; }
+		foreach ( array( 'token', 'secret', 'password', 'apikey', 'privatekey', 'secretkey', 'consumerkey', 'accesskey', 'accesskeyid', 'nonce', 'cookie', 'credential' ) as $suffix ) {
+			if ( strlen( $compact ) > strlen( $suffix ) && substr( $compact, -strlen( $suffix ) ) === $suffix ) { return true; }
+		}
+		$safe_predicate_prefixes = array( 'supports', 'requires', 'needs', 'has', 'uses', 'allows', 'accepts', 'provides' );
+		$plural_secret_suffixes = array(
+			'credentials', 'secrets', 'tokens', 'passwords', 'cookies', 'apikeys', 'privatekeys',
+			'secretkeys', 'consumerkeys', 'accesskeys', 'accesstokens', 'refreshtokens',
+		);
+		foreach ( $plural_secret_suffixes as $plural ) {
+			if ( $compact === $plural ) { return true; }
+			if ( strlen( $compact ) > strlen( $plural ) && substr( $compact, -strlen( $plural ) ) === $plural ) {
+				$prefix = substr( $compact, 0, -strlen( $plural ) );
+				if ( is_bool( $value ) && in_array( $prefix, $safe_predicate_prefixes, true ) ) { return false; }
+				return true;
+			}
+		}
+		$transport_prefixes = array( 'http', 'client', 'request', 'proxy', 'server', 'upstream', 'provider', 'remote', 'api', 'basic', 'digest' );
+		foreach ( $transport_prefixes as $prefix ) {
+			foreach ( array( 'auth', 'authentication', 'authorization' ) as $auth_form ) {
+				if ( $compact === $prefix . $auth_form ) { return true; }
+			}
+		}
+		foreach ( array_merge( $transport_prefixes, array( 'user', 'service', 'app', 'application', 'database', 'db', 'oauth' ) ) as $prefix ) {
+			foreach ( array( 'credential', 'credentials' ) as $credential_form ) {
+				if ( $compact === $prefix . $credential_form ) { return true; }
+			}
+		}
+		foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded', 'pem', 'data', 'hash', 'confirmation', 'confirm', 'repeat' ) as $wrapper ) {
+			if ( strlen( $compact ) > strlen( $wrapper ) && substr( $compact, -strlen( $wrapper ) ) === $wrapper ) {
+				if ( self::is_sensitive_compact_key( substr( $compact, 0, -strlen( $wrapper ) ), $value ) ) { return true; }
+			}
+		}
 		return false;
 	}
 
