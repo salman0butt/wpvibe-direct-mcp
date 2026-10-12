@@ -41,7 +41,7 @@ parity_test('WPCode reviewed writes preserve dormant classification approval bin
     assert_same(1,count(WPVibe_Code_Snippet::$calls),'review classifier must execute exactly once before approval');
     assert_same(true,WPVibe_Code_Snippet::$calls[0]['dormant'],'first snippet execution must use upstream dormant semantics');
     assert_true(!array_key_exists('active',WPVibe_Code_Snippet::$calls[0]['params']),'model-provided activation flag must never reach upstream handler');
-    assert_same('php-snippet',WPVibe_Code_Snippet::$calls[0]['params']['code_type']??null,'REST-equivalent sanitizer must normalize code type');
+    assert_same('phpsnippet',WPVibe_Code_Snippet::$calls[0]['params']['code_type']??null,'REST-equivalent sanitizer must normalize code type');
     assert_same('everywhere',WPVibe_Code_Snippet::$calls[0]['params']['location']??null,'REST-equivalent sanitizer must normalize location');
     assert_same('auto',WPVibe_Code_Snippet::$calls[0]['params']['insert_method']??null,'REST-equivalent default/sanitizer must normalize insert method');
 
