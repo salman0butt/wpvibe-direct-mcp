@@ -121,6 +121,42 @@ assert_jq "$tools" '([.result.tools[].name] | index("discover_abilities")) != nu
 assert_jq "$tools" '([.result.tools[].name] | index("run_ability")) != null' 'run_ability is not exposed on WordPress 6.9+'
 assert_jq "$tools" '([.result.tools[].name] | index("elementor_save_page")) != null' 'WPVibe native Elementor save fallback is not exposed'
 
+note 'Checking live WPVibe route registry against parity classification'
+if ! route_inventory="$("$WP_BIN" --path="$WP_ROOT" eval '
+$server = rest_get_server();
+if ( ! did_action( "rest_api_init" ) ) {
+    do_action( "rest_api_init", $server );
+}
+$manifest = WPVDMCP_Parity::execute( "reference_parity_manifest", array() );
+$model = isset( $manifest["model_route_tools"] ) && is_array( $manifest["model_route_tools"] ) ? array_keys( $manifest["model_route_tools"] ) : array();
+$internal = isset( $manifest["internal_not_tools"] ) && is_array( $manifest["internal_not_tools"] ) ? $manifest["internal_not_tools"] : array();
+$known = array_fill_keys( array_merge( $model, $internal ), true );
+$routes = array_keys( $server->get_routes( "wpvibe/v1" ) );
+$unknown = array();
+foreach ( $routes as $route ) {
+    $normalized = rtrim( $route, "/" );
+    if ( "/wpvibe/v1" === $normalized ) {
+        continue;
+    }
+    $normalized = preg_replace_callback(
+        "/\\(\\?P<([^>]+)>[^)]+\\)/",
+        static function ( $match ) { return "{" . $match[1] . "}"; },
+        $normalized
+    );
+    if ( ! isset( $known[ $normalized ] ) ) {
+        $unknown[] = $route;
+    }
+}
+if ( $unknown ) {
+    fwrite( STDERR, "Unclassified WPVibe runtime routes: " . wp_json_encode( $unknown ) . PHP_EOL );
+    exit( 1 );
+}
+echo wp_json_encode( array( "count" => count( $routes ) ) );
+' 2>&1)"; then
+  fail "$route_inventory"
+fi
+assert_jq "$route_inventory" '.count > 0' 'WPVibe runtime route inventory was unexpectedly empty'
+
 note 'Discovering installed Elementor abilities at runtime'
 abilities="$(tool_call discover_abilities '{"page":1,"per_page":100,"category":"elementor"}')"
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/create-page"))' 'Elementor create-page ability was not discovered'

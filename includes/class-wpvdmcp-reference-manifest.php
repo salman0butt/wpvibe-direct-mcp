@@ -113,7 +113,7 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/breakdance/save-page' => 'breakdance_save_page',
 				'/wpvibe/v1/code-snippet/dormant' => 'code_snippet',
 			),
-			'site_local_extensions' => array( 'get_last_change', 'seedprod_compile_page', 'screenshot_page', 'reference_parity_manifest' ),
+			'site_local_extensions' => array( 'get_last_change', 'seedprod_compile_page', 'screenshot_page', 'reference_parity_manifest', 'call_armored' ),
 			'mcp' => array(
 				'primary_protocol' => '2026-07-28',
 				'legacy_protocols' => array( '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05' ),
