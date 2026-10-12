@@ -6,29 +6,28 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## Release
 
-- Direct MCP: **1.3.2**
+- Direct MCP: **1.3.3**
 - Audited WPVibe release: **1.20.3**
 - Audited upstream commit: **`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`** (2026-10-06)
 - WordPress: 6.0+; Abilities tools require WordPress 6.9+
 - PHP: 7.4+
 - MCP: modern `2026-07-28` plus legacy 2025/2024 compatibility
 
-## What 1.3.2 adds
+## What 1.3.3 fixes and verifies
 
-- Approval-gates generic REST mutations, keeps core-content deletes recoverable, and protects WooCommerce replace-all list fields from partial destructive payloads.
-- Matches current WPVibe REST option names while retaining Direct aliases: `route`/`path`, `query`/`params`, string-or-array `fields`, `max_length`/`max_response_bytes`, and embedded query normalization.
-- Matches current WordPress Abilities public options: `ability_name`/`name`, `input_json`/structured input, metadata-first annotations, approval aliases, and correct GET/POST/DELETE execution semantics.
-- Matches current provider-backed public contracts for image search, page audits, rendered HTML, site connection, and fleet jobs without fabricating WPVibe cloud state.
-- Matches current Saved Skill lookup/search/resource contracts, including bounded catalog metadata and saved reference-file reads.
-- Expands automated verification to **94 tests** (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2, and 8.4.
+- Fixes WordPress Abilities POST mutations to send structured `input` as a raw `application/json` request body, matching the WordPress 6.9 Abilities run-controller contract used by current Elementor abilities.
+- Keeps annotation-driven routing unchanged: readonly abilities use GET, destructive + idempotent abilities use DELETE, and all other writes use POST with one-time Direct MCP approval unless the site owner explicitly enables the existing WPVibe bypass.
+- Adds a focused raw-JSON request-body regression to CI across PHP 7.4, 8.2, and 8.4 in addition to the existing 27 legacy + 14 parity + 53 reference suite cases.
+- Adds a real disposable WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 acceptance lane. It verifies authenticated MCP discovery, runtime Elementor Ability discovery, approval/replay protection, draft page creation, Atomic composition, page-structure read, publish, rendered frontend output, PHP-fatal checks, and Atomic-OFF fallback behavior.
+- Keeps the verification claim bounded: Elementor Pro Theme Builder, broader global-style/element mutations, other page builders, provider-backed browser/audit/image services, media edge cases, and production/client sites are not claimed as E2E-verified by 1.3.3.
 
 ## Elementor development
 
 On WordPress 6.9+ with Elementor 4.3+, Direct MCP uses the installed Elementor WordPress Abilities first and discovers the schemas actually exposed by that site. The current workflow covers page discovery/creation, page structure, composition building, targeted element edits, widget/resource discovery, global variables/classes/default styles, full-object page settings, preview links, publishing, and live rendered verification. Atomic-only capabilities are detected rather than guessed.
 
-When the newer Abilities surface is unavailable, Direct MCP exposes WPVibe's native Elementor routes for widget/schema discovery, page save, and Elementor Pro Theme Builder template save. It does not generically replace `_elementor_data` when a supported builder API exists.
+The disposable CI lane verifies the bounded Elementor Core 4.3.4 create → Atomic build → read → publish → rendered-frontend flow through the real Direct MCP HTTP endpoint, including the POST/GET/DELETE method classes and one-time approval replay protection. When Atomic Editor is disabled, the lane also verifies that an Atomic-only write fails instead of silently succeeding and that the native WPVibe `elementor_save_page` fallback remains discoverable.
 
-A real disposable WordPress + Elementor staging target is still required to certify rendered Atomic/Pro behavior, autosaves, generated CSS/cache, and live theme conditions. Production is never treated as the destructive test environment.
+When the newer Abilities surface is unavailable, Direct MCP exposes WPVibe's native Elementor routes for widget/schema discovery, page save, and Elementor Pro Theme Builder template save. It does not generically replace `_elementor_data` when a supported builder API exists. Elementor Pro runtime E2E remains a separate licensed/disposable-site boundary and is not implied by the Core 4.3.4 lane.
 
 ## Media uploads
 
@@ -94,12 +93,13 @@ Run:
 php tests/run.php
 php tests/parity-run.php
 php tests/reference-run.php
+php tests/abilities-json-body-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 
-Current 1.3.2 verification is 27 legacy + 14 parity + 53 reference tests = **94 tests**, with GitHub Actions running the suites on PHP 7.4, 8.2, and 8.4.
+Current 1.3.3 verification contains 27 legacy + 14 parity + 53 reference tests = **94 suite cases**, plus the focused Abilities raw-JSON request-body regression. GitHub Actions runs them on PHP 7.4, 8.2, and 8.4.
 
-A real disposable WordPress staging site is still required for the manual integration checklist in `docs/TESTING.md`; never use production for destructive verification.
+A separate disposable WordPress/Elementor CI workflow verifies the bounded Elementor Core 4.3.4 integration described above. The broader manual checklist in `docs/TESTING.md` remains intentionally unmarked until those additional environments/capabilities are actually exercised; production is never used for destructive verification.
 
 ## Documentation
 
