@@ -70,14 +70,14 @@ function sanitize_key($v){return strtolower(preg_replace('/[^a-zA-Z0-9_\-]/','',
 function absint($v){return abs((int)$v);} function wp_json_encode($v,$flags=0){return json_encode($v,$flags);} function wp_unslash($v){return $v;}
 function rest_url($path=''){return 'https://example.test/wp-json/'.ltrim($path,'/');}
 function get_option($k,$default=false){return array_key_exists($k,$GLOBALS['wp_options'])?$GLOBALS['wp_options'][$k]:$default;}
-function update_option($k,$v,$autoload=null){$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){unset($GLOBALS['wp_options'][$k]);return true;}
+function update_option($k,$v,$autoload=null){$GLOBALS['wp_options'][$k]=$v;return true;} function add_option($k,$v='',$deprecated='',$autoload=null){if(array_key_exists($k,$GLOBALS['wp_options']))return false;$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){unset($GLOBALS['wp_options'][$k]);return true;}
 function get_user_by($field,$value){if($field==='id' && (int)$value===1){return (object)array('ID'=>1,'user_login'=>'admin');} return false;}
 function user_can($user,$cap){if($cap==='manage_options')return !empty($GLOBALS['user_can_manage_options']); if($cap==='upload_files')return true; return true;}
 function current_user_can($cap){if(array_key_exists($cap,$GLOBALS['current_user_capabilities']))return (bool)$GLOBALS['current_user_capabilities'][$cap]; return true;}
 function get_current_user_id(){return (int)$GLOBALS['wp_current_user'];} function wp_set_current_user($id){$GLOBALS['wp_current_user']=$id;return true;}
 function wp_date($f,$t){return gmdate($f,$t);} function checked(){return '';} function wp_nonce_field(){return '';} function wp_safe_redirect(){return true;} function wp_die($m=''){throw new RuntimeException((string)$m);}
-function set_transient($k,$v,$ttl){$GLOBALS['wp_options']['transient:'.$k]=array('value'=>$v,'expires'=>time()+$ttl);return true;}
-function get_transient($k){$x=get_option('transient:'.$k,false);if(!$x||$x['expires']<time())return false;return $x['value'];}
+function set_transient($k,$v,$ttl){if(isset($GLOBALS['set_transient_override'])&&is_callable($GLOBALS['set_transient_override'])){$override=call_user_func($GLOBALS['set_transient_override'],$k,$v,$ttl);if($override!==null)return (bool)$override;}$GLOBALS['wp_options']['transient:'.$k]=array('value'=>$v,'expires'=>time()+$ttl);return true;}
+function get_transient($k){$x=get_option('transient:'.$k,false);if(!$x||$x['expires']<time())return false;$value=$x['value'];if(isset($GLOBALS['get_transient_after_read'])&&is_callable($GLOBALS['get_transient_after_read'])){call_user_func($GLOBALS['get_transient_after_read'],$k,$value);}return $value;}
 function delete_transient($k){return delete_option('transient:'.$k);}
 function rest_get_server(){return new class { public function get_routes(){return $GLOBALS['wp_routes'];} public function dispatch($r){ if(isset($GLOBALS['rest_dispatch_callback']) && is_callable($GLOBALS['rest_dispatch_callback'])){ return call_user_func($GLOBALS['rest_dispatch_callback'],$r); } return new WP_REST_Response(array('ok'=>true,'route'=>$r->get_param('_route'),'method'=>$r->get_param('_method'),'params'=>$r->get_params(),'query'=>$r->get_query_params()),200);} };}
 

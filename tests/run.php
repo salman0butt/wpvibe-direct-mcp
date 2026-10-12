@@ -174,6 +174,66 @@ test_case('write ability requires browser approval then executes POST once', fun
     assert_true(is_wp_error($replay),'approval replay rejected');
 });
 
+test_case('one-time approval cannot be consumed twice across an interleaved race', function () {
+    $GLOBALS['wp_current_user']=1;
+    $payload=array('name'=>'demo/race','input'=>array('value'=>9),'method'=>'POST');
+    $approval=WPVDMCP_Approvals::request('run_ability',$payload,'Race test');
+    $approval_id=$approval['approval_id'] ?? '';
+    assert_true($approval_id!=='','approval id returned');
+    assert_true(WPVDMCP_Approvals::approve($approval_id,1)===true,'approval accepted');
+
+    $nested=null;
+    $armed=true;
+    $GLOBALS['get_transient_after_read']=function($key,$value) use (&$nested,&$armed,$approval_id,$payload){
+        if(!$armed || strpos($key,'wpvdmcp_approval_')!==0 || !is_array($value) || ($value['id']??'')!==$approval_id){return;}
+        $armed=false;
+        $nested=WPVDMCP_Approvals::consume($approval_id,'run_ability',$payload);
+    };
+    $outer=WPVDMCP_Approvals::consume($approval_id,'run_ability',$payload);
+    unset($GLOBALS['get_transient_after_read']);
+
+    $successes=($outer===true?1:0)+($nested===true?1:0);
+    assert_same(1,$successes,'exactly one interleaved consumer may claim a one-time approval');
+    assert_true(is_wp_error($outer)||is_wp_error($nested),'the losing consumer must fail closed');
+    $status=WPVDMCP_Approvals::status($approval_id);
+    assert_same('consumed',$status['status']??null,'winning consumer must leave the approval consumed');
+});
+
+test_case('approval consumer never steals an existing claim based only on claim age', function () {
+    $payload=array('name'=>'demo/stale-claim','input'=>array('value'=>10),'method'=>'POST');
+    $approval=WPVDMCP_Approvals::request('run_ability',$payload,'Stale claim test');
+    $approval_id=$approval['approval_id'] ?? '';
+    assert_true(WPVDMCP_Approvals::approve($approval_id,1)===true,'approval accepted');
+    $claim_key='wpvdmcp_approval_claim_'.hash('sha256',$approval_id);
+    assert_true(add_option($claim_key,array('claimed_at'=>time()-3600),'',false),'test claim installed');
+    $result=WPVDMCP_Approvals::consume($approval_id,'run_ability',$payload);
+    assert_true(is_wp_error($result),'existing claim must fail closed even when it looks old');
+    assert_same('approval_in_progress',$result->get_error_code(),'existing claim must not be stolen by age');
+    $status=WPVDMCP_Approvals::status($approval_id);
+    assert_same('approved',$status['status']??null,'failed claim steal must leave approval unused');
+    delete_option($claim_key);
+});
+
+test_case('approval consume fails closed and retains claim when consumed state cannot be persisted', function () {
+    $payload=array('name'=>'demo/persist-failure','input'=>array('value'=>11),'method'=>'POST');
+    $approval=WPVDMCP_Approvals::request('run_ability',$payload,'Persistence failure test');
+    $approval_id=$approval['approval_id'] ?? '';
+    assert_true(WPVDMCP_Approvals::approve($approval_id,1)===true,'approval accepted');
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($approval_id){
+        if($key==='wpvdmcp_approval_'.$approval_id && is_array($value) && ($value['status']??'')==='consumed')return false;
+        return null;
+    };
+    $first=WPVDMCP_Approvals::consume($approval_id,'run_ability',$payload);
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($first),'failed consumed-state persistence must not report success');
+    assert_same('approval_persist_failed',$first->get_error_code(),'persistence failure must be explicit');
+    $second=WPVDMCP_Approvals::consume($approval_id,'run_ability',$payload);
+    assert_true(is_wp_error($second),'retained claim must block a later consumer after uncertain persistence');
+    assert_same('approval_in_progress',$second->get_error_code(),'later consumer must fail closed behind retained claim');
+    $status=WPVDMCP_Approvals::status($approval_id);
+    assert_same('approved',$status['status']??null,'failed persistence leaves underlying receipt approved but locked');
+});
+
 test_case('idempotent destructive ability uses DELETE after approval', function () {
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $GLOBALS['wp_current_user']=1;
