@@ -9,6 +9,12 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'nested'=>array('refreshToken'=>'refresh-value','safe'=>'kept'),
                 'consumerKey'=>'consumer-key-value',
                 'awsAccessKeyId'=>'aws-access-value',
+                'secretAccessKey'=>'secret-access-key-value',
+                'oauthConsumerKey'=>'oauth-consumer-key-value',
+                'oauth_consumer_key'=>'oauth-consumer-key-value-2',
+                'AWSAccessKeyId'=>'aws-acronym-access-value',
+                'AWSSecretAccessKey'=>'aws-acronym-secret-value',
+                'XApiKey'=>'x-acronym-api-value',
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
@@ -23,10 +29,16 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['nested']['refreshToken']),'camelCase token key must be removed');
     assert_true(!isset($r['results'][0]['consumerKey']),'consumer key credential must be removed');
     assert_true(!isset($r['results'][0]['awsAccessKeyId']),'access key id credential must be removed');
+    assert_true(!isset($r['results'][0]['secretAccessKey']),'secret access key credential must be removed');
+    assert_true(!isset($r['results'][0]['oauthConsumerKey']),'OAuth consumer key credential must be removed');
+    assert_true(!isset($r['results'][0]['oauth_consumer_key']),'snake-case OAuth consumer key credential must be removed');
+    assert_true(!isset($r['results'][0]['AWSAccessKeyId']),'leading-acronym AWS access key credential must be removed');
+    assert_true(!isset($r['results'][0]['AWSSecretAccessKey']),'leading-acronym AWS secret access key credential must be removed');
+    assert_true(!isset($r['results'][0]['XApiKey']),'leading-acronym API key credential must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
-    assert_same(5,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same(11,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 
@@ -113,6 +125,28 @@ parity_test('provider WP_Error data is redacted and bounded without changing its
     assert_same(1,$data['_wpvdmcp_provider_output']['redacted_fields']??null,'provider error redaction metadata reported');
 });
 
+parity_test('provider WP_Error bounds the complete model-visible error envelope',function(){
+    $GLOBALS['wpvdmcp_providers']=array('page_audit'=>function($args){
+        return new WP_Error(
+            str_repeat('e',400000),
+            "invalid-utf8-\xFF-message",
+            array('status'=>502,'detail'=>str_repeat('z',240000))
+        );
+    });
+    $payload=array('jsonrpc'=>'2.0','id'=>'provider-error-envelope','method'=>'tools/call','params'=>array('name'=>'audit_page','arguments'=>array('page_url'=>'https://example.test/')));
+    $response=WPVDMCP_Server::instance()->handle(test_request($payload));
+    unset($GLOBALS['wpvdmcp_providers']);
+
+    $body=response_data($response);
+    $text=$body['result']['content'][0]['text']??null;
+    assert_true(is_string($text),'provider error must serialize to model-visible text');
+    assert_true(strlen($text)<=262144,'complete model-visible provider error must stay within the 262144-byte ceiling');
+    $decoded=json_decode($text,true);
+    assert_true(is_array($decoded),'provider error text must remain valid JSON after invalid UTF-8 input');
+    assert_true(strlen((string)($decoded['code']??''))<=256,'provider error code is bounded');
+    assert_same(true,$decoded['data']['_wpvdmcp_provider_output']['truncated']??null,'provider error envelope truncation is explicit');
+});
+
 parity_test('provider object output is normalized before nested credential filtering',function(){
     $GLOBALS['wpvdmcp_reference_providers']=array('get_profile'=>function($args){
         $nested=new stdClass();$nested->role='admin';$nested->password='object-secret';
@@ -127,4 +161,54 @@ parity_test('provider object output is normalized before nested credential filte
     assert_same('admin',$r['nested']['role']??null,'nested object safe data preserved');
     assert_true(!isset($r['nested']['password']),'nested object credential removed');
     assert_same(true,$r['_wpvdmcp_provider_output']['object_normalized']??null,'object normalization reported');
+});
+
+parity_test('JsonSerializable provider objects recurse through returned object representations',function(){
+    $GLOBALS['wpvdmcp_reference_providers']=array('get_profile'=>function($args){
+        return new class implements JsonSerializable {
+            public function jsonSerialize(){
+                $nested=new stdClass();$nested->plan='pro';$nested->apiKey='json-secret';
+                $out=new stdClass();$out->name='Owner';$out->nested=$nested;
+                return $out;
+            }
+        };
+    });
+    $previous_reporting=error_reporting();
+    error_reporting($previous_reporting & ~E_DEPRECATED);
+    try{
+        $r=WPVDMCP_Parity::execute('get_profile',array());
+    }finally{
+        error_reporting($previous_reporting);
+        unset($GLOBALS['wpvdmcp_reference_providers']);
+    }
+
+    assert_true(is_array($r),'JsonSerializable object representation normalized to array');
+    assert_same('Owner',$r['name']??null,'JsonSerializable safe field preserved');
+    assert_same('pro',$r['nested']['plan']??null,'nested JsonSerializable object representation preserved');
+    assert_true(!isset($r['nested']['apiKey']),'nested JsonSerializable credential removed');
+});
+
+parity_test('WordPress filter provider branches use the shared output sanitizer',function(){
+    if(!function_exists('apply_filters')){
+        function apply_filters($tag,$value){
+            return array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_values']??array())?$GLOBALS['wpvdmcp_test_filter_values'][$tag]:$value;
+        }
+    }
+    if(!function_exists('has_filter')){
+        function has_filter($tag){return array_key_exists($tag,$GLOBALS['wpvdmcp_test_filter_values']??array());}
+    }
+    unset($GLOBALS['wpvdmcp_providers'],$GLOBALS['wpvdmcp_reference_providers']);
+    $GLOBALS['wpvdmcp_test_filter_values']=array(
+        'wpvdmcp_search_images'=>array('safe'=>'local-filter','api_key'=>'local-filter-secret'),
+        'wpvdmcp_reference_get_profile'=>array('safe'=>'reference-filter','oauthConsumerKey'=>'reference-filter-secret'),
+    );
+
+    $local=WPVDMCP_Parity::execute('search_images',array('query'=>'filter'));
+    $reference=WPVDMCP_Parity::execute('get_profile',array());
+    unset($GLOBALS['wpvdmcp_test_filter_values']);
+
+    assert_same('local-filter',$local['safe']??null,'local filter safe output preserved');
+    assert_true(!isset($local['api_key']),'local filter credential redacted');
+    assert_same('reference-filter',$reference['safe']??null,'reference filter safe output preserved');
+    assert_true(!isset($reference['oauthConsumerKey']),'reference filter credential redacted');
 });

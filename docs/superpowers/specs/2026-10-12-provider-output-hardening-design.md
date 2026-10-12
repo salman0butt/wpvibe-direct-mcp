@@ -24,9 +24,9 @@ Safety limits:
 - Maximum items processed in one collection: **200**.
 - Maximum bytes in one provider string: **65,536**.
 - Maximum serialized provider output: **262,144 bytes**. Traversal keeps an internal content reserve below that ceiling, then verifies the JSON-encoded result; pathological escaping/encoding expansion fails closed to a compact explicit truncation result instead of crossing the limit.
-- Provider `WP_Error` messages keep their code/message semantics but messages are bounded to **4,096 bytes**; error data is normalized with the same rules as successful output.
+- Provider `WP_Error` keeps ordinary code/message semantics while bounding pathological codes to **256 bytes** and messages to **4,096 bytes**; invalid UTF-8 is made JSON-safe, error data is normalized with the same rules as successful output, and the complete pretty-serialized model-visible error envelope is checked against the **262,144-byte** ceiling.
 
-The normalizer removes values under credential-shaped keys. Key matching is case-insensitive, understands camelCase/separator variants, and is based on key context rather than prose content. It must cover exact credential keys such as `auth`, authorization/bearer forms, cookie forms, password/secret forms, API keys, access/refresh/ID tokens, private/secret/consumer/access-key forms (including AWS access-key names), credential fields, one-time `login_url`, and nonce fields, plus keys ending in credential suffixes such as `_token`, `_secret`, `_password`, `_api_key`, `_private_key`, `_nonce`, `_cookie`, or `_credential`.
+The normalizer removes values under credential-shaped keys. Key matching is case-insensitive, understands separator variants, normal camelCase, and leading-acronym camel forms such as `AWSAccessKeyId` and `XApiKey`, and is based on key context rather than prose content. It must cover authorization/bearer forms, cookie forms, password/secret forms, API keys, access/refresh/ID tokens, private/secret/consumer/access-key forms (including AWS and OAuth consumer-key names), credential fields, one-time `login_url`, and nonce fields, plus credential suffixes such as `_token`, `_secret`, `_password`, `_api_key`, `_private_key`, `_consumer_key`, `_access_key`, `_access_key_id`, `_nonce`, `_cookie`, or `_credential`.
 
 Do **not** redact an ordinary value merely because prose contains words such as “token” or “password”. A field such as `token_count` also remains intact because the key describes a count, not a credential.
 
@@ -38,7 +38,7 @@ When redaction, truncation, collection clipping, depth limiting, or object norma
 
 Oversized strings must include a visible truncation marker. Depth overflow must be replaced with a visible bounded marker. Dropped collection items are counted in metadata rather than silently disappearing. If JSON escaping would still make the serialized result exceed 262,144 bytes, return a compact result with `serialized_limit: true` metadata.
 
-Objects are normalized through their JSON/public-property representation before recursion so nested fields receive the same redaction/depth/size rules. Resources/unsupported runtime values are replaced with a bounded marker and recorded as truncated.
+Objects are normalized through their JSON/public-property representation before recursion so nested fields receive the same redaction/depth/size rules. A `JsonSerializable` representation that returns another object is recursively normalized rather than discarded. Resources/unsupported runtime values are replaced with a bounded marker and recorded as truncated.
 
 ## Compatibility constraints
 
@@ -58,6 +58,8 @@ RED tests must prove current source leaks nested credential-key fields and permi
 - hosted/reference provider using the same normalizer;
 - oversized strings and collections with explicit metadata;
 - depth limiting;
-- `WP_Error` data redaction/bounds while retaining code/message;
+- `WP_Error` data redaction/bounds, pathological-code/message caps, invalid-UTF8 safety, and the complete model-visible error-envelope ceiling while retaining ordinary code/message values;
+- callback-global and WordPress filter-provider branches through the same normalizer;
+- leading-acronym plus OAuth/secret-access credential-key variants;
 - unchanged `provider_unavailable` behavior;
 - existing HTML/PDF bounds remaining green.

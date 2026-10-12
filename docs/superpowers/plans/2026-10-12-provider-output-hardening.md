@@ -16,16 +16,17 @@
 - Maximum provider collection length processed is 200 items.
 - Maximum single provider string is 65,536 bytes.
 - Maximum serialized provider result is 262,144 bytes; escaping/encoding expansion fails closed with explicit sanitizer metadata.
-- Provider error messages are bounded to 4,096 bytes and error data uses the same sanitizer.
+- Provider error codes are bounded to 256 bytes when pathological, messages to 4,096 bytes, invalid UTF-8 is made JSON-safe, error data uses the same sanitizer, and the complete model-visible error envelope stays within the serialized ceiling.
 - Redaction is key-context based; ordinary prose containing words such as “token” stays intact.
 - `provider_unavailable`, approval boundaries, Worker proofs, native REST behavior, and `v1.4.1` remain unchanged.
 
 ## Review Focus
 
-- Header-like or camelCase secret keys nested several levels deep are removed while `token_count` survives.
+- Header-like, camelCase, leading-acronym (`AWSAccessKeyId`, `XApiKey`), OAuth consumer, and secret-access credential keys nested several levels deep are removed while `token_count` survives.
 - A provider can return a very long string without bypassing the total/string bounds or losing truncation metadata.
 - Large/deep arrays cannot amplify output past the collection/depth guards.
-- Provider `WP_Error` data cannot leak credential fields and retains the original error code/message semantics.
+- Provider `WP_Error` data cannot leak credential fields; ordinary error codes/messages remain unchanged while pathological code/message/encoding inputs are bounded and the complete model-visible envelope cannot exceed the provider-output ceiling.
+- Both callback-global and WordPress filter branches traverse the same sanitizer.
 - Unmodified provider outputs keep their original shape so existing integrations do not see needless compatibility churn.
 
 ---
@@ -50,7 +51,7 @@ Use `page_audit` provider output containing a >65,536-byte string, >200-item col
 
 - [ ] **Step 3: Add reference-provider and `WP_Error` regressions**
 
-Use `get_profile` for nested credential fields and a provider-created `WP_Error` for credential-bearing/oversized data. Assert both are normalized while code/message remain stable.
+Use `get_profile` for nested credential fields and a provider-created `WP_Error` for credential-bearing/oversized data. Include a huge error code and invalid UTF-8 message and assert the model-visible error JSON stays valid and within the hard ceiling while ordinary code/message values remain stable.
 
 - [ ] **Step 4: Run the focused reference suite and verify RED**
 
@@ -79,7 +80,7 @@ Walk arrays/objects with shared state, enforce 8 levels / 200 items / 65,536 byt
 
 - [ ] **Step 3: Normalize provider `WP_Error` safely**
 
-Recreate the error with the same code/message, a 4,096-byte message bound, and sanitized data/metadata.
+Recreate the error with ordinary code/message semantics preserved, a 256-byte pathological-code cap, 4,096-byte message bound, JSON-safe strings, sanitized data/metadata, and a final complete-envelope serialized-size check.
 
 - [ ] **Step 4: Route both provider families through the helper**
 

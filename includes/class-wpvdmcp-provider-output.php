@@ -11,6 +11,7 @@ final class WPVDMCP_Provider_Output {
 	const MAX_ITEMS = 200;
 	const MAX_STRING_BYTES = 65536;
 	const MAX_TOTAL_BYTES = 262144;
+	const MAX_ERROR_CODE_BYTES = 256;
 	const MAX_ERROR_MESSAGE_BYTES = 4096;
 	const CONTENT_BUDGET_BYTES = 245760;
 
@@ -26,11 +27,13 @@ final class WPVDMCP_Provider_Output {
 		);
 
 		if ( is_wp_error( $value ) ) {
+			$code = self::bound_string( (string) $value->get_error_code(), self::MAX_ERROR_CODE_BYTES, $state, '[truncated provider error code]' );
 			$message = self::bound_string( (string) $value->get_error_message(), self::MAX_ERROR_MESSAGE_BYTES, $state, '[truncated provider error message]' );
 			$data = self::walk( $value->get_error_data(), $state, 0 );
 			$data = self::attach_metadata( $data, $state, $provider_name );
 			$data = self::enforce_serialized_bound( $data, $state, $provider_name );
-			return new WP_Error( $value->get_error_code(), $message, $data );
+			$data = self::enforce_error_envelope_bound( $code, $message, $data, $state, $provider_name );
+			return new WP_Error( $code, $message, $data );
 		}
 
 		$normalized = self::walk( $value, $state, 0 );
@@ -47,7 +50,13 @@ final class WPVDMCP_Provider_Output {
 			if ( $value instanceof JsonSerializable ) {
 				try {
 					$serialized = $value->jsonSerialize();
-					$value = $serialized === $value ? get_object_vars( $value ) : $serialized;
+					if ( $serialized === $value ) {
+						$value = get_object_vars( $value );
+					} elseif ( is_object( $serialized ) ) {
+						return self::walk( $serialized, $state, $depth + 1 );
+					} else {
+						$value = $serialized;
+					}
 				} catch ( Throwable $e ) {
 					$state['truncated'] = true;
 					return self::consume_marker( '[unsupported provider object]', $state );
@@ -113,7 +122,8 @@ final class WPVDMCP_Provider_Output {
 	}
 
 	private static function is_sensitive_key( $key ) {
-		$normalized = preg_replace( '/([a-z0-9])([A-Z])/', '$1_$2', (string) $key );
+		$normalized = preg_replace( '/([A-Z]+)([A-Z][a-z])/', '$1_$2', (string) $key );
+		$normalized = preg_replace( '/([a-z0-9])([A-Z])/', '$1_$2', (string) $normalized );
 		$normalized = strtolower( (string) $normalized );
 		$normalized = trim( preg_replace( '/[^a-z0-9]+/', '_', $normalized ), '_' );
 		$exact = array(
@@ -124,13 +134,14 @@ final class WPVDMCP_Provider_Output {
 			'password_hash', 'credential', 'credentials', 'login_url', 'nonce',
 		);
 		if ( in_array( $normalized, $exact, true ) ) { return true; }
-		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_nonce', '_cookie', '_credential' ) as $suffix ) {
+		foreach ( array( '_token', '_secret', '_password', '_api_key', '_private_key', '_consumer_key', '_access_key', '_access_key_id', '_nonce', '_cookie', '_credential' ) as $suffix ) {
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
 		}
 		return false;
 	}
 
 	private static function bound_string( $value, $max_bytes, &$state, $marker ) {
+		$value = self::json_safe_string( (string) $value, $state );
 		$length = strlen( $value );
 		$limit = min( (int) $max_bytes, max( 0, (int) $state['remaining'] ) );
 		if ( $length <= $limit ) {
@@ -149,6 +160,17 @@ final class WPVDMCP_Provider_Output {
 		}
 		self::consume_budget( strlen( $out ), $state );
 		return $out;
+	}
+
+	private static function json_safe_string( $value, &$state ) {
+		if ( '' === $value || 1 === @preg_match( '//u', $value ) ) { return $value; }
+		$state['truncated'] = true;
+		if ( function_exists( 'wp_check_invalid_utf8' ) ) {
+			$clean = wp_check_invalid_utf8( $value, true );
+			if ( is_string( $clean ) && ( '' === $clean || 1 === @preg_match( '//u', $clean ) ) ) { return $clean; }
+		}
+		$clean = preg_replace( '/[\x80-\xFF]/', '?', $value );
+		return is_string( $clean ) ? $clean : '[invalid provider string encoding]';
 	}
 
 	private static function depth_marker( &$state ) {
@@ -212,6 +234,22 @@ final class WPVDMCP_Provider_Output {
 		if ( false === $encoded ) { $meta['encoding_failure'] = true; }
 		return array(
 			'data' => '[provider output exceeded serialized size limit]',
+			self::META_KEY => $meta,
+		);
+	}
+
+	private static function enforce_error_envelope_bound( $code, $message, $data, $state, $provider_name ) {
+		$envelope = array( 'code' => $code, 'message' => $message, 'data' => $data );
+		$encoded = wp_json_encode( $envelope, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( false !== $encoded && strlen( $encoded ) <= self::MAX_TOTAL_BYTES ) { return $data; }
+
+		$state['truncated'] = true;
+		$meta = self::metadata( $state, $provider_name );
+		$meta['serialized_limit'] = true;
+		$meta['error_envelope_limit'] = true;
+		if ( false === $encoded ) { $meta['encoding_failure'] = true; }
+		return array(
+			'data' => '[provider error output exceeded serialized size limit]',
 			self::META_KEY => $meta,
 		);
 	}
