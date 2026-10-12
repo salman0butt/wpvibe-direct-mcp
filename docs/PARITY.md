@@ -1,12 +1,12 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-11**. Direct MCP release: **1.3.2**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-12**. Direct MCP release: **1.3.3**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.3.2 / current development head |
+| Reference tool | Direct MCP 1.3.3 |
 |---|---|
 | `connect_site` | Provider-backed exact name; current auth options normalized; no fake WPVibe cloud registry |
 | `list_sites` | Provider-backed exact name |
@@ -64,7 +64,7 @@ This audit compares the live WPVibe Features page, public Tools Reference, curre
 
 ## Builder/workflow parity
 
-- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. A disposable CI lane now verifies WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 through Direct MCP HTTP for discovery, method annotations, one-time approvals/replay rejection, draft page creation, Atomic composition, structure read, publish, live frontend output, no PHP fatals, and Atomic-OFF failure/native-fallback discovery. The playbook additionally covers page/element operations, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`; those broader/Pro paths remain unverified unless explicitly listed in the E2E record. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
+- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. The disposable CI lane verifies WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 through Direct MCP HTTP for discovery, method annotations, one-time approvals/replay rejection, draft page creation, Atomic composition, structure read, publish, live frontend output, no PHP fatals, and Atomic-OFF failure/native-fallback discovery. The playbook additionally covers page/element operations, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`; those broader/Pro paths remain unverified unless explicitly listed in the E2E record. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
 - **Gutenberg:** installed block schemas + validated save path.
 - **SeedProd:** Abilities/public data writes plus approval-gated browser compile using upstream one-time builder login; raw login URL is never returned to the model.
 - **Divi / Divi 5:** surgical content edits trigger upstream Divi refresh hooks; Theme Builder linkage uses audited multi-value `post meta add/delete` rather than destructive row replacement.
@@ -97,4 +97,4 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Release 1.3.2 runs 94 suite cases (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4. The current development head adds a focused Abilities raw-JSON request-body regression to that matrix plus a real disposable Elementor acceptance workflow. The verified live lane is intentionally bounded: it proves the listed Elementor Core flow on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
+Release 1.3.3 runs 94 suite cases (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4 plus a focused Abilities raw-JSON request-body regression. A real disposable Elementor acceptance workflow is also CI-backed. The verified live lane is intentionally bounded: it proves the listed Elementor Core flow on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.

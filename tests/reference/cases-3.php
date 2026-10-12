@@ -91,12 +91,12 @@ parity_test('current WPVibe Works with AI plugin playbooks are all loadable',fun
     }
 });
 
-parity_test('release metadata is WPVibe Direct MCP 1.3.2',function(){
+parity_test('release metadata is WPVibe Direct MCP 1.3.3',function(){
     $main=(string)file_get_contents(dirname(__DIR__,2).'/wpvibe-direct-mcp.php');
     $readme=(string)file_get_contents(dirname(__DIR__,2).'/readme.txt');
-    assert_true(strpos($main,'Version:     1.3.2')!==false,'plugin header 1.3.2');
-    assert_true(strpos($main,"WPVDMCP_VERSION', '1.3.2")!==false,'version constant 1.3.2');
-    assert_true(strpos($readme,'Stable tag: 1.3.2')!==false,'readme stable tag 1.3.2');
+    assert_true(strpos($main,'Version:     1.3.3')!==false,'plugin header 1.3.3');
+    assert_true(strpos($main,"WPVDMCP_VERSION', '1.3.3")!==false,'version constant 1.3.3');
+    assert_true(strpos($readme,'Stable tag: 1.3.3')!==false,'readme stable tag 1.3.3');
 });
 
 parity_test('1.3 skills identify their release source',function(){

@@ -11,7 +11,7 @@ php tests/reference-run.php
 php tests/abilities-json-body-run.php
 ```
 
-Release 1.3.2 contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)**. Current development CI runs those same suites plus PHP syntax validation and one focused Abilities raw-JSON request-body regression on PHP 7.4, 8.2, and 8.4.
+Release 1.3.3 contains **27 legacy tests + 14 core parity tests + 53 reference parity tests (94 suite cases)** plus one focused Abilities raw-JSON request-body regression. CI runs all of them plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
 ### MCP transport
 
@@ -70,7 +70,7 @@ Release 1.3.2 contains **27 legacy tests + 14 core parity tests + 53 reference p
 - required workflow skill catalog and version metadata;
 - current `load_skill` Direct and WPVibe forms (`skill`, `name`, `query`, `resource`), bounded catalog metadata/search, and exact saved reference reads;
 - compatibility summary and secret-free admin status;
-- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.3.2 release metadata.
+- every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.3.3 release metadata.
 
 ## PHP syntax verification
 
@@ -94,7 +94,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-Verified on 2026-10-11:
+Verified on 2026-10-11 and retained as the 1.3.3 release acceptance lane:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -103,7 +103,7 @@ Verified on 2026-10-11:
 5. live annotation verification for method selection;
 6. one-time approval-required → administrator approval → execution flow, including replay rejection;
 7. `elementor/create-page` creates a draft;
-8. `elementor/build-composition` creates an Atomic heading through the destructive + non-idempotent **POST** path;
+8. `elementor/build-composition` creates an Atomic heading through the destructive + non-idempotent **POST** path with the real raw JSON Ability body contract;
 9. `elementor/get-page-structure` re-reads the generated hierarchy through the readonly **GET** path;
 10. `elementor/publish-document` publishes through the destructive + idempotent **DELETE** path;
 11. the rendered frontend contains the requested Elementor heading;
@@ -136,4 +136,4 @@ This is real disposable-site E2E evidence for that bounded Elementor workflow. I
 
 ## Current integration status
 
-A real disposable WordPress/Elementor target is now CI-backed for the bounded Elementor workflow listed above. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Release 1.3.3 has a real disposable WordPress/Elementor Core target CI-backed for the bounded workflow listed above. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
