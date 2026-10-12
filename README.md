@@ -89,6 +89,7 @@ See `docs/PARITY.md` for the complete matrix.
 - Device upload links never contain the main MCP token. Upload POSTs reserve the ticket before creating attachments; failed partial/finalization paths roll back attachments.
 - Upload tickets expire, are owner-bound, secret-hashed, and become non-replayable after processing begins.
 - MCP Apps approval metadata is app-only on normal responses and every retained legacy batch result; modern protocol batches are rejected before tool execution.
+- MCP Apps approval/upload HTML uses a self-contained local postMessage bridge and loads no third-party runtime JavaScript inside the approval boundary.
 - Public URL media remains behind WPVibe's SSRF and redirect protections.
 - SVG uses WPVibe's sanitizer; Direct MCP does not create a weaker sanitizer.
 - Direct activity logs intentionally store summaries, not request bodies, tokens, binary data, or filesystem paths.
