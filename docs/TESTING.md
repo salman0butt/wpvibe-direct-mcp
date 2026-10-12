@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, and provider-output-boundary regressions, bringing the source suite to **39 core/legacy + 14 parity + 86 reference cases (139 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, and provider-readiness-discovery regressions, bringing the source suite to **39 core/legacy + 14 parity + 93 reference cases (146 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -99,6 +99,7 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - `get_page_html` accepts current URL/selector/max-length forms; native fallback is same-site only while external rendering requires a browser provider;
 - `connect_site` and fleet job options match the current public contract without fabricating WPVibe cloud state;
 - screenshot, browser, Lighthouse/PageSpeed, stock image, SeedProd compile, account/fleet and usage capabilities remain explicitly provider-backed where external infrastructure is required.
+- provider-backed tools remain listed in actual MCP `tools/list` with non-secret registration metadata; missing providers show `configured: false`, callback/filter registrations show `configured: true`, discovery never invokes them, existing MCP Apps `_meta` composes unchanged, and `get_page_html` advertises the same-site native fallback rather than claiming hard unavailability.
 
 ### Skills/admin/reference parity
 
