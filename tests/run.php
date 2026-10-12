@@ -308,6 +308,117 @@ test_case('device upload ticket secret is scoped and single-use', function () {
     assert_true(!isset($status['files'][0]['tmp_name']) && !isset($status['files'][0]['path']),'filesystem path never exposed');
 });
 
+test_case('upload ticket finalization cannot succeed twice across an interleaved race', function () {
+    $result=WPVDMCP_Upload::request(array());
+    $parts=parse_url($result['upload_url']);
+    parse_str($parts['query'] ?? '',$query);
+    $secret=$query['upload_token'] ?? '';
+    $files=array(array('attachment_id'=>88,'filename'=>'race.png','mime_type'=>'image/png','url'=>'https://example.test/uploads/race.png','width'=>64,'height'=>64));
+    $nested=null;
+    $armed=true;
+    $GLOBALS['get_transient_after_read']=function($key,$value) use (&$nested,&$armed,$result,$secret,$files){
+        if(!$armed || strpos($key,'wpvdmcp_upload_')!==0 || !is_array($value) || ($value['id']??'')!==$result['upload_id']){return;}
+        $armed=false;
+        $nested=WPVDMCP_Upload::finalize($result['upload_id'],$secret,$files);
+    };
+    $outer=WPVDMCP_Upload::finalize($result['upload_id'],$secret,$files);
+    unset($GLOBALS['get_transient_after_read']);
+    $successes=($outer===true?1:0)+($nested===true?1:0);
+    assert_same(1,$successes,'exactly one interleaved finalizer may close an upload ticket');
+    assert_true(is_wp_error($outer)||is_wp_error($nested),'losing finalizer must fail closed');
+});
+
+test_case('browser upload atomically claims a waiting ticket before media side effects', function () {
+    $result=WPVDMCP_Upload::request(array());
+    $parts=parse_url($result['upload_url']);
+    parse_str($parts['query'] ?? '',$query);
+    $secret=$query['upload_token'] ?? '';
+    $nested=null;
+    $armed=true;
+    $GLOBALS['get_transient_after_read']=function($key,$value) use (&$nested,&$armed,$result,$secret){
+        if(!$armed || strpos($key,'wpvdmcp_upload_')!==0 || !is_array($value) || ($value['id']??'')!==$result['upload_id']){return;}
+        $armed=false;
+        $nested=WPVDMCP_Upload::begin_processing($result['upload_id'],$secret);
+    };
+    $outer=WPVDMCP_Upload::begin_processing($result['upload_id'],$secret);
+    unset($GLOBALS['get_transient_after_read']);
+    $successes=($outer===true?1:0)+($nested===true?1:0);
+    assert_same(1,$successes,'exactly one browser request may move a waiting ticket into processing');
+    assert_true(is_wp_error($outer)||is_wp_error($nested),'losing browser claim must fail closed');
+    $status=WPVDMCP_Upload::check($result['upload_id']);
+    assert_same('processing',$status['status']??null,'winning claim must persist processing before media work');
+});
+
+test_case('upload processing transition fails closed when reservation cannot be persisted', function () {
+    $result=WPVDMCP_Upload::request(array());
+    $parts=parse_url($result['upload_url']);
+    parse_str($parts['query'] ?? '',$query);
+    $secret=$query['upload_token'] ?? '';
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($result){
+        if($key==='wpvdmcp_upload_'.$result['upload_id'] && is_array($value) && ($value['status']??'')==='processing')return false;
+        return null;
+    };
+    $first=WPVDMCP_Upload::begin_processing($result['upload_id'],$secret);
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($first),'failed processing persistence must not report success');
+    assert_same('upload_persist_failed',$first->get_error_code(),'reservation persistence failure must be explicit');
+    $second=WPVDMCP_Upload::begin_processing($result['upload_id'],$secret);
+    assert_true(is_wp_error($second),'uncertain reservation must retain transition claim');
+    assert_same('upload_in_progress',$second->get_error_code(),'retained transition claim must block retry');
+    $status=WPVDMCP_Upload::check($result['upload_id']);
+    assert_same('waiting',$status['status']??null,'failed reservation write leaves the underlying ticket waiting but locked');
+    delete_option('wpvdmcp_upload_claim_'.hash('sha256',$result['upload_id']));
+});
+
+test_case('upload finalization fails closed when ready state cannot be persisted', function () {
+    $result=WPVDMCP_Upload::request(array());
+    $parts=parse_url($result['upload_url']);
+    parse_str($parts['query'] ?? '',$query);
+    $secret=$query['upload_token'] ?? '';
+    assert_true(WPVDMCP_Upload::begin_processing($result['upload_id'],$secret)===true,'ticket reserved');
+    $files=array(array('attachment_id'=>89,'filename'=>'persist.png','mime_type'=>'image/png','url'=>'https://example.test/uploads/persist.png','width'=>64,'height'=>64));
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($result){
+        if($key==='wpvdmcp_upload_'.$result['upload_id'] && is_array($value) && ($value['status']??'')==='ready')return false;
+        return null;
+    };
+    $first=WPVDMCP_Upload::finalize($result['upload_id'],$secret,$files);
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($first),'failed ready-state persistence must not report success');
+    assert_same('upload_persist_failed',$first->get_error_code(),'ready persistence failure must be explicit');
+    $second=WPVDMCP_Upload::finalize($result['upload_id'],$secret,$files);
+    assert_true(is_wp_error($second),'uncertain completion must retain transition claim');
+    assert_same('upload_in_progress',$second->get_error_code(),'retained transition claim must block second finalizer');
+    $status=WPVDMCP_Upload::check($result['upload_id']);
+    assert_same('processing',$status['status']??null,'failed ready write leaves ticket processing but locked');
+    delete_option('wpvdmcp_upload_claim_'.hash('sha256',$result['upload_id']));
+});
+
+test_case('multi-file browser upload rolls back earlier attachments when a later file fails', function () {
+    $one=tempnam(sys_get_temp_dir(),'wpvdmcp-one-');
+    $two=tempnam(sys_get_temp_dir(),'wpvdmcp-two-');
+    file_put_contents($one,'fake-png-one');
+    file_put_contents($two,'fake-html-two');
+    $GLOBALS['test_image_mimes']=array(basename($one)=>'image/png',basename($two)=>'text/html');
+    $GLOBALS['test_created_attachments']=array();
+    $GLOBALS['test_deleted_attachments']=array();
+    $GLOBALS['test_next_attachment_id']=601;
+    $files=array(
+        'name'=>array('one.png','two.html'),
+        'type'=>array('image/png','text/html'),
+        'tmp_name'=>array($one,$two),
+        'error'=>array(UPLOAD_ERR_OK,UPLOAD_ERR_OK),
+        'size'=>array(filesize($one),filesize($two)),
+    );
+    $method=new ReflectionMethod('WPVDMCP_Upload','handle_files');
+    if(PHP_VERSION_ID<80100){$method->setAccessible(true);}
+    $result=$method->invoke(null,array('post_id'=>0,'title'=>'','alt_text'=>''),$files);
+    @unlink($one);@unlink($two);
+    unset($GLOBALS['test_image_mimes'],$GLOBALS['test_next_attachment_id']);
+    assert_true(is_wp_error($result),'later invalid file must fail the upload');
+    assert_same(array(601),$GLOBALS['test_created_attachments'],'first attachment must have been created before the synthetic later failure');
+    assert_same(array(601),$GLOBALS['test_deleted_attachments'],'earlier attachment must be rolled back after later failure');
+});
+
 test_case('device upload allows only explicit raster image MIME types', function () {
     foreach(array('image/jpeg','image/png','image/gif','image/webp') as $mime){assert_true(WPVDMCP_Upload::is_allowed_raster_mime($mime),'allowed '.$mime);}
     foreach(array('text/html','application/x-httpd-php','application/javascript','image/svg+xml') as $mime){assert_true(!WPVDMCP_Upload::is_allowed_raster_mime($mime),'blocked '.$mime);}
