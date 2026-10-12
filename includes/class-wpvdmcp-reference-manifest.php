@@ -15,7 +15,7 @@ final class WPVDMCP_Reference_Manifest {
 
 	public static function build( $hosted_provider_tools ) {
 		$provider = array_merge( $hosted_provider_tools, array( 'search_images' ) );
-		$local = array( 'audit_page','check_approval_status','check_upload','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','rest_api_write','run_ability','save_skill','show_approval_panel' );
+		$local = array( 'audit_page','check_approval_status','check_upload','code_snippet','discover_abilities','get_ability_info','load_skill','request_upload','rest_api','rest_api_write','run_ability','save_skill','show_approval_panel' );
 		$tools = array();
 		foreach ( self::audited_tools() as $name ) {
 			$status = in_array( $name, $provider, true ) ? 'provider_backed' : ( in_array( $name, $local, true ) ? 'local_equivalent' : 'native_route' );
@@ -62,9 +62,10 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/authorize',
 				'/wpvibe/v1/authorize/preflight',
 				'/wpvibe/v1/connection-status',
-				'/wpvibe/v1/op-proof/check',
-				'/wpvibe/v1/code-snippet',
-				'/wpvibe/v1/builder-login',
+					'/wpvibe/v1/op-proof/check',
+					'/wpvibe/v1/code-snippet',
+					'/wpvibe/v1/code-snippet/dormant',
+					'/wpvibe/v1/builder-login',
 				'/wpvibe/v1/detached/run',
 				'/wpvibe/v1/classic-theme-safety',
 				'/wpvibe/v1/self-update/health',
@@ -110,8 +111,7 @@ final class WPVDMCP_Reference_Manifest {
 				'/wpvibe/v1/bricks/save-page' => 'bricks_save_page',
 				'/wpvibe/v1/breakdance/get-page' => 'breakdance_get_page',
 				'/wpvibe/v1/breakdance/elements' => 'breakdance_elements',
-				'/wpvibe/v1/breakdance/save-page' => 'breakdance_save_page',
-				'/wpvibe/v1/code-snippet/dormant' => 'code_snippet',
+					'/wpvibe/v1/breakdance/save-page' => 'breakdance_save_page',
 			),
 			'site_local_extensions' => array( 'get_last_change', 'seedprod_compile_page', 'screenshot_page', 'reference_parity_manifest', 'call_armored' ),
 			'mcp' => array(
