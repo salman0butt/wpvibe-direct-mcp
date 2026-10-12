@@ -9,6 +9,13 @@ parity_test('authenticated requests throttle last-active diagnostic writes and h
     assert_true(!is_wp_error($fresh_response),'fresh authenticated request succeeds');
     assert_same($fresh,(int)($GLOBALS['wp_options']['wpvdmcp_last_active']??0),'fresh last-active timestamp is not rewritten');
 
+    unset($GLOBALS['wp_options']['wpvdmcp_last_active']);
+    $before_missing=time();
+    $missing_response=$server->handle(test_request($payload));
+    $missing_updated=(int)($GLOBALS['wp_options']['wpvdmcp_last_active']??0);
+    assert_true(!is_wp_error($missing_response),'missing-timestamp authenticated request succeeds');
+    assert_true($missing_updated>=$before_missing && $missing_updated<=time(),'missing last-active timestamp is initialized to current time');
+
     $stale=time()-120;
     $GLOBALS['wp_options']['wpvdmcp_last_active']=$stale;
     $before_stale=time();
