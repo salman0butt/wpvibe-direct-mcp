@@ -138,16 +138,21 @@ final class WPVDMCP_Provider_Output {
 			if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
 		}
 		$context_bases = array(
-			'auth', 'authorization', 'bearer', 'cookie', 'password', 'passwd', 'secret',
+			'auth', 'authentication', 'authorization', 'bearer', 'cookie', 'password', 'passwd', 'secret',
 			'api_key', 'access_token', 'refresh_token', 'id_token', 'private_key', 'secret_key',
 			'consumer_key', 'access_key', 'access_key_id', 'credential', 'credentials', 'nonce',
 		);
 		foreach ( $context_bases as $base ) {
-			foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded' ) as $context ) {
+			foreach ( array( 'header', 'value', 'raw', 'plain', 'plaintext', 'encoded', 'pem', 'data', 'hash' ) as $context ) {
 				$credential_context = $base . '_' . $context;
 				if ( $normalized === $credential_context ) { return true; }
 				$suffix = '_' . $credential_context;
 				if ( strlen( $normalized ) > strlen( $suffix ) && substr( $normalized, -strlen( $suffix ) ) === $suffix ) { return true; }
+			}
+		}
+		foreach ( array( 'http', 'client', 'request', 'proxy', 'server', 'upstream', 'provider', 'remote', 'api', 'basic', 'digest' ) as $prefix ) {
+			foreach ( array( 'auth', 'authentication', 'authorization' ) as $auth_form ) {
+				if ( $normalized === $prefix . '_' . $auth_form ) { return true; }
 			}
 		}
 		return false;
@@ -236,7 +241,9 @@ final class WPVDMCP_Provider_Output {
 	}
 
 	private static function enforce_serialized_bound( $value, $state, $provider_name ) {
-		$encoded = wp_json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		// Match WPVDMCP_Server's model-visible success-text encoding. Pretty-print
+		// whitespace is part of the wire size and can materially expand nested data.
+		$encoded = wp_json_encode( $value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 		if ( false !== $encoded && strlen( $encoded ) <= self::MAX_TOTAL_BYTES ) {
 			return $value;
 		}

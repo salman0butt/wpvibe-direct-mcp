@@ -21,6 +21,14 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
                 'passwordValue'=>'contextual-password',
                 'secretValue'=>'contextual-secret-value',
                 'accessTokenValue'=>'contextual-access-token',
+                'authenticationHeader'=>'Bearer contextual-authentication',
+                'privateKeyPem'=>'-----BEGIN PRIVATE KEY----- contextual',
+                'accessTokenData'=>'contextual-token-data',
+                'httpAuthorization'=>'Bearer http-secret',
+                'clientAuthorization'=>'Bearer client-secret',
+                'requestAuthorization'=>'Bearer request-secret',
+                'httpAuth'=>'user:http-password',
+                'clientAuth'=>'client-auth-secret',
             )),
             'note'=>'This token wording is ordinary prose and must remain unchanged.',
             'token_count'=>7,
@@ -28,6 +36,9 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
             'consumer_key_count'=>3,
             'password_reset_required'=>true,
             'public_key'=>'public-material-is-not-a-private-key',
+            'publicKeyPem'=>'-----BEGIN PUBLIC KEY----- safe-public-material',
+            'supportsAuth'=>true,
+            'requiresAuthorization'=>false,
             '_wpvdmcp_provider_output'=>array('redacted_fields'=>0,'truncated'=>false),
         );
     });
@@ -51,6 +62,14 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_true(!isset($r['results'][0]['passwordValue']),'password value credential must be removed');
     assert_true(!isset($r['results'][0]['secretValue']),'secret value credential must be removed');
     assert_true(!isset($r['results'][0]['accessTokenValue']),'access token value credential must be removed');
+    assert_true(!isset($r['results'][0]['authenticationHeader']),'authentication header credential must be removed');
+    assert_true(!isset($r['results'][0]['privateKeyPem']),'private key PEM credential must be removed');
+    assert_true(!isset($r['results'][0]['accessTokenData']),'access token data credential must be removed');
+    assert_true(!isset($r['results'][0]['httpAuthorization']),'HTTP authorization credential must be removed');
+    assert_true(!isset($r['results'][0]['clientAuthorization']),'client authorization credential must be removed');
+    assert_true(!isset($r['results'][0]['requestAuthorization']),'request authorization credential must be removed');
+    assert_true(!isset($r['results'][0]['httpAuth']),'HTTP auth credential must be removed');
+    assert_true(!isset($r['results'][0]['clientAuth']),'client auth credential must be removed');
     assert_same('kept',$r['results'][0]['nested']['safe']??null,'safe nested value preserved');
     assert_same('This token wording is ordinary prose and must remain unchanged.',$r['note']??null,'ordinary prose preserved');
     assert_same(7,$r['token_count']??null,'non-credential token_count preserved');
@@ -58,7 +77,10 @@ parity_test('provider outputs redact credential-shaped keys without redacting no
     assert_same(3,$r['consumer_key_count']??null,'consumer-key count metadata preserved');
     assert_same(true,$r['password_reset_required']??null,'password reset state preserved');
     assert_same('public-material-is-not-a-private-key',$r['public_key']??null,'public key material preserved');
-    assert_same(17,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
+    assert_same('-----BEGIN PUBLIC KEY----- safe-public-material',$r['publicKeyPem']??null,'public key PEM material preserved');
+    assert_same(true,$r['supportsAuth']??null,'auth capability metadata preserved');
+    assert_same(false,$r['requiresAuthorization']??null,'authorization requirement metadata preserved');
+    assert_same(25,$r['_wpvdmcp_provider_output']['redacted_fields']??null,'redaction count reported');
     assert_same(true,$r['_wpvdmcp_provider_output']['reserved_metadata_removed']??null,'provider cannot spoof sanitizer metadata');
 });
 
@@ -97,6 +119,24 @@ parity_test('provider output fails closed when JSON escaping would exceed the se
     assert_true(strlen(json_encode($r))<=262144,'escaped JSON remains within total provider-output limit');
     assert_same(true,$r['_wpvdmcp_provider_output']['serialized_limit']??null,'serialized-limit fallback is explicit');
     assert_same(true,$r['_wpvdmcp_provider_output']['truncated']??null,'serialized-limit fallback reports truncation');
+});
+
+parity_test('provider success output accounts for MCP pretty-print expansion',function(){
+    $row=array();
+    for($i=0;$i<100;$i++)$row['k'.$i]='x';
+    $GLOBALS['wpvdmcp_providers']=array('page_audit'=>function($args)use($row){
+        return array('rows'=>array_fill(0,200,$row));
+    });
+    $payload=array('jsonrpc'=>'2.0','id'=>'provider-success-pretty','method'=>'tools/call','params'=>array('name'=>'audit_page','arguments'=>array('page_url'=>'https://example.test/')));
+    $response=WPVDMCP_Server::instance()->handle(test_request($payload));
+    unset($GLOBALS['wpvdmcp_providers']);
+
+    $body=response_data($response);
+    $text=$body['result']['content'][0]['text']??null;
+    assert_true(is_string($text),'provider success must serialize to model-visible text');
+    assert_true(strlen($text)<=262144,'model-visible provider success must account for pretty-print expansion');
+    $structured=$body['result']['structuredContent']??array();
+    assert_same(true,$structured['_wpvdmcp_provider_output']['serialized_limit']??null,'pretty-print expansion triggers serialized-limit fallback');
 });
 
 parity_test('hosted reference providers use the same output sanitizer',function(){
