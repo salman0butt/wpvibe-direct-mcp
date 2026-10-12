@@ -23,11 +23,11 @@ final class WPVDMCP_Reference_Manifest {
 				'name' => $name,
 				'status' => $status,
 				'implementation' => 'provider_backed' === $status ? 'user-owned provider; no WPVibe private credentials bundled' : ( 'local_equivalent' === $status ? 'Direct MCP safe equivalent/alias' : 'installed WPVibe/WordPress route' ),
-				'source' => 'audited public WPVibe MCP surface 2026-10-10',
+				'source' => 'audited public WPVibe MCP surface 2026-10-12',
 			);
 		}
 		return array(
-			'audited_at' => '2026-10-10',
+			'audited_at' => '2026-10-12',
 			'upstream_version' => '1.20.3',
 			'upstream_commit' => '8f303926ae11179e38bc0ecf2a87e3cbd18984c6',
 			'reference_sources' => array(
@@ -44,13 +44,13 @@ final class WPVDMCP_Reference_Manifest {
 			'cookbook_integrations' => array(
 				'aioseo','charitable','duplicator','easy-digital-downloads','fluentcart','fluentcommunity','fluentcrm','lifterlms','memberpress','merchant',
 				'pushengage','smash-balloon','woocommerce','wpcode','wpforms','yoast-seo','beaver-builder','breakdance','bricks','divi','elementor','generateblocks',
-				'seedprod','botiga','generatepress','kadence',
+				'seedprod','botiga','generatepress','kadence','advanced-custom-fields','ultimate-addons-for-elementor','disable-comments',
 			),
 			'works_with_ai_integrations' => array(
 				'abilities-plugin','rank-math','aioseo','seopress','yoast-seo','smash-balloon','memberpress','charitable','duplicator','pushengage',
 				'easy-digital-downloads','lifterlms','wpforms','kit-convertkit','modern-cart','cartflows','pagelayer','elementskit','amelia','adtribes-product-feed',
 				'fluentcart','fluentcommunity','fluentcrm','merchant','woocommerce','wpcode','sugar-calendar','optinmonster','botiga','elementor','beaver-builder',
-				'bricks','breakdance','divi','seedprod','generatepress','generateblocks','kadence',
+				'bricks','breakdance','divi','seedprod','generatepress','generateblocks','kadence','advanced-custom-fields','ultimate-addons-for-elementor','disable-comments',
 			),
 			'tools' => $tools,
 			'internal_not_tools' => array(
