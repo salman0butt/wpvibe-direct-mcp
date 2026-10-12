@@ -18,7 +18,9 @@ A token in `?token=` or `?access_token=` can leak through access logs, reverse p
 
 ## Downstream authorization
 
-Direct MCP sets the current WordPress user to the configured token owner and internally dispatches the requested route. It does **not** bypass the permission callback of the destination REST route. WPVibe/native-plugin capability checks remain authoritative.
+Direct MCP sets the current WordPress user to the configured token owner and internally dispatches the requested route. Ordinary route-backed tools do **not** bypass the permission callback of the destination REST route. WPVibe/native-plugin capability checks remain authoritative.
+
+A small number of Direct safety bridges intentionally call trusted upstream PHP handlers in-process when the corresponding REST route is Worker/control-plane-only and therefore cannot safely accept model-supplied proof material. Those bridges must explicitly preserve the capability check and classifier semantics that would otherwise have been enforced at the REST boundary. The destructive WP-CLI and WPCode reviewed-write paths follow that rule.
 
 The generic `rest_api` / `rest_api_write` bridge explicitly blocks before dispatch and before approval creation:
 
@@ -61,6 +63,9 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 - A changed command or changed approved payload fails closed; a consumed CLI approval cannot be replayed.
 - After Direct approval, execution uses WPVibe's trusted in-process approved executor with the preserved snapshot. The Worker-only `/wpvibe/v1/cli/run-approved` route and operation-proof secrets are never exposed to the model or generic REST bridge.
 - WPVibe route-backed commands keep their upstream capability checks, allowlist, destructive classification, and approved execution semantics; Direct MCP does not forge Worker proof state.
+- For `code_snippet`, Direct explicitly re-checks `wpcode_edit_snippets` and calls `WPVibe_Code_Snippet::handle()` with dormant semantics first. A qualifying dormant create/update completes without an extra Direct approval exactly as upstream intends.
+- If the upstream dormant classifier returns only `snippet_review_required`, Direct binds a one-time approval to the exact normalized snippet payload. Payload drift and replay fail before the approved upstream handler runs. The existing site-owner WPVibe approval-bypass setting is honored only after the dormant classifier has said review is required.
+- Direct never forwards a model-supplied `active` field, never exposes or forges the Worker proof required by `/wpvibe/v1/code-snippet`, and never raises snippet activation. WPCode activation remains a human wp-admin action; upstream may preserve an already-human-enabled non-server-executed snippet according to its own rules, while server-executed code is forced back through the safer human enable loop.
 
 ## Armored retry boundary
 
@@ -72,13 +77,16 @@ Do not loosen those upstream checks to make a blocked internal URL work.
 |---|---|
 | SSRF / private-network media fetch | Public-URL media delegated to WPVibe's current URL/redirect/DNS checks |
 | CSRF against admin approvals | WordPress cookie authentication + nonce; only token owner may approve Direct-MCP receipts |
-| Confused deputy / privilege escalation | Token owner must stay Administrator; downstream route permission callbacks preserved |
+| Confused deputy / privilege escalation | Token owner must stay Administrator; route-backed permission callbacks are preserved and in-process safety bridges explicitly re-check skipped capabilities |
 | Path traversal / arbitrary file write | Theme writes delegated to WPVibe file sandbox; device upload never chooses a server directory |
 | Arbitrary executable upload | Browser transfer accepts image MIME only; SVG requires sanitizer |
 | PHP upload / polyglot risk | Raster MIME detected from bytes; SVG handled by WPVibe path; no arbitrary extension allowlist |
 | REST credential/control-plane abuse | Direct MCP auth namespace, Application Password routes, and audited WPVibe Worker/control-plane routes blocked in generic REST |
 | Destructive CLI proof forgery | Model receives only Direct approval IDs; Worker operation-proof secrets and approved route stay inaccessible |
 | Destructive CLI drift/replay | Approval binds exact command + upstream snapshot and is single-use |
+| WPCode Worker-proof forgery | Direct does not expose either proof-protected snippet route; the trusted upstream handler is called in-process after the preserved WPCode capability/classifier checks |
+| WPCode review bypass / payload drift | Only upstream `snippet_review_required` enters the Direct approval flow; approval binds the normalized snippet payload and is single-use |
+| AI-triggered snippet activation | Model `active` input is dropped; Direct never raises activation; human wp-admin activation and WPCode's checks remain authoritative |
 | Armored payload used as a bypass | Only already-exposed tools can be targeted; normal target-tool safety semantics still run |
 | Token/log leakage | Hash-only token storage; tool log summaries exclude token/body/binary data |
 | SVG stored XSS | Current WPVibe SVG sanitizer required; no Direct-MCP bypass |
