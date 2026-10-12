@@ -42,7 +42,7 @@ final class WPVDMCP_REST_Safety {
 			),
 			array(
 				'name' => 'rest_api_write',
-				'description' => 'Perform an approval-gated WordPress REST mutation through the same hardened Direct MCP REST bridge. Accepts both WPVibe and Direct option names. DELETE never forwards force=true. WooCommerce product/variation replacement lists must preserve existing entries unless wpvibe_replace=true is explicitly supplied.',
+				'description' => 'Perform an approval-gated WordPress REST mutation through the same hardened Direct MCP REST bridge. Accepts both WPVibe and Direct MCP option names. DELETE never forwards force=true. WooCommerce product/variation replacement lists must preserve existing entries unless wpvibe_replace=true is explicitly supplied.',
 				'inputSchema' => self::rest_schema( $write ),
 			),
 		);
