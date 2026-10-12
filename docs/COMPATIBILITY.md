@@ -2,14 +2,14 @@
 
 ## Audited baseline
 
-WPVibe Direct MCP 1.4.0 remains audited against:
+WPVibe Direct MCP 1.4.1 remains audited against:
 
 - official WPVibe WordPress plugin **1.20.3**;
 - upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6` from 2026-10-06;
 - WordPress 6.0+ and PHP 7.4+ as the plugin floor;
 - WordPress 6.9 + Elementor Core 4.3.4 for the disposable Abilities/Elementor acceptance lane.
 
-Release **1.4.0** incorporates the verified runtime/security hardening accumulated after immutable release 1.3.3. Older tags remain unchanged.
+Release **1.4.1** packages the verified security hardening accumulated after immutable release 1.4.0. Older tags remain unchanged.
 
 ## Feature detection first
 
@@ -23,7 +23,7 @@ This permits a reasonable version range:
 
 The wp-admin screen shows installed versions, available tool count, feature flags, and a warning when WPVibe is newer than the version last audited by Direct MCP.
 
-The disposable 1.4.0 lane also checks the site's live `/wpvibe/v1` REST registry against the machine-readable parity manifest. Parameterized runtime routes are normalized to their manifest form; WordPress core's generated namespace index is ignored; any unclassified operational WPVibe route fails the E2E gate.
+The disposable 1.4.1 lane also checks the site's live `/wpvibe/v1` REST registry against the machine-readable parity manifest. Parameterized runtime routes are normalized to their manifest form; WordPress core's generated namespace index is ignored; any unclassified operational WPVibe route fails the E2E gate.
 
 ## Version-dependent behavior
 
@@ -31,7 +31,7 @@ The disposable 1.4.0 lane also checks the site's live `/wpvibe/v1` REST registry
 
 Requires WordPress 6.9+ and the `/wp-abilities/v1/abilities` REST namespace. If unavailable, Abilities tools are hidden / return an actionable unavailable error rather than guessing routes.
 
-POST Ability mutations use a real raw `application/json` request body. The focused regression protecting that contract runs in the PHP matrix and is required on both the verified source checkout and extracted 1.4.0 release ZIP before publication.
+POST Ability mutations use a real raw `application/json` request body. The focused regression protecting that contract runs in the PHP matrix and is required on both the verified source checkout and extracted 1.4.1 release ZIP before publication.
 
 ### WPVibe 1.20-era contracts
 
@@ -72,11 +72,11 @@ Current route classification keeps `/wpvibe/v1/classic-theme-safety` infrastruct
 
 `run_wp_cli` is WPVibe's native PHP-dispatch command catalog, not a shell bridge. Direct MCP does not add `exec`, shell access, `eval`, or `eval-file` and does not duplicate the catalog. Command availability therefore follows the installed WPVibe version.
 
-Safe/non-destructive calls continue through WPVibe's public `/wpvibe/v1/cli/run` path. When WPVibe classifies a command as destructive and returns `approval_required`, Direct MCP 1.4.0 converts that result into a one-time browser-admin approval bound to the exact command plus the exact upstream operation/dry-run snapshot. Command drift and replay fail closed. Once approved, Direct MCP calls WPVibe's trusted in-process approved executor with that snapshot; it never exposes the Worker-only `/wpvibe/v1/cli/run-approved` route or operation-proof secret to the model.
+Safe/non-destructive calls continue through WPVibe's public `/wpvibe/v1/cli/run` path. When WPVibe classifies a command as destructive and returns `approval_required`, Direct MCP 1.4.1 converts that result into a one-time browser-admin approval bound to the exact command plus the exact upstream operation/dry-run snapshot. Command drift and replay fail closed. Once approved, Direct MCP calls WPVibe's trusted in-process approved executor with that snapshot; it never exposes the Worker-only `/wpvibe/v1/cli/run-approved` route or operation-proof secret to the model.
 
 ## WPCode snippets
 
-Both current WPVibe snippet REST routes require Worker operation proofs. Direct MCP 1.4.0 does not mint or expose those proofs. It re-checks `wpcode_edit_snippets` and calls the same trusted `WPVibe_Code_Snippet::handle()` implementation in-process, using dormant semantics first. Only upstream `snippet_review_required` results enter the payload-bound one-time Direct approval flow. Model-supplied activation is discarded and human activation in WPCode remains authoritative.
+Both current WPVibe snippet REST routes require Worker operation proofs. Direct MCP 1.4.1 does not mint or expose those proofs, and generic REST blocks both routes. It re-checks `wpcode_edit_snippets` and calls the same trusted `WPVibe_Code_Snippet::handle()` implementation in-process, using dormant semantics first. Only upstream `snippet_review_required` results enter the payload-bound one-time Direct approval flow. Model-supplied activation is discarded and human activation in WPCode remains authoritative.
 
 ## Generic REST and Worker/control-plane compatibility
 
@@ -86,7 +86,13 @@ This is explicit route classification rather than a namespace-wide block. The ru
 
 ## Armored transport retry
 
-Release 1.4.0 includes `call_armored` as a Direct-only local extension. It base64-decodes a bounded JSON argument object and then invokes only an already-exposed model tool. It does not widen compatibility into a generic execution primitive: unknown/unexposed targets, self-targeting, approval internals, invalid payloads, and oversized payloads fail closed, and the called tool keeps its normal approval/provider/routing behavior.
+Release 1.4.1 retains `call_armored` as a Direct-only local extension. It base64-decodes a bounded JSON argument object and then invokes only an already-exposed model tool. It does not widen compatibility into a generic execution primitive: unknown/unexposed targets, self-targeting, approval internals, invalid payloads, and oversized payloads fail closed, and the called tool keeps its normal approval/provider/routing behavior.
+
+## MCP batching and concurrency boundaries
+
+MCP revisions 2025-06-18 and newer reject JSON-RPC batches before any batch member executes. Pre-2025-06-18 legacy batch compatibility remains for supported older clients, but MCP Apps metadata is sanitized independently per result so app-only panel tokens do not survive in model-visible structured content or text.
+
+One-time approvals and browser upload tickets use durable atomic claims before protected side effects. A competing request cannot steal a claim by age, and uncertain persistence fails closed. Upload processing additionally rolls back attachments created by a partial attempt if a later file or final ticket transition fails.
 
 ## Hosted vs direct
 

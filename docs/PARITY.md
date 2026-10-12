@@ -1,14 +1,14 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-12**. Direct MCP release target: **1.4.0**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-12**. Direct MCP release target: **1.4.1**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
-Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while preserving the immutable history of the earlier releases. Current `main` may contain later Unreleased playbook/audit updates without changing the published 1.4.0 artifact.
+Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Works-with-AI playbook refresh while preserving the immutable history of earlier releases.
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.4.0 |
+| Reference tool | Direct MCP 1.4.1 |
 |---|---|
 | `connect_site` | Provider-backed exact name; current auth options normalized; no fake WPVibe cloud registry |
 | `list_sites` | Provider-backed exact name |
@@ -49,6 +49,9 @@ Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while p
 - `load_skill` supports current `name`, `query`, and `resource` forms, no-argument bounded catalog metadata, metadata-only search, and exact bounded saved-reference reads.
 - Provider-backed public tools normalize the current documented options but still fail closed without user-owned infrastructure; no private WPVibe cloud credentials or account data are copied.
 - `call_armored` is a bounded Direct-only transport retry for already-exposed tools. Base64 decoding does not bypass the target tool's schema, approval, route, provider, or replay protections; self/approval-internal/unexposed targets and invalid/oversized payloads fail closed.
+- MCP protocol revisions that removed JSON-RPC batching (2025-06-18 and newer, including 2026-07-28) reject batches before tool execution. Retained pre-2025-06-18 legacy batches sanitize each MCP Apps tool result so app-only approval metadata is moved out of model-visible structured content/text.
+- Direct approval consumption uses an atomic claim before a protected operation may execute. Competing consumers and uncertain persistence states fail closed rather than allowing duplicate destructive execution.
+- Browser media tickets atomically reserve `waiting` → `processing` before attachment creation, permit exactly one finalizer, and roll back attachments if a multi-file attempt or final persistence step fails.
 
 ## Features-page parity
 
@@ -82,12 +85,13 @@ Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while p
 
 Direct MCP ships explicit playbooks for Rank Math, AIOSEO, SEOPress, Yoast SEO, Smash Balloon, MemberPress, Charitable, Duplicator, PushEngage, Easy Digital Downloads, LifterLMS, WPForms, Kit/ConvertKit, Modern Cart, CartFlows, Pagelayer, ElementsKit, Amelia, AdTribes Product Feed, FluentCart, FluentCommunity, FluentCRM, Merchant, WooCommerce, WPCode, Sugar Calendar, OptinMonster, Botiga, Elementor, Beaver Builder, Bricks, Breakdance, Divi/Divi 5, SeedProd, GeneratePress, GenerateBlocks, Kadence, Advanced Custom Fields, Ultimate Addons for Elementor, and Disable Comments. `abilities-plugin` remains the generic Abilities-first fallback for newly compliant plugins; capabilities are discovered rather than inferred from private storage.
 
-The 2026-10-12 live Works-with-AI/Cookbook audit added dedicated post-1.4.0 playbooks for **Advanced Custom Fields 6.8.10**, **Ultimate Addons for Elementor 2.9.5**, and **Disable Comments 2.9.0**. They use the existing WordPress Abilities execution surface and add the setup/safety context generic discovery alone does not provide: ACF's human-enabled `acf/settings/enable_acf_ai` WPCode filter plus per-object AI access and REST exposure, UAE's `Enable Abilities` / `Enable Edit Abilities` settings and classic-theme boundary, and Disable Comments' multisite/WooCommerce/replace-all/permanent-delete safeguards. These playbooks are reference-tested and source-audited; this work does not claim live plugin E2E for ACF, UAE, or Disable Comments and does not modify the published 1.4.0 release artifact.
+The 2026-10-12 live Works-with-AI/Cookbook audit added dedicated playbooks for **Advanced Custom Fields 6.8.10**, **Ultimate Addons for Elementor 2.9.5**, and **Disable Comments 2.9.0**. They use the existing WordPress Abilities execution surface and add the setup/safety context generic discovery alone does not provide: ACF's human-enabled `acf/settings/enable_acf_ai` WPCode filter plus per-object AI access and REST exposure, UAE's `Enable Abilities` / `Enable Edit Abilities` settings and classic-theme boundary, and Disable Comments' multisite/WooCommerce/replace-all/permanent-delete safeguards. These playbooks are reference-tested and source-audited; release 1.4.1 does not claim live plugin E2E for ACF, UAE, or Disable Comments.
 
 ## MCP protocol/options parity
 
-- Modern `2026-07-28` `server/discover`, routing headers and cache hints.
+- Modern `2026-07-28` `server/discover`, routing headers and cache hints; JSON-RPC batches are rejected for 2025-06-18+ revisions where batching is no longer supported.
 - Legacy 2025/2024 initialize/ping compatibility.
+- Retained pre-2025-06-18 batch compatibility sanitizes MCP Apps metadata independently for every returned batch result.
 - Tools, prompts and resources primitives.
 - MCP Apps extension with `text/html;profile=mcp-app` resources/read.
 - Stateless Streamable-HTTP JSON; no standalone SSE/session store.
@@ -103,7 +107,7 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Release **1.4.0** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. The release workflow repeats the full PHP suites and focused regression against the extracted release ZIP before publication. The post-release Works-with-AI playbook unit adds one reference regression on current `main`; it does not retroactively change 1.4.0's published test count.
+Release **1.4.1** runs **119 suite cases (35 core/legacy + 14 parity + 70 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. The release workflow repeats the full PHP suites and focused regression against the extracted release ZIP before publication, and publication is gated to the current `main` SHA after both exact-SHA PHP parity and disposable WordPress/Elementor E2E succeed.
 
 The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. WPCode is not installed in the disposable Elementor lane, so no live WPCode E2E claim is made. The disposable lane verifies the live WPVibe REST route-classification inventory together with the bounded Elementor Core acceptance.
 
