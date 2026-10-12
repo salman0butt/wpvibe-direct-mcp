@@ -1,14 +1,14 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-12**. Latest published Direct MCP release: **1.3.3**. Current development state: **post-1.3.3 `main`**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-12**. Direct MCP release target: **1.4.0**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
-The immutable 1.3.3 release remains the published baseline. Sections that describe current `main` include additional merged security/runtime hardening that has not been republished as 1.3.3.
+Release 1.4.0 incorporates the verified post-1.3.3 runtime/security work while preserving the immutable history of the earlier releases.
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP current tree |
+| Reference tool | Direct MCP 1.4.0 |
 |---|---|
 | `connect_site` | Provider-backed exact name; current auth options normalized; no fake WPVibe cloud registry |
 | `list_sites` | Provider-backed exact name |
@@ -33,7 +33,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 | `start_fleet_job`, `show_fleet_dashboard` | Provider-backed exact hosted names with current sites/steps/confirm/idempotency forms |
 | `use_usage_reset` | Provider-backed exact hosted name |
 
-`reference_parity_manifest` returns the machine-readable audited list and implementation class for every reference tool. Current disposable E2E also compares the live installed WPVibe REST registry against that classification so a new operational `/wpvibe/v1` route cannot silently remain unclassified.
+`reference_parity_manifest` returns the machine-readable audited list and implementation class for every reference tool. The disposable E2E compares the live installed WPVibe REST registry against that classification so a new operational `/wpvibe/v1` route cannot silently remain unclassified.
 
 ## Contract and safety parity
 
@@ -53,7 +53,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 ## Features-page parity
 
 - **Full REST API:** covered through `rest_api` / `rest_api_write` with credential/control-plane route blocking, bounded responses, mutation approvals, and current public option compatibility.
-- **WP-CLI:** delegated to the installed WPVibe command dispatcher; `wp_cli_status` is the runtime source of truth because advertised command counts can differ across pages/releases. Current Direct MCP can safely complete upstream-classified destructive commands through the one-time exact-snapshot approval bridge described above.
+- **WP-CLI:** delegated to the installed WPVibe command dispatcher; `wp_cli_status` is the runtime source of truth because advertised command counts can differ across pages/releases. Direct MCP can safely complete upstream-classified destructive commands through the one-time exact-snapshot approval bridge described above.
 - **Theme Builder + Draft/Preview/Publish:** covered with classic-theme scaffold, isolated draft, preview, publish/delete and current Site Editor customization handling. The fresh classic-theme proof helper remains infrastructure-only; the draft compile snapshot is explicitly model-safe.
 - **Site Intelligence:** environment/integration diagnostics plus upstream site-health/performance data when present; browser-rendered HTML when a provider exists.
 - **Lighthouse:** `audit_page`/`page_audit` via user-owned provider.
@@ -70,7 +70,7 @@ The immutable 1.3.3 release remains the published baseline. Sections that descri
 
 ## Builder/workflow parity
 
-- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. The disposable CI lane verifies WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 through Direct MCP HTTP for discovery, method annotations, one-time approvals/replay rejection, draft page creation, Atomic composition, structure read, publish, live frontend output, no PHP fatals, and Atomic-OFF failure/native-fallback discovery. Current `main` additionally verifies that every live WPVibe operational REST route is classified in the parity manifest. The playbook additionally covers page/element operations, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`; those broader/Pro paths remain unverified unless explicitly listed in the E2E record. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
+- **Elementor:** current Elementor 4.3+/WordPress 6.9+ Abilities-first workflow plus native WPVibe fallback. The disposable CI lane verifies WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4 through Direct MCP HTTP for discovery, method annotations, one-time approvals/replay rejection, draft page creation, Atomic composition, structure read, publish, live frontend output, no PHP fatals, Atomic-OFF failure/native-fallback discovery, and live WPVibe route classification. The playbook additionally covers page/element operations, widget schemas/resources, global variables/classes/default styles, full-object page settings, preview links, publish/live verification, Atomic Editor capability boundaries, and Elementor Pro Theme Builder reuse through discovered Pro abilities or `elementor_save_template`; those broader/Pro paths remain unverified unless explicitly listed in the E2E record. Direct MCP does not guess private Elementor serialization when a supported API is unavailable.
 - **Gutenberg:** installed block schemas + validated save path.
 - **SeedProd:** Abilities/public data writes plus approval-gated browser compile using upstream one-time builder login; raw login URL is never returned to the model.
 - **Divi / Divi 5:** surgical content edits trigger upstream Divi refresh hooks; Theme Builder linkage uses audited multi-value `post meta add/delete` rather than destructive row replacement.
@@ -103,8 +103,8 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Published release **1.3.3** runs 94 suite cases (27 legacy + 14 parity + 53 reference) on PHP 7.4, 8.2 and 8.4 plus a focused Abilities raw-JSON request-body regression. Its disposable Elementor acceptance workflow verifies the bounded Core 4.3.4 flow described above.
+Release **1.4.0** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. The release workflow repeats the full PHP suites and focused regression against the extracted release ZIP before publication.
 
-Current post-1.3.3 **`main`** runs **103 suite cases (27 legacy + 14 parity + 62 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities regression. The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. WPCode is not installed in the disposable Elementor lane, so no live WPCode E2E claim is made. The current disposable lane verifies the live WPVibe REST route-classification inventory. Future release packaging requires the focused Abilities request-body regression both before packaging and again after extracting the release ZIP.
+The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. WPCode is not installed in the disposable Elementor lane, so no live WPCode E2E claim is made. The disposable lane verifies the live WPVibe REST route-classification inventory together with the bounded Elementor Core acceptance.
 
 The live lane remains intentionally bounded: it proves the listed Elementor Core flow and runtime route inventory on WordPress 6.9 / WPVibe 1.20.3 exact SHA / Elementor 4.3.4, but does not imply Elementor Pro, every Atomic mutation/global-style path, WPCode runtime behavior, media/network edge cases, provider-backed browser/audit/image services, other builders, or production/client sites were exercised.
