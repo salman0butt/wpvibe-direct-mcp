@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, and provider-readiness-discovery regressions, bringing the source suite to **39 core/legacy + 14 parity + 93 reference cases (146 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, and last-active write-throttling regressions, bringing the source suite to **39 core/legacy + 14 parity + 94 reference cases (147 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -27,6 +27,7 @@ Current unreleased source additionally contains the self-contained MCP Apps, que
 - missing/wrong/valid bearer and `X-WPVibe-Direct-Token` headers;
 - query-token and legacy `access_token` authentication rejected by default, then accepted only after explicit site-owner opt-in;
 - revoked tokens and owners who lost Administrator access;
+- successful authentication keeps the admin `last_request` diagnostic current without rewriting `wpvdmcp_last_active` more than once per 60 seconds; stale/missing and future-skewed timestamps are refreshed;
 - single-use approvals and replay rejection;
 - deterministic concurrent-consumption coverage proving exactly one claimant can consume an approved receipt, old/ambiguous claims are not stolen, and persistence uncertainty fails closed;
 - generic REST mutations require approval unless the WPVibe bypass setting is explicitly enabled;
