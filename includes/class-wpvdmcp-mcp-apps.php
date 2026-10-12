@@ -158,6 +158,9 @@ function createDirectMcpApp(appInfo){
   let connected=false;
   let resizeObserver=null;
   let resizeScheduled=false;
+  let lastWidth=0;
+  let lastHeight=0;
+  const requestTimeoutMs=60000;
   const pending=new Map();
   const app={
     ontoolresult:null,
@@ -181,7 +184,13 @@ function createDirectMcpApp(appInfo){
   function request(method,params){
     const id='wpvdmcp-app-'+(++requestId);
     return new Promise((resolve,reject)=>{
-      pending.set(id,{resolve,reject});
+      const timer=setTimeout(()=>{
+        const waiter=pending.get(id);
+        if(!waiter)return;
+        pending.delete(id);
+        waiter.reject(new Error('MCP App request timed out.'));
+      },requestTimeoutMs);
+      pending.set(id,{resolve,reject,timer});
       send({jsonrpc:'2.0',id,method,params:params||{}});
     });
   }
@@ -193,6 +202,7 @@ function createDirectMcpApp(appInfo){
     if(Object.prototype.hasOwnProperty.call(message,'id')&&!message.method&&pending.has(message.id)){
       const waiter=pending.get(message.id);
       pending.delete(message.id);
+      clearTimeout(waiter.timer);
       if(message.error){
         const text=message.error&&message.error.message?message.error.message:'MCP App request failed.';
         waiter.reject(new Error(text));
@@ -217,10 +227,20 @@ function createDirectMcpApp(appInfo){
   function reportSize(){
     resizeScheduled=false;
     const root=document.documentElement;
-    const body=document.body;
-    if(!root||!body)return;
-    const width=Math.ceil(Math.max(root.scrollWidth,body.scrollWidth,root.getBoundingClientRect().width));
-    const height=Math.ceil(Math.max(root.scrollHeight,body.scrollHeight,root.getBoundingClientRect().height));
+    if(!root)return;
+    const previousWidth=root.style.width;
+    const previousHeight=root.style.height;
+    root.style.width='fit-content';
+    root.style.height='fit-content';
+    const rect=root.getBoundingClientRect();
+    root.style.width=previousWidth;
+    root.style.height=previousHeight;
+    const scrollbarWidth=Math.max(0,(window.innerWidth||0)-(root.clientWidth||0));
+    const width=Math.ceil(rect.width+scrollbarWidth);
+    const height=Math.ceil(rect.height);
+    if(width===lastWidth&&height===lastHeight)return;
+    lastWidth=width;
+    lastHeight=height;
     notify('ui/notifications/size-changed',{width,height});
   }
   function scheduleSize(){
@@ -238,7 +258,10 @@ function createDirectMcpApp(appInfo){
   function close(){
     window.removeEventListener('message',onMessage);
     if(resizeObserver){resizeObserver.disconnect();resizeObserver=null;}
-    for(const waiter of pending.values())waiter.reject(new Error('MCP App connection closed.'));
+    for(const waiter of pending.values()){
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error('MCP App connection closed.'));
+    }
     pending.clear();
     connected=false;
   }

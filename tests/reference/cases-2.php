@@ -53,6 +53,9 @@ parity_test('MCP Apps are self-contained and load no external runtime code',func
         assert_true(strpos($html,"'ui/notifications/tool-result'")!==false,'MCP App keeps tool-result delivery: '.$uri);
         assert_true(strpos($html,"'tools/call'")!==false,'MCP App keeps app-to-server tool calls: '.$uri);
         assert_true(strpos($html,'event.source!==window.parent')!==false,'MCP App ignores messages from non-parent windows: '.$uri);
+        assert_true(strpos($html,'const requestTimeoutMs=60000')!==false,'MCP App keeps the SDK-equivalent 60 second request timeout: '.$uri);
+        assert_true(strpos($html,"root.style.width='fit-content'")!==false,'MCP App measures natural fit-content width before resize notification: '.$uri);
+        assert_true(strpos($html,'width===lastWidth&&height===lastHeight')!==false,'MCP App suppresses duplicate resize notifications: '.$uri);
     }
 });
 
