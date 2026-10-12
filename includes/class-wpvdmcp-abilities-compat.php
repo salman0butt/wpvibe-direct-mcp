@@ -119,8 +119,8 @@ final class WPVDMCP_Abilities_Compat {
 		$approval_payload = array( 'name' => $name, 'input' => $input, 'method' => $method );
 		$route = '/wp-abilities/v1/abilities/' . $name . '/run';
 
-			// Direct MCP deliberately remains stricter than the hosted wrapper: every
-			// non-readonly local ability mutation is approved, not only destructive ones.
+		// Direct MCP deliberately remains stricter than the hosted wrapper: every
+		// non-readonly local ability mutation is approved, not only destructive ones.
 		if ( ! $readonly && ! WPVDMCP_Approvals::bypass_enabled() ) {
 			$approval_id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
 			if ( '' === $approval_id ) {
@@ -128,28 +128,28 @@ final class WPVDMCP_Abilities_Compat {
 				if ( is_wp_error( $approval ) ) { return $approval; }
 				return array_merge( $approval, array( 'status' => 'approval_required', 'approval_status' => isset( $approval['status'] ) ? $approval['status'] : 'pending', 'ability' => $name, 'annotations' => $annotations ) );
 			}
-				$consumed = WPVDMCP_Approvals::consume( $approval_id, 'run_ability', $approval_payload );
-				if ( is_wp_error( $consumed ) ) { return $consumed; }
-			}
+			$consumed = WPVDMCP_Approvals::consume( $approval_id, 'run_ability', $approval_payload );
+			if ( is_wp_error( $consumed ) ) { return $consumed; }
+		}
 
-			// Never call a mutation endpoint before Direct approval. Once the exact
-			// payload is approved/consumed (or the owner explicitly enabled bypass),
-			// use Elementor's own non-persistent compiler to catch lossy warnings
-			// before the real composition write.
-			if ( 'elementor/build-composition' === $name && is_array( $input ) && empty( $input['dry_run'] ) ) {
-				$preflight = self::preflight_elementor_build_composition( $route, $input );
-				if ( is_wp_error( $preflight ) ) { return $preflight; }
-			}
+		// Never call a mutation endpoint before Direct approval. Once the exact
+		// payload is approved/consumed (or the owner explicitly enabled bypass),
+		// use Elementor's own non-persistent compiler to catch lossy warnings
+		// before the real composition write.
+		if ( 'elementor/build-composition' === $name && is_array( $input ) && empty( $input['dry_run'] ) ) {
+			$preflight = self::preflight_elementor_build_composition( $route, $input );
+			if ( is_wp_error( $preflight ) ) { return $preflight; }
+		}
 
-			if ( 'GET' === $method || 'DELETE' === $method ) {
+		if ( 'GET' === $method || 'DELETE' === $method ) {
 			return WPVDMCP_Tools::dispatch( $method, $route, array( 'input' => $input ) );
 		}
-			$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
-			return self::normalize_elementor_mutation_result( $name, $result, $input );
+		$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
+		return self::normalize_elementor_mutation_result( $name, $result, $input );
 	}
 
 	/**
-		 * Compile an approved Elementor composition without saving it before the real write.
+	 * Compile an approved Elementor composition without saving it before the real write.
 	 *
 	 * Elementor intentionally treats unsupported props/CSS as non-fatal warnings
 	 * and still returns success. Direct MCP is stricter for page-building: a
@@ -181,16 +181,16 @@ final class WPVDMCP_Abilities_Compat {
 	}
 
 	/** Surface Elementor's partial-success mutation contracts as actionable MCP errors. */
-		private static function normalize_elementor_mutation_result( $name, $result, $input = null ) {
-			if ( is_wp_error( $result ) || ! is_array( $result ) ) { return $result; }
-			$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array();
+	private static function normalize_elementor_mutation_result( $name, $result, $input = null ) {
+		if ( is_wp_error( $result ) || ! is_array( $result ) ) { return $result; }
+		$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array();
 
-			if ( 'elementor/build-composition' === $name ) {
-				// An explicit dry run is validation, not persistence. Preserve Elementor's
-				// warning payload so the caller can correct it without implying that a
-				// partial document write happened.
-				if ( is_array( $input ) && ! empty( $input['dry_run'] ) ) { return $result; }
-				$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
+		if ( 'elementor/build-composition' === $name ) {
+			// An explicit dry run is validation, not persistence. Preserve Elementor's
+			// warning payload so the caller can correct it without implying that a
+			// partial document write happened.
+			if ( is_array( $input ) && ! empty( $input['dry_run'] ) ) { return $result; }
+			$warnings = isset( $data['warnings'] ) && is_array( $data['warnings'] ) ? array_values( $data['warnings'] ) : array();
 			if ( $warnings ) {
 				return new WP_Error(
 					'elementor_composition_write_warning',

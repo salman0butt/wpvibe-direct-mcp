@@ -134,7 +134,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-The 1.4.1 acceptance lane verifies:
+The current unreleased acceptance lane verifies:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -196,4 +196,4 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 
 ## Current integration status
 
-Release 1.4.1 retains the real disposable WordPress/Elementor Core CI-backed target for the bounded workflow and live route-classification gate listed above, and adds the concurrency/batch security regressions described in the automated suite. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, and broader rendered-content verification. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
