@@ -4,6 +4,8 @@ Audit date: **2026-10-12**. Direct MCP release target: **1.4.1**. Official WordP
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
+Provider-backed parity is also bounded on output in current unreleased source: local and hosted/reference provider callbacks share one recursive sanitizer for credential-key redaction plus string/collection/depth/total-size limits, including provider `WP_Error` data. Sanitizer metadata is explicit when a result is changed; this is a Direct safety boundary, not evidence that the underlying hosted WPVibe infrastructure has been cloned.
+
 Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Works-with-AI playbook refresh while preserving the immutable history of earlier releases.
 
 ## Public MCP tool-name parity

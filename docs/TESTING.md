@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased `main` additionally contains the self-contained MCP Apps and query-token-default-off regressions, bringing the source suite to **39 core/legacy + 14 parity + 72 reference cases (125 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, and provider-output-boundary regressions, bringing the source suite to **39 core/legacy + 14 parity + 78 reference cases (131 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -92,6 +92,8 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 ### Hosted/provider-backed public contracts
 
 - exact public hosted names fail closed without a user-owned provider;
+- local and hosted/reference provider responses share the same credential-key redaction and output-bounding layer;
+- provider-output tests cover nested/camelCase secret keys, normal prose and `token_count` preservation, fake sanitizer-metadata removal, 65,536-byte string / 200-item collection / 8-level depth limits, a 1.5 MB source payload, escaping-heavy serialized-size fallback at 262,144 bytes, hosted provider output, object normalization, and bounded/redacted provider `WP_Error` data;
 - `search_images` accepts current count/orientation plus Direct `per_page`;
 - `audit_page` accepts `page_url`, categories, refresh, and local-site default;
 - `get_page_html` accepts current URL/selector/max-length forms; native fallback is same-site only while external rendering requires a browser provider;

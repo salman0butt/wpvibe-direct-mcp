@@ -109,6 +109,14 @@ For vulnerabilities in this Direct MCP bridge, report them privately to the repo
 
 `page_audit`, `search_images`, `render_browser`, and PDF text extraction are disabled unless the site owner supplies a provider via the documented WordPress filters. Direct MCP stores no WPVibe cloud credential and does not claim these providers are WPVibe-hosted services. Provider operators are responsible for outbound-network policy, credentials, rate limits, data handling, and licensing.
 
+### Provider response boundary (Unreleased)
+
+Provider callbacks and filters are not trusted to return model-safe data. Current unreleased source normalizes provider results before they cross the MCP boundary. Credential-shaped **keys** (for example authorization/password/secret/API-key/token/cookie/private-key/login-URL forms) are removed recursively; this is key-context based so ordinary prose mentioning words such as “token” and non-credential fields such as `token_count` remain intact.
+
+The shared provider-output guard enforces a maximum nesting depth of 8, at most 200 items per collection, at most 65,536 bytes per string, and a 262,144-byte serialized-result ceiling. Provider-created `WP_Error` messages are capped at 4,096 bytes and their data is normalized with the same rules. A reserved traversal budget leaves room for JSON structure/metadata; if escaping or encoding expansion would still cross the serialized ceiling, the provider result fails closed to a compact truncation result with `serialized_limit: true`. When normalization changes a result, `_wpvdmcp_provider_output` metadata reports redaction/truncation state, dropped items, depth limiting, object normalization, or serialized-limit fallback. Provider-supplied fake metadata under that reserved key is discarded. Existing tighter PDF-text and rendered-HTML bounds remain in force.
+
+This reduces accidental credential/oversized-output exposure; it is not a substitute for provider-side secret hygiene. Providers must still avoid embedding secrets in ordinary unlabelled prose or URLs when those values are intended to remain confidential. The published `v1.4.1` artifact predates this response-boundary hardening.
+
 ## MCP Apps security
 
 Inline approval uses a second high-entropy panel token that is hash-stored, token-owner-bound, expires after 15 minutes, is delivered only in tool-result `_meta`, and is consumed after one decision. MCP 2025-06-18+ batches are rejected before execution; retained pre-2025-06-18 legacy batches sanitize each tool result so this app-only token is removed from model-visible structured content and text. The model-visible payload is bounded and redacts secret-looking keys. The upload app posts only to the random, one-time media ticket endpoint; it never receives the main MCP bearer token. Browser approval/upload URLs remain available as fallback.
