@@ -120,7 +120,18 @@ final class WPVDMCP_Server {
 
 		$http_version = trim( (string) $request->get_header( 'mcp-protocol-version' ) );
 
-		if ( isset( $payload[0] ) ) {
+		if ( $this->is_batch_payload( $payload ) ) {
+			if ( empty( $payload ) ) {
+				return $this->rpc_error( null, -32600, 'An empty JSON-RPC batch is invalid.', 400 );
+			}
+			if ( ! $this->batch_supported( $payload, $http_version ) ) {
+				return $this->rpc_error(
+					null,
+					-32600,
+					'JSON-RPC batching is not supported for MCP protocol versions 2025-06-18 and later.',
+					400
+				);
+			}
 			$responses = array();
 			foreach ( $payload as $item ) {
 				$protocol_error = $this->validate_protocol( $item, $http_version, null );
@@ -144,6 +155,38 @@ final class WPVDMCP_Server {
 		$this->modern_request = $this->is_modern_rpc( $payload, $http_version );
 		$result = $this->process_rpc( $payload );
 		return null === $result ? new WP_REST_Response( null, 202 ) : rest_ensure_response( $result );
+	}
+
+	private function batch_supported( $payload, $http_version ) {
+		$batch_removed = array( self::MODERN_PROTOCOL, self::LEGACY_PROTOCOL, '2025-06-18' );
+		$batch_legacy = array( '2025-03-26', '2024-11-05' );
+		if ( in_array( (string) $http_version, $batch_removed, true ) ) {
+			return false;
+		}
+		foreach ( (array) $payload as $item ) {
+			$version = $this->protocol_version_from_rpc( $item, '' );
+			if ( in_array( $version, $batch_removed, true ) ) {
+				return false;
+			}
+			if ( is_array( $item ) && 'initialize' === (string) ( $item['method'] ?? '' ) ) {
+				$params = isset( $item['params'] ) && is_array( $item['params'] ) ? $item['params'] : array();
+				$initialize_version = isset( $params['protocolVersion'] ) ? (string) $params['protocolVersion'] : '';
+				if ( ! in_array( $initialize_version, $batch_legacy, true ) ) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private function is_batch_payload( $payload ) {
+		if ( ! is_array( $payload ) ) {
+			return false;
+		}
+		if ( empty( $payload ) ) {
+			return true;
+		}
+		return array_keys( $payload ) === range( 0, count( $payload ) - 1 );
 	}
 
 	private function protocol_version_from_rpc( $rpc, $http_version = '' ) {
