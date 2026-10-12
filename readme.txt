@@ -27,5 +27,5 @@ It dynamically exposes only the WPVibe routes available on the site, including t
 * Each token belongs to one WordPress administrator.
 * All tool calls run as that user and still pass WordPress/WPVibe capability checks.
 * Application-password management routes and this plugin's own endpoint are blocked from the generic REST tool.
-* Valid URL query tokens are supported for ChatGPT No Authentication mode; bearer headers remain preferred where available.
+* Bearer and `X-WPVibe-Direct-Token` headers are available by default. On current unreleased `main`, URL query tokens are disabled unless the site owner explicitly enables query-token compatibility; keep it off unless a client cannot send authentication headers.
 * Activity logs do not store file contents or request bodies.

@@ -379,17 +379,17 @@ final class WPVDMCP_Server {
 			$query_token = trim( (string) $query_params['access_token'] );
 		}
 
-		// Query-string tokens are always accepted when present. This is required for
-		// ChatGPT's "No authentication" custom MCP mode, which cannot attach a
-		// custom Authorization header. Bearer and X-WPVibe-Direct-Token headers
-		// remain preferred for clients that support them.
-		if ( ! $token && $query_token ) {
-			$token = $query_token;
-		}
+			$query_token_enabled = '1' === get_option( 'wpvdmcp_allow_query_token', '0' );
+			if ( ! $token && $query_token && ! $query_token_enabled ) {
+				return new WP_Error( 'query_mcp_token_disabled', 'Query-string MCP authentication is disabled. Use an Authorization: Bearer or X-WPVibe-Direct-Token header, or explicitly enable query-token compatibility in WPVibe → Direct MCP.', array( 'status' => 401 ) );
+			}
+			if ( ! $token && $query_token && $query_token_enabled ) {
+				$token = $query_token;
+			}
 
-		if ( ! $token ) {
-			return new WP_Error( 'missing_mcp_token', 'No MCP token was received. Send an Authorization: Bearer header or append ?token=YOUR_TOKEN to the MCP endpoint.', array( 'status' => 401 ) );
-		}
+			if ( ! $token ) {
+				return new WP_Error( 'missing_mcp_token', 'No MCP token was received. Send an Authorization: Bearer or X-WPVibe-Direct-Token header. Query-string authentication is available only after explicit site-owner opt in.', array( 'status' => 401 ) );
+			}
 		if ( ! hash_equals( $hash, hash( 'sha256', $token ) ) ) {
 			return new WP_Error( 'invalid_mcp_token', 'The supplied MCP token does not match the currently configured token. Regenerate it and update the MCP URL.', array( 'status' => 401 ) );
 		}

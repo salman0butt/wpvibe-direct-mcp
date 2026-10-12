@@ -60,7 +60,7 @@ See `docs/MEDIA-UPLOAD.md`.
 
    `Authorization: Bearer YOUR_TOKEN`
 
-Some clients cannot attach custom headers. For those clients only, `?token=YOUR_TOKEN` remains supported. Query-string credentials can appear in logs, browser history, analytics, and proxy telemetry, so rotate them if exposed.
+Current unreleased `main` disables query-string authentication by default. If a client genuinely cannot attach authentication headers, a site owner can explicitly enable **Allow query-string token compatibility** in **WPVibe → Direct MCP → Settings**, then use `?token=YOUR_TOKEN` (or the legacy `?access_token=` alias). Query-string credentials can appear in logs, browser history, analytics, referrers, screenshots, support tooling, and proxy telemetry, so keep the option off unless required and rotate the token after suspected exposure. The published `v1.4.1` artifact predates this hardening and still accepts valid query tokens by default.
 
 ## Architecture
 
@@ -80,6 +80,7 @@ See `docs/PARITY.md` for the complete matrix.
 
 - High-entropy access token, stored as SHA-256 only.
 - Token owner must still exist and retain `manage_options`.
+- Bearer and `X-WPVibe-Direct-Token` headers work by default; query-string credentials are an explicit site-owner opt-in on current unreleased `main`.
 - Every ordinary downstream WordPress route still performs its own permission checks; in-process safety bridges explicitly preserve any capability check skipped by not entering a Worker-proof REST permission callback.
 - Generic REST blocks all `/wpvibe-direct/v1/` routes, WordPress Application Password management endpoints, and audited WPVibe Worker/control-plane endpoints.
 - Generic REST writes are one-time approval-gated unless the site owner explicitly enables WPVibe's approval bypass.

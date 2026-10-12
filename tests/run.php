@@ -489,7 +489,7 @@ test_case('modern list results carry cache hints and modern ping is not a spec m
 });
 
 
-test_case('authentication accepts bearer X header and query token and rejects missing or wrong tokens', function () {
+test_case('authentication keeps bearer and X header while rejecting missing or wrong tokens', function () {
     $server=WPVDMCP_Server::instance();
     $payload=array('jsonrpc'=>'2.0','id'=>41,'method'=>'tools/list','params'=>array());
 
@@ -499,11 +499,71 @@ test_case('authentication accepts bearer X header and query token and rejects mi
     $wrong=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $wrong->set_header('authorization','Bearer wrong'); $wrong->set_json_params($payload);
     $w=$server->handle($wrong); assert_true(is_wp_error($w),'wrong auth returns WP_Error'); assert_same('invalid_mcp_token',$w->get_error_code(),'wrong token code');
 
+    $bearer=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $bearer->set_header('authorization','Bearer test-token'); $bearer->set_json_params($payload);
+    $br=$server->handle($bearer); assert_true(!is_wp_error($br),'Bearer header accepted');
+
     $x=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $x->set_header('x-wpvibe-direct-token','test-token'); $x->set_json_params($payload);
     $xr=$server->handle($x); assert_true(!is_wp_error($xr),'X header accepted');
+});
+
+test_case('query token authentication is disabled by default', function () {
+    $server=WPVDMCP_Server::instance();
+    $payload=array('jsonrpc'=>'2.0','id'=>411,'method'=>'tools/list','params'=>array());
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
 
     $q=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $q->set_query_params(array('token'=>'test-token')); $q->set_json_params($payload);
-    $qr=$server->handle($q); assert_true(!is_wp_error($qr),'query token accepted');
+    $qr=$server->handle($q); assert_true(is_wp_error($qr),'query token must fail closed by default'); assert_same('query_mcp_token_disabled',$qr->get_error_code(),'query token disabled code');
+
+    $legacy=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $legacy->set_query_params(array('access_token'=>'test-token')); $legacy->set_json_params($payload);
+    $lr=$server->handle($legacy); assert_true(is_wp_error($lr),'access_token must fail closed by default'); assert_same('query_mcp_token_disabled',$lr->get_error_code(),'access_token disabled code');
+});
+
+test_case('query token authentication works only after explicit site-owner opt in', function () {
+    $server=WPVDMCP_Server::instance();
+    $payload=array('jsonrpc'=>'2.0','id'=>412,'method'=>'tools/list','params'=>array());
+    $GLOBALS['wp_options']['wpvdmcp_allow_query_token']='1';
+
+    $q=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $q->set_query_params(array('token'=>'test-token')); $q->set_json_params($payload);
+    $qr=$server->handle($q); assert_true(!is_wp_error($qr),'query token accepted after opt in');
+
+    $legacy=new WP_REST_Request('POST','/wpvibe-direct/v1/mcp'); $legacy->set_query_params(array('access_token'=>'test-token')); $legacy->set_json_params($payload);
+    $lr=$server->handle($legacy); assert_true(!is_wp_error($lr),'access_token accepted after opt in');
+
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
+});
+
+test_case('admin status and settings expose query token compatibility as opt in', function () {
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
+    $status=WPVDMCP_Admin::status_snapshot();
+    assert_same(false,$status['query_token_enabled']??null,'query token status defaults off');
+
+    $GLOBALS['wp_options']['wpvdmcp_allow_query_token']='1';
+    $enabled=WPVDMCP_Admin::status_snapshot();
+    assert_same(true,$enabled['query_token_enabled']??null,'query token status reflects opt in');
+
+    ob_start(); WPVDMCP_Admin::instance()->render(); $html=ob_get_clean();
+    assert_true(strpos($html,'name="allow_query_token"')!==false,'settings render query-token opt-in checkbox');
+    assert_true(strpos($html,'query-string tokens can')!==false,'settings retain query-token leak warning');
+
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
+});
+
+test_case('admin settings persist query token compatibility opt in and opt out', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $GLOBALS['throw_on_redirect']=true;
+    $previous_post=$_POST;
+
+    $_POST=array('enabled'=>'1','allow_query_token'=>'1');
+    try { $admin->save(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'opt-in save redirects'); }
+    assert_same('1',$GLOBALS['wp_options']['wpvdmcp_allow_query_token']??null,'opt-in save persists enabled state');
+
+    $_POST=array('enabled'=>'1');
+    try { $admin->save(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'opt-out save redirects'); }
+    assert_same('0',$GLOBALS['wp_options']['wpvdmcp_allow_query_token']??null,'opt-out save persists disabled state');
+
+    $_POST=$previous_post;
+    unset($GLOBALS['throw_on_redirect']);
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
 });
 
 test_case('authentication rejects revoked token and owner who lost administrator access', function () {

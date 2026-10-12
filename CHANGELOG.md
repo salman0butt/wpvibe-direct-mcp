@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Removed the MCP Apps runtime dependency on `esm.sh`. The inline approval and upload resources now use a small self-contained postMessage bridge for the MCP Apps initialize/tool-result/tool-call lifecycle, keep browser fallbacks, advertise no external script resource domain inside the approval boundary, preserve the SDK-equivalent 60-second request timeout, and mirror the official fit-content/deduplicated resize notifications.
+- Changed URL query-token authentication to fail closed by default. Bearer and `X-WPVibe-Direct-Token` headers remain unchanged; site owners can explicitly enable query-token compatibility for clients that cannot send headers, with the admin UI and diagnostics exposing that state and both `?token=` / legacy `?access_token=` following the same opt-in.
 
 ## 1.4.1 - 2026-10-12
 - Closed the MCP Apps approval-boundary leak: MCP 2025-06-18 and newer now reject JSON-RPC batches before tool execution, while retained pre-2025-06-18 legacy batches sanitize app-only metadata per result so approval-panel tokens never remain in model-visible structured content or text.
