@@ -29,19 +29,24 @@ parity_test('known-method JSON-RPC notifications execute without emitting respon
 });
 
 parity_test('corrupted activity option cannot fatal a tool call',function(){
-    update_option('wpvdmcp_activity','corrupted-legacy-value',false);
+    $previous=get_option('wpvdmcp_activity',array());
+    try {
+        update_option('wpvdmcp_activity','corrupted-legacy-value',false);
 
-    $response=WPVDMCP_Server::instance()->handle(test_request(array(
-        'jsonrpc'=>'2.0',
-        'id'=>'activity-log-corrupt',
-        'method'=>'tools/call',
-        'params'=>array('name'=>'definitely_missing_tool','arguments'=>array()),
-    )));
-    $data=response_data($response);
+        $response=WPVDMCP_Server::instance()->handle(test_request(array(
+            'jsonrpc'=>'2.0',
+            'id'=>'activity-log-corrupt',
+            'method'=>'tools/call',
+            'params'=>array('name'=>'definitely_missing_tool','arguments'=>array()),
+        )));
+        $data=response_data($response);
 
-    assert_same('activity-log-corrupt',$data['id']??null,'tool response must still be returned when prior activity state is malformed');
-    assert_same(true,$data['result']['isError']??null,'missing test tool remains an ordinary tool error');
-    $activity=get_option('wpvdmcp_activity',array());
-    assert_true(is_array($activity),'activity logger must recover malformed stored state to an array');
-    assert_same('definitely_missing_tool',$activity[0]['tool']??null,'current tool call must still be recorded after recovery');
+        assert_same('activity-log-corrupt',$data['id']??null,'tool response must still be returned when prior activity state is malformed');
+        assert_same(true,$data['result']['isError']??null,'missing test tool remains an ordinary tool error');
+        $activity=get_option('wpvdmcp_activity',array());
+        assert_true(is_array($activity),'activity logger must recover malformed stored state to an array');
+        assert_same('definitely_missing_tool',$activity[0]['tool']??null,'current tool call must still be recorded after recovery');
+    } finally {
+        update_option('wpvdmcp_activity',$previous,false);
+    }
 });
