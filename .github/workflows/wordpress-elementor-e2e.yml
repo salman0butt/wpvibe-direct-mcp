@@ -92,6 +92,10 @@ jobs:
           wp config set WP_DEBUG true --raw --path="$WP_ROOT"
           wp config set WP_DEBUG_LOG true --raw --path="$WP_ROOT"
           wp config set WP_DEBUG_DISPLAY false --raw --path="$WP_ROOT"
+          # The disposable site is mounted into Apache from the runner. Force
+          # direct filesystem access so Elementor Atomic CSS generation uses
+          # the mounted uploads directory instead of falling back to FTP.
+          wp config set FS_METHOD direct --path="$WP_ROOT"
           wp core install \
             --path="$WP_ROOT" \
             --url=http://127.0.0.1:8080 \
