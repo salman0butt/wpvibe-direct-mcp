@@ -485,8 +485,8 @@ global_page_b_apply_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg 
 global_page_b_apply="$(run_approved_ability 'elementor/manage-elements' "$global_page_b_apply_input")"
 assert_jq "$global_page_b_apply" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Shared global class/variable style did not apply to page B'
 
-global_page_a_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
-global_page_b_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_a_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
+global_page_b_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 for shared_structure in "$global_page_a_structure" "$global_page_b_structure"; do
   if ! jq -e --arg class_id "$CLASS_ID" --arg var_id "$VAR_ID" --arg var_label "$VAR_LABEL" '
     (.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null
@@ -535,8 +535,8 @@ note 'Applying one local Atomic override and proving it remains page-local while
 local_override_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" --arg class_label "$CLASS_LABEL" --arg css "color: #445566; background-color: var(--${VAR_LABEL});" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,classes:[$class_label],style:$css}]}')"
 local_override_result="$(run_approved_ability 'elementor/manage-elements' "$local_override_input")"
 assert_jq "$local_override_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor local override did not apply cleanly'
-global_page_a_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
-global_page_b_after_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_a_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
+global_page_b_after_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 assert_jq "$global_page_a_override_structure" '(.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")' 'Page A local color override was not persisted'
 assert_jq "$global_page_b_after_override_structure" '((.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")) == false' 'Page A local override leaked into page B structure'
 global_page_a_css_override="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
@@ -554,8 +554,8 @@ class_delete_result="$(run_approved_ability 'elementor/manage-classes' "$class_d
 assert_jq "$class_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class cleanup failed'
 classes_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
 assert_jq "$classes_after_delete" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\")) == false" 'Disposable Elementor global class remained after cleanup'
-global_page_a_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
-global_page_b_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_a_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
+global_page_b_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 for cleaned_structure in "$global_page_a_after_class_delete" "$global_page_b_after_class_delete"; do
   if jq -e --arg class_id "$CLASS_ID" '(.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null' >/dev/null 2>&1 <<<"$cleaned_structure"; then
     printf '%s\n' "$cleaned_structure" | jq . >&2 || true
