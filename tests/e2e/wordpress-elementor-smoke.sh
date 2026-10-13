@@ -186,10 +186,8 @@ elementor_page_css_bundle() {
     $dom = new DOMDocument();
     if (!$dom->loadHTML($html)) { exit(2); }
     foreach ($dom->getElementsByTagName("link") as $node) {
-      $id = $node->getAttribute("id");
-      if (strpos($id, "elementor-post-") !== 0 || substr($id, -4) !== "-css") { continue; }
       $href = html_entity_decode($node->getAttribute("href"), ENT_QUOTES | ENT_HTML5);
-      if ($href !== "") { echo $href . PHP_EOL; }
+      if ($href !== "" && strpos($href, "/elementor/css/") !== false) { echo $href . PHP_EOL; }
     }
   ')
 }
