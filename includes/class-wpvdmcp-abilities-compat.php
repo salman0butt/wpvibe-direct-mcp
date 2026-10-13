@@ -132,6 +132,12 @@ final class WPVDMCP_Abilities_Compat {
 			if ( is_wp_error( $consumed ) ) { return $consumed; }
 		}
 
+		if ( 'elementor/update-page-settings' === $name ) {
+			$effective_input = self::merge_elementor_page_settings_input( $input );
+			if ( is_wp_error( $effective_input ) ) { return $effective_input; }
+			$input = $effective_input;
+		}
+
 		// Never call a mutation endpoint before Direct approval. Once the exact
 		// payload is approved/consumed (or the owner explicitly enabled bypass),
 		// use Elementor's own non-persistent compiler to catch lossy warnings
@@ -146,6 +152,59 @@ final class WPVDMCP_Abilities_Compat {
 		}
 		$result = self::dispatch_json_post( $route, array( 'input' => $input ) );
 		return self::normalize_elementor_mutation_result( $name, $result, $input );
+	}
+
+	/**
+	 * Preserve Elementor document settings around the upstream MCP ability.
+	 *
+	 * Elementor 4.3.4 describes update-page-settings as a partial merge, but the
+	 * ability calls Document::save( [ 'settings' => $partial ] ), whose save path
+	 * replaces the stored page-settings object. Merge against the latest raw
+	 * persisted settings after approval consumption so unrelated settings survive
+	 * without expanding or changing the exact payload that the user approved.
+	 */
+	private static function merge_elementor_page_settings_input( $input ) {
+		if ( ! is_array( $input ) || ! isset( $input['post_id'] ) || ! isset( $input['settings'] ) || ! is_array( $input['settings'] ) ) {
+			return $input;
+		}
+
+		if ( ! class_exists( 'Elementor\\Plugin' ) || ! isset( \Elementor\Plugin::$instance ) || ! isset( \Elementor\Plugin::$instance->documents ) ) {
+			return new WP_Error(
+				'elementor_page_settings_merge_unavailable',
+				'Could not read the current Elementor document settings safely; refusing a partial settings write that could drop unrelated values.',
+				array( 'status' => 503, 'post_id' => absint( $input['post_id'] ) )
+			);
+		}
+
+		try {
+			$document = \Elementor\Plugin::$instance->documents->get( absint( $input['post_id'] ) );
+		} catch ( \Throwable $e ) {
+			$document = null;
+		}
+
+		if ( ! is_object( $document ) || ! method_exists( $document, 'get_meta' ) ) {
+			return new WP_Error(
+				'elementor_page_settings_merge_unavailable',
+				'Could not load the current Elementor document settings safely; refusing a partial settings write that could drop unrelated values.',
+				array( 'status' => 409, 'post_id' => absint( $input['post_id'] ) )
+			);
+		}
+
+		$existing = $document->get_meta( '_elementor_page_settings' );
+		if ( empty( $existing ) ) {
+			$existing = array();
+		}
+		if ( ! is_array( $existing ) ) {
+			return new WP_Error(
+				'elementor_page_settings_merge_unavailable',
+				'Elementor returned an unexpected stored page-settings shape; refusing a partial settings write that could drop unrelated values.',
+				array( 'status' => 409, 'post_id' => absint( $input['post_id'] ) )
+			);
+		}
+
+		$effective = $input;
+		$effective['settings'] = array_replace_recursive( $existing, $input['settings'] );
+		return $effective;
 	}
 
 	/**
