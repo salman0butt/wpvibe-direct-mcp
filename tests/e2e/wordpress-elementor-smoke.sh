@@ -489,7 +489,7 @@ global_page_a_structure="$(run_readonly_ability 'elementor/get-page-structure' "
 global_page_b_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 for shared_structure in "$global_page_a_structure" "$global_page_b_structure"; do
   if ! jq -e --arg class_id "$CLASS_ID" --arg var_id "$VAR_ID" --arg var_label "$VAR_LABEL" '
-    (.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null
+    (.result.structuredContent.data.elements[0].settings.classes // [] | index($class_id)) != null
     and ((.result.structuredContent.data.elements[0].styles.css // "") | contains("var("))
     and (((.result.structuredContent.data.elements[0].styles.css // "") | contains($var_id)) or ((.result.structuredContent.data.elements[0].styles.css // "") | contains($var_label)))
   ' >/dev/null 2>&1 <<<"$shared_structure"; then
@@ -557,7 +557,7 @@ assert_jq "$classes_after_delete" "(.result.structuredContent.data.content | fro
 global_page_a_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 global_page_b_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 for cleaned_structure in "$global_page_a_after_class_delete" "$global_page_b_after_class_delete"; do
-  if jq -e --arg class_id "$CLASS_ID" '(.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null' >/dev/null 2>&1 <<<"$cleaned_structure"; then
+  if jq -e --arg class_id "$CLASS_ID" '(.result.structuredContent.data.elements[0].settings.classes // [] | index($class_id)) != null' >/dev/null 2>&1 <<<"$cleaned_structure"; then
     printf '%s\n' "$cleaned_structure" | jq . >&2 || true
     fail 'Deleted global class id remained attached to a dependent Elementor element'
   fi
