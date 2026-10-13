@@ -118,14 +118,18 @@ final class WPVDMCP_MCP_Apps {
 			return new WP_Error( 'invalid_decision', 'Decision must be approve or decline.', array( 'status' => 400 ) );
 		}
 		$record = get_transient( self::panel_key( $id ) );
-		if ( ! is_array( $record ) || empty( $record['token_hash'] ) ) {
+		if ( ! is_array( $record ) ) {
+			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
+		}
+		if ( ! isset( $record['token_hash'] ) || ! is_string( $record['token_hash'] ) || '' === $record['token_hash'] ) {
+			delete_transient( self::panel_key( $id ) );
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
 		if ( ! isset( $record['approval_id'] ) || ! is_string( $record['approval_id'] ) || $record['approval_id'] !== $id ) {
 			delete_transient( self::panel_key( $id ) );
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
-		if ( empty( $token ) || ! hash_equals( (string) $record['token_hash'], hash( 'sha256', $token ) ) ) {
+		if ( empty( $token ) || ! hash_equals( $record['token_hash'], hash( 'sha256', $token ) ) ) {
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
 		if ( (int) $record['owner_user_id'] !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
