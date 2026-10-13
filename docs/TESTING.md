@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, and Elementor page-design/bulk-mutation fidelity regressions, bringing the source suite to **39 core/legacy + 14 parity + 102 reference cases (155 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, and Elementor page-design/bulk-mutation/page-settings fidelity regressions, bringing the source suite to **39 core/legacy + 14 parity + 103 reference cases (156 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -139,7 +139,7 @@ The current unreleased acceptance lane verifies:
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
 3. real `tools/list` including Abilities and native Elementor fallback tools;
-4. runtime discovery of `elementor/create-page`, `elementor/build-composition`, `elementor/get-page-structure`, `elementor/list-widget-schemas`, `elementor/get-widget-schema`, `elementor/manage-elements`, `elementor/get-default-styles`, `elementor/manage-default-styles`, and `elementor/publish-document`;
+4. runtime discovery of `elementor/create-page`, `elementor/build-composition`, `elementor/get-page-structure`, `elementor/list-widget-schemas`, `elementor/get-widget-schema`, `elementor/manage-elements`, `elementor/update-page-settings`, `elementor/read-resource`, `elementor/manage-global-variable`, `elementor/manage-classes`, `elementor/get-default-styles`, `elementor/manage-default-styles`, and `elementor/publish-document`;
 5. live annotation verification for method selection;
 6. one-time approval-required → administrator approval → execution flow, including replay rejection;
 7. `elementor/create-page` creates a draft;
@@ -149,14 +149,18 @@ The current unreleased acceptance lane verifies:
 11. `elementor/get-page-structure` re-reads the generated hierarchy and content/styles through the readonly **GET** path;
 12. `elementor/manage-elements` updates an element by the fresh ID returned from `resolved_xml`, then duplicates that element, moves the duplicate between real Atomic parents, and deletes it while each resulting hierarchy is re-read from Elementor;
 13. a deliberate mixed-success `manage-elements` batch is surfaced as `elementor_manage_elements_partial_failure` with `partial_applied=true`, then the lane re-reads current structure and repairs the element before continuing;
-14. a deliberate mixed-success `elementor/manage-default-styles` batch applies one valid site-wide sibling, fails one invalid tag, surfaces `elementor_manage_default_styles_partial_failure` with `partial_applied=true`, proves the applied sibling is inspectable through `elementor/get-default-styles`, then cleans the disposable style back up;
-15. `elementor/publish-document` publishes through the destructive + idempotent **DELETE** path;
-16. the rendered frontend contains the repaired hero heading, hero paragraph/button, and second section content while rejected invalid content is absent;
-17. no PHP fatal/uncaught error is present after the acceptance sequence;
-18. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable;
-19. the live installed `/wpvibe/v1` REST registry is normalized and every operational route is present in either the model-facing or infrastructure-only parity-manifest classification, ignoring only WordPress core's generated namespace index.
+14. `elementor/update-page-settings` is exercised with both margin and padding, followed by a margin-only update; Direct's post-approval merge preserves the untouched padding even though Elementor 4.3.4's upstream ability otherwise replaces the stored page-settings object;
+15. a disposable global color variable is created, read through `elementor://global-variables`, updated, re-read, then deleted using Elementor's native soft-delete/tombstone semantics; the resource retains the record with `deleted=true` and it is no longer active;
+16. a disposable global class is created and discovered through `elementor://global-classes`, its CSS is verified through Elementor's repository API, then the class is updated, re-verified and deleted. The disposable runner enables the official Elementor Global Classes DB migration after noninteractive Atomic opt-in rather than bypassing its custom capability gate;
+17. a deliberate mixed-success `elementor/manage-default-styles` batch applies one valid site-wide sibling, fails one invalid tag, surfaces `elementor_manage_default_styles_partial_failure` with `partial_applied=true`, proves the applied sibling is inspectable through `elementor/get-default-styles`, then cleans the disposable style back up;
+18. `elementor/publish-document` publishes through the destructive + idempotent **DELETE** path;
+19. the rendered frontend contains the repaired hero heading, hero paragraph/button, and second section content while rejected invalid content is absent;
+20. the lane switches the disposable site to external Elementor CSS, fetches the actual `elementor-post-<id>` stylesheet through the rendered page, then performs an approved margin-only page-setting change and proves regenerated CSS contains the new margin while preserving the untouched padding; the initial margin/padding snapshot is restored afterwards;
+21. no PHP fatal/uncaught error is present after the acceptance sequence;
+22. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable;
+23. the live installed `/wpvibe/v1` REST registry is normalized and every operational route is present in either the model-facing or infrastructure-only parity-manifest classification, ignoring only WordPress core's generated namespace index.
 
-This is real disposable-site E2E evidence for schema-first Elementor Core page composition, strict warning handling, targeted update/duplicate/move/delete element operations, partial element-batch recovery, one disposable site-wide default-style partial-batch/cleanup flow, publishing/rendering, and the route-classification gate. It is **not** evidence that Elementor Pro Theme Builder, every global-class/global-variable/default-style/page-setting path, global-style dependency analysis, pixel-perfect visual equivalence, WPCode runtime behavior, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+This is real disposable-site E2E evidence for schema-first Elementor Core page composition, strict warning handling, targeted update/duplicate/move/delete element operations, partial element-batch recovery, partial page-settings preservation, one global-variable lifecycle, one global-class lifecycle, one disposable site-wide default-style partial-batch/cleanup flow, actual generated post-CSS regeneration, publishing/rendering, and the route-classification gate. It is **not** evidence that Elementor Pro Theme Builder, every global-class/global-variable/default-style/page-setting path, applying reusable tokens/classes across multiple representative pages, dependency cleanup for in-use globals, full-site rebranding, pixel-perfect visual equivalence, WPCode runtime behavior, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
 
 ## Release-package verification
 
@@ -188,13 +192,13 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 9. With WPCode installed on a disposable site, verify dormant create, owned-disabled update, a `snippet_review_required` update, exact-payload approval/replay rejection, no model-driven activation, and the resulting wp-admin human enable/re-enable path.
 10. Public URL media: raster types, safe/malicious SVG, wrong MIME, redirects/private IPs, HTTP failures, dotted filenames, large/invalid images, metadata/parenting.
 11. Device upload: PNG browser upload + replay rejection; safe SVG if upstream sanitizer exists; malicious SVG rejection.
-12. Elementor 4.3+/WordPress 6.9+, extend the verified Atomic-ON lane beyond its current schema-first multi-section build + update/duplicate/move/delete/partial-recovery coverage to broader page-settings behavior, generated styles/cache behavior, global classes/variables and additional widgets.
+12. Elementor 4.3+/WordPress 6.9+, extend the verified Atomic-ON lane beyond its current schema-first multi-section build + update/duplicate/move/delete/partial-recovery + reversible page-settings/token/CSS-refresh coverage to additional page-setting fields, token/class application across representative pages, dependency cleanup and additional widgets.
 13. Extend the verified Atomic-OFF lane with native fallback save/schema behavior, not guessed `_elementor_data` writes.
-14. Elementor site-wide styles: on staging only, create/update a test global variable/class/default style, verify representative pages, then restore original state.
+14. Elementor site-wide styles: extend beyond the disposable create/update/delete lifecycle by applying test variables/classes/default styles to representative staging pages, verifying dependency propagation and rendered results, then restoring original state.
 15. Elementor Pro when available: reuse/update a test Theme Builder template through discovered Pro abilities or `elementor_save_template`; verify display conditions/live rendering; avoid duplicate global templates.
 16. Smoke-test Beaver, Bricks, and Breakdance native get/schema/save routes when installed.
 17. Inspect WPVibe audit log and Direct MCP activity summaries.
 
 ## Current integration status
 
-Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, and broader rendered-content verification. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, Direct-side preservation of Elementor page settings, reversible global-variable/global-class/default-style lifecycles, and actual generated post-CSS refresh verification. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
