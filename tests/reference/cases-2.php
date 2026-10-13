@@ -107,7 +107,7 @@ parity_test('legacy MCP batches keep app-only approval metadata out of model-vis
     assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch model-visible text must not contain the approval token');
 });
 
-parity_test('legacy batch sanitizes app-only metadata even for notifications and duplicate ids',function(){
+parity_test('legacy batch sanitizes app-only metadata while omitting notification responses with duplicate ids',function(){
     $GLOBALS['wp_current_user']=1;
     $a=WPVDMCP_Approvals::request('delete_user',array('user_id'=>79),'Delete user #79');
     $b=WPVDMCP_Approvals::request('delete_user',array('user_id'=>80),'Delete user #80');
@@ -120,6 +120,7 @@ parity_test('legacy batch sanitizes app-only metadata even for notifications and
     $response=WPVDMCP_Server::instance()->handle($request);
     $response=WPVDMCP_MCP_App_Transport::filter_response($response,null,$request);
     $data=response_data($response);
+    assert_same(2,count((array)$data),'notification must not add a third batch response');
     $metadata_tokens=0;
     foreach((array)$data as $item){
         $result=$item['result']??array();
@@ -128,7 +129,7 @@ parity_test('legacy batch sanitizes app-only metadata even for notifications and
         assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch text must never expose app approval token');
         if(!empty($result['_meta']['wpvdmcpApprovalPanelToken'])){$metadata_tokens++;}
     }
-    assert_same(2,$metadata_tokens,'both app results must retain their token only in result _meta');
+    assert_same(1,$metadata_tokens,'only the id-bearing app result may retain its token in result _meta');
 });
 
 parity_test('legacy batch sanitizes app metadata when the first batch item is malformed null',function(){
