@@ -38,3 +38,14 @@ parity_test('release workflow publishes only current main after both exact-SHA C
     $tag_create=strpos($tag_body,'git tag -a "$TAG" "$TARGET_SHA"');
     assert_true($tag_fetch!==false && $tag_create!==false && $tag_fetch<$tag_create,'final current-main and CI revalidation must occur inside the immutable tag step immediately before tag creation');
 });
+
+parity_test('release workflow never overwrites assets for an already published immutable release',function(){
+    $workflow_path=dirname(__DIR__,2).'/.github/workflows/release.yml';
+    if(!is_file($workflow_path)){
+        return;
+    }
+    $workflow=(string)file_get_contents($workflow_path);
+    assert_true(strpos($workflow,'gh release view "v$VERSION"')!==false,'metadata resolution must detect an already published release before rebuilding it');
+    assert_true(strpos($workflow,'--clobber')===false,'immutable release workflow must never overwrite existing release assets');
+    assert_true(strpos($workflow,'gh release upload')===false,'an existing release must be skipped rather than receiving replacement assets');
+});

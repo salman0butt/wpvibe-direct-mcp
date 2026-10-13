@@ -6,6 +6,7 @@ define('ABSPATH', __DIR__ . '/');
 define('WPVDMCP_VERSION', '1.1.0-test');
 define('WPVDMCP_FILE', dirname(__DIR__) . '/wpvibe-direct-mcp.php');
 define('WPVIBE_VERSION', '1.20.3');
+define('MINUTE_IN_SECONDS', 60);
 
 $GLOBALS['wp_options'] = array(
     'wpvdmcp_enabled' => '1',
@@ -68,7 +69,23 @@ function esc_url($v){return $v;} function esc_url_raw($v){return $v;} function e
 function sanitize_text_field($v){return is_scalar($v)?trim((string)$v):'';} function sanitize_file_name($v){return preg_replace('/[^A-Za-z0-9._-]/','-',(string)$v);}
 function sanitize_key($v){return strtolower(preg_replace('/[^a-zA-Z0-9_\-]/','',(string)$v));}
 function absint($v){return abs((int)$v);} function wp_json_encode($v,$flags=0){return json_encode($v,$flags);} function wp_unslash($v){return $v;}
+function wp_generate_password($length=12,$special_chars=true,$extra_special_chars=false){return str_repeat('T',(int)$length);}
+function wpvibe_field_register($post_type,$key,$config){if(isset($GLOBALS['wpvibe_field_register_callback'])&&is_callable($GLOBALS['wpvibe_field_register_callback']))return call_user_func($GLOBALS['wpvibe_field_register_callback'],$post_type,$key,$config);return true;}
+function wpvibe_field_group_register($post_type,$group_id,$config){if(isset($GLOBALS['wpvibe_field_group_register_callback'])&&is_callable($GLOBALS['wpvibe_field_group_register_callback']))return call_user_func($GLOBALS['wpvibe_field_group_register_callback'],$post_type,$group_id,$config);return true;}
+function wpvibe_setting_register($key,$config){if(isset($GLOBALS['wpvibe_setting_register_callback'])&&is_callable($GLOBALS['wpvibe_setting_register_callback']))return call_user_func($GLOBALS['wpvibe_setting_register_callback'],$key,$config);return true;}
 function rest_url($path=''){return 'https://example.test/wp-json/'.ltrim($path,'/');}
+function parse_blocks($content){
+    if(isset($GLOBALS['parse_blocks_callback']) && is_callable($GLOBALS['parse_blocks_callback'])) return call_user_func($GLOBALS['parse_blocks_callback'],(string)$content);
+    $out=array();
+    if(preg_match_all('/<!--\s+wp:([a-z0-9_-]+\/[a-z0-9_-]+)(?:\s+({.*?}))?\s+-->/i',(string)$content,$matches,PREG_SET_ORDER)){
+        foreach($matches as $m){
+            $attrs=array();
+            if(!empty($m[2])){ $decoded=json_decode($m[2],true); if(is_array($decoded)) $attrs=$decoded; }
+            $out[]=array('blockName'=>$m[1],'attrs'=>$attrs,'innerBlocks'=>array());
+        }
+    }
+    return $out;
+}
 function wp_get_image_mime($path){$name=basename((string)$path);return $GLOBALS['test_image_mimes'][$name]??'image/png';}
 function media_handle_sideload($file,$post_id=0,$desc=''){$name=$file['name']??'';if(isset($GLOBALS['test_media_failures'][$name]))return new WP_Error('test_media_failure','Synthetic media failure.');$id=isset($GLOBALS['test_next_attachment_id'])?(int)$GLOBALS['test_next_attachment_id']++:501;$GLOBALS['test_created_attachments'][]=$id;return $id;}
 function update_post_meta($id,$key,$value){return true;}
@@ -79,12 +96,12 @@ function wp_get_attachment_url($id){return 'https://example.test/uploads/attachm
 function wp_delete_attachment($id,$force=false){$GLOBALS['test_deleted_attachments'][]=(int)$id;return true;}
 function wp_max_upload_size(){return 10485760;}
 function get_option($k,$default=false){return array_key_exists($k,$GLOBALS['wp_options'])?$GLOBALS['wp_options'][$k]:$default;}
-function update_option($k,$v,$autoload=null){$GLOBALS['wp_options'][$k]=$v;return true;} function add_option($k,$v='',$deprecated='',$autoload=null){if(array_key_exists($k,$GLOBALS['wp_options']))return false;$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){unset($GLOBALS['wp_options'][$k]);return true;}
+function update_option($k,$v,$autoload=null){if(isset($GLOBALS['update_option_override'])&&is_callable($GLOBALS['update_option_override'])){$override=call_user_func($GLOBALS['update_option_override'],$k,$v,$autoload);if($override!==null)return (bool)$override;}$GLOBALS['wp_options'][$k]=$v;return true;} function add_option($k,$v='',$deprecated='',$autoload=null){if(array_key_exists($k,$GLOBALS['wp_options']))return false;$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){if(isset($GLOBALS['delete_option_override'])&&is_callable($GLOBALS['delete_option_override'])){$override=call_user_func($GLOBALS['delete_option_override'],$k);if($override!==null)return (bool)$override;}unset($GLOBALS['wp_options'][$k]);return true;}
 function get_user_by($field,$value){if($field==='id' && (int)$value===1){return (object)array('ID'=>1,'user_login'=>'admin');} return false;}
 function user_can($user,$cap){if($cap==='manage_options')return !empty($GLOBALS['user_can_manage_options']); if($cap==='upload_files')return true; return true;}
 function current_user_can($cap){if(array_key_exists($cap,$GLOBALS['current_user_capabilities']))return (bool)$GLOBALS['current_user_capabilities'][$cap]; return true;}
 function get_current_user_id(){return (int)$GLOBALS['wp_current_user'];} function wp_set_current_user($id){$GLOBALS['wp_current_user']=$id;return true;}
-function wp_date($f,$t){return gmdate($f,$t);} function checked(){return '';} function wp_nonce_field(){return '';} function check_admin_referer(){return true;} function wp_safe_redirect(){if(!empty($GLOBALS['throw_on_redirect']))throw new RuntimeException('redirect');return true;} function wp_die($m=''){throw new RuntimeException((string)$m);}
+function wp_date($f,$t){return gmdate($f,$t);} function checked(){return '';} function wp_nonce_field(){return '';} function check_admin_referer(){return true;} function wp_safe_redirect($url=''){ $GLOBALS['last_redirect']=(string)$url; if(!empty($GLOBALS['throw_on_redirect']))throw new RuntimeException('redirect');return true;} function wp_die($m=''){throw new RuntimeException((string)$m);}
 function set_transient($k,$v,$ttl){if(isset($GLOBALS['set_transient_override'])&&is_callable($GLOBALS['set_transient_override'])){$override=call_user_func($GLOBALS['set_transient_override'],$k,$v,$ttl);if($override!==null)return (bool)$override;}$GLOBALS['wp_options']['transient:'.$k]=array('value'=>$v,'expires'=>time()+$ttl);return true;}
 function get_transient($k){$x=get_option('transient:'.$k,false);if(!$x||$x['expires']<time())return false;$value=$x['value'];if(isset($GLOBALS['get_transient_after_read'])&&is_callable($GLOBALS['get_transient_after_read'])){call_user_func($GLOBALS['get_transient_after_read'],$k,$value);}return $value;}
 function delete_transient($k){return delete_option('transient:'.$k);}

@@ -41,12 +41,15 @@ final class WPVDMCP_MCP_Apps {
 			if ( is_wp_error( $status ) ) { return $status; }
 			$token = 'ui_' . bin2hex( random_bytes( 24 ) );
 			$owner = (int) get_option( 'wpvdmcp_user_id', 0 );
-			set_transient( self::panel_key( $id ), array(
+			$stored = set_transient( self::panel_key( $id ), array(
 				'token_hash' => hash( 'sha256', $token ),
 				'approval_id' => $id,
 				'owner_user_id' => $owner,
 				'expires_at' => time() + self::PANEL_TTL,
 			), self::PANEL_TTL );
+			if ( ! $stored ) {
+				return new WP_Error( 'approval_panel_persist_failed', 'The inline approval-panel token could not be durably persisted. Use the browser approval URL instead.', array( 'status' => 503 ) );
+			}
 			$status['__mcp_meta'] = array( 'wpvdmcpApprovalPanelToken' => $token );
 			return $status;
 		}

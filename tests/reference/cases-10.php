@@ -94,3 +94,25 @@ parity_test('destructive WP-CLI uses one-time Direct approval and exact upstream
     unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
     $GLOBALS['rest_dispatch_callback']=null;
 });
+
+parity_test('destructive WP-CLI fails closed when its approved snapshot cannot be persisted',function(){
+    set_test_routes(array('/wpvibe/v1/cli/run'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    WPVibe_CLI::$approved_calls=array();
+    $dry_run=array('command'=>'wp user delete 8 --yes','users'=>array(array('id'=>8,'login'=>'persist-me')));
+    $GLOBALS['rest_dispatch_callback']=function($request) use ($dry_run){
+        if('/wpvibe/v1/cli/run'===$request->get_param('_route')) return new WP_REST_Response(array(
+            'code'=>'approval_required','message'=>'Permanent user deletion needs approval.',
+            'data'=>array('status'=>409,'operation'=>'user_delete','dry_run'=>$dry_run,'command'=>'wp user delete'),
+        ),409);
+        return new WP_REST_Response(array('ok'=>true),200);
+    };
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl){if(strpos($key,'wpvdmcp_cli_snapshot_')===0)return false;return null;};
+    $result=WPVDMCP_Parity::execute('run_wp_cli',array('command'=>'user delete 8 --yes'));
+    unset($GLOBALS['set_transient_override']);
+    $GLOBALS['rest_dispatch_callback']=null;
+    assert_true(is_wp_error($result),'missing durable CLI snapshot must not return an unusable approval');
+    assert_same('approval_snapshot_persist_failed',$result->get_error_code(),'CLI snapshot persistence failure code');
+    assert_same(0,count(WPVibe_CLI::$approved_calls),'snapshot persistence failure must not execute destructive CLI');
+});

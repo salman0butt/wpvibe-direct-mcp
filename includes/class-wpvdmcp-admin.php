@@ -42,28 +42,80 @@ final class WPVDMCP_Admin {
 
 	public function generate_token() {
 		$this->guard();
+		$old_hash = get_option( 'wpvdmcp_token_hash', null );
+		$old_user = get_option( 'wpvdmcp_user_id', null );
 		$token = 'wpvd_' . wp_generate_password( 64, false, false );
-		update_option( 'wpvdmcp_token_hash', hash( 'sha256', $token ), false );
-		update_option( 'wpvdmcp_user_id', get_current_user_id(), false );
-		set_transient( 'wpvdmcp_new_token_' . get_current_user_id(), $token, 5 * MINUTE_IN_SECONDS );
+		$hash = hash( 'sha256', $token );
+		$user_id = get_current_user_id();
+		update_option( 'wpvdmcp_token_hash', $hash, false );
+		update_option( 'wpvdmcp_user_id', $user_id, false );
+		if ( $hash !== get_option( 'wpvdmcp_token_hash', null ) || $user_id !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
+			$this->restore_token_state( $old_hash, $old_user );
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+			exit;
+		}
+		if ( ! set_transient( 'wpvdmcp_new_token_' . $user_id, $token, 5 * MINUTE_IN_SECONDS ) ) {
+			$this->restore_token_state( $old_hash, $old_user );
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+			exit;
+		}
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_generated=1' ) );
 		exit;
+	}
+
+	private function restore_token_state( $hash, $user_id ) {
+		if ( null === $hash ) {
+			delete_option( 'wpvdmcp_token_hash' );
+		} else {
+			update_option( 'wpvdmcp_token_hash', $hash, false );
+		}
+		if ( null === $user_id ) {
+			delete_option( 'wpvdmcp_user_id' );
+		} else {
+			update_option( 'wpvdmcp_user_id', $user_id, false );
+		}
 	}
 
 	public function revoke_token() {
 		$this->guard();
 		delete_option( 'wpvdmcp_token_hash' );
 		delete_option( 'wpvdmcp_user_id' );
+		if ( null !== get_option( 'wpvdmcp_token_hash', null ) || null !== get_option( 'wpvdmcp_user_id', null ) ) {
+			update_option( 'wpvdmcp_token_hash', '', false );
+			update_option( 'wpvdmcp_user_id', 0, false );
+			if ( '' !== get_option( 'wpvdmcp_token_hash', null ) || 0 !== (int) get_option( 'wpvdmcp_user_id', -1 ) ) {
+				wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_revoke_error=1' ) );
+				exit;
+			}
+		}
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_revoked=1' ) );
 		exit;
 	}
 
 	public function save() {
 		$this->guard();
-		update_option( 'wpvdmcp_enabled', isset( $_POST['enabled'] ) ? '1' : '0', false ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
-		update_option( 'wpvdmcp_allow_query_token', isset( $_POST['allow_query_token'] ) ? '1' : '0', false ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
+		$old_enabled = get_option( 'wpvdmcp_enabled', null );
+		$old_query = get_option( 'wpvdmcp_allow_query_token', null );
+		$enabled = isset( $_POST['enabled'] ) ? '1' : '0'; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
+		$query = isset( $_POST['allow_query_token'] ) ? '1' : '0'; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard() verifies nonce.
+		update_option( 'wpvdmcp_enabled', $enabled, false );
+		update_option( 'wpvdmcp_allow_query_token', $query, false );
+		if ( $enabled !== get_option( 'wpvdmcp_enabled', null ) || $query !== get_option( 'wpvdmcp_allow_query_token', null ) ) {
+			$this->restore_setting_state( 'wpvdmcp_enabled', $old_enabled );
+			$this->restore_setting_state( 'wpvdmcp_allow_query_token', $old_query );
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&settings_error=1' ) );
+			exit;
+		}
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&settings_updated=1' ) );
 		exit;
+	}
+
+	private function restore_setting_state( $key, $value ) {
+		if ( null === $value ) {
+			delete_option( $key );
+		} else {
+			update_option( $key, $value, false );
+		}
 	}
 
 	/** Browser-only action behind cookie auth + nonce for Direct MCP approvals. */
@@ -138,10 +190,19 @@ final class WPVDMCP_Admin {
 			<?php if ( ! empty( $status['compatibility_warning'] ) ) : ?>
 				<div class="notice notice-warning"><p><?php echo esc_html( $status['compatibility_warning'] ); ?></p></div>
 			<?php endif; ?>
-			<?php if ( ! defined( 'WPVIBE_VERSION' ) && ! class_exists( 'WPVibe_REST' ) ) : ?>
-				<div class="notice notice-error"><p><strong>WPVibe is not active.</strong> Install and activate WPVibe before using route-backed tools.</p></div>
-			<?php endif; ?>
-			<?php if ( $user && ! user_can( $user, 'manage_options' ) ) : ?>
+				<?php if ( ! defined( 'WPVIBE_VERSION' ) && ! class_exists( 'WPVibe_REST' ) ) : ?>
+					<div class="notice notice-error"><p><strong>WPVibe is not active.</strong> Install and activate WPVibe before using route-backed tools.</p></div>
+				<?php endif; ?>
+				<?php if ( isset( $_GET['token_error'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- status display only. ?>
+					<div class="notice notice-error"><p><strong>The new Direct MCP token could not be saved.</strong> The previous credential state was restored; try again after checking WordPress database writes.</p></div>
+				<?php endif; ?>
+				<?php if ( isset( $_GET['token_revoke_error'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- status display only. ?>
+					<div class="notice notice-error"><p><strong>The Direct MCP token could not be fully revoked.</strong> Treat the existing token as potentially active until storage is healthy and revocation succeeds.</p></div>
+				<?php endif; ?>
+				<?php if ( isset( $_GET['settings_error'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- status display only. ?>
+					<div class="notice notice-error"><p><strong>Direct MCP settings could not be saved.</strong> The previous settings were restored.</p></div>
+				<?php endif; ?>
+				<?php if ( $user && ! user_can( $user, 'manage_options' ) ) : ?>
 				<div class="notice notice-error"><p><strong>The Direct MCP token owner is no longer an Administrator.</strong> Regenerate the token from an administrator account before using the endpoint.</p></div>
 			<?php endif; ?>
 			<?php if ( $token ) : ?>

@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, and Elementor page-design/bulk-mutation/page-settings fidelity regressions, bringing the source suite to **39 core/legacy + 14 parity + 103 reference cases (156 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, and the 2026-10-13 fail-closed persistence/code-audit regressions, bringing the source suite to **48 core/legacy + 20 parity + 107 reference cases (175 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 
@@ -29,14 +29,16 @@ Current unreleased source additionally contains the self-contained MCP Apps, que
 - revoked tokens and owners who lost Administrator access;
 - successful authentication keeps the admin `last_request` diagnostic current without rewriting `wpvdmcp_last_active` more than once per 60 seconds; stale/missing and future-skewed timestamps are refreshed;
 - single-use approvals and replay rejection;
+- approval creation plus approve/reject state transitions fail closed when their transient state cannot be durably persisted; callers are never told an approval exists or changed state when storage is uncertain;
 - deterministic concurrent-consumption coverage proving exactly one claimant can consume an approved receipt, old/ambiguous claims are not stolen, and persistence uncertainty fails closed;
 - generic REST mutations require approval unless the WPVibe bypass setting is explicitly enabled;
 - approval/status aliases (`approval_id`, `op_id`) and fleet-provider delegation;
 - destructive WP-CLI converts the upstream `approval_required` result into a one-time Direct approval bound to the exact command plus the exact upstream operation/dry-run snapshot;
-- changed commands/snapshots and consumed CLI approvals fail before the native approved executor can run;
+- changed commands/snapshots and consumed CLI approvals fail before the native approved executor can run, and failure to durably store that exact snapshot aborts the handoff instead of returning an unusable approval;
 - WPCode reviewed writes run the upstream dormant classifier first, preserve the `wpcode_edit_snippets` capability gate, use exact-payload one-time Direct approval only for `snippet_review_required`, reject drift/replay before approved execution, and discard model-supplied activation input;
 - the model never receives a Worker operation-proof credential or direct `/wpvibe/v1/cli/run-approved` / approved WPCode route tool.
 - MCP 2025-06-18+ batches are rejected before tool execution; retained pre-2025-06-18 legacy batches strip app-only approval metadata from model-visible structured content/text for normal, duplicate-ID, notification, explicit-null-ID, and malformed-first cases.
+- wp-admin token generation, revocation and endpoint/query-token settings use read-back verification with rollback or fail-closed fallback; partial option writes are never reported as successful auth-state changes, and persistence failures are surfaced visibly in wp-admin.
 
 ### Public REST and mutation safety
 
@@ -47,6 +49,7 @@ Current unreleased source additionally contains the self-contained MCP Apps, que
 - core content delete requests cannot force permanent deletion through the generic bridge;
 - WooCommerce product/batch writes reject accidental loss of protected replace-all list fields unless replacement is explicit;
 - classic-theme fresh-proof route is classified infrastructure-only while draft compile snapshot remains explicitly model-facing.
+- `save_validated_blocks` reparses and validates the exact serialized Gutenberg `content` before approval/write; a separate benign `blocks` array cannot mask different serialized markup, and strict mode rejects non-whitespace freeform/classic HTML nodes outside the installed registered-block schemas.
 
 ### WordPress Abilities / Elementor foundation
 
@@ -84,11 +87,13 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 
 - `request_upload` / `check_upload` exposure;
 - main MCP token never appears in the upload URL;
+- initial browser upload ticket creation fails closed if the waiting ticket cannot be durably persisted, so Direct never returns a dead upload URL/secret pair;
 - upload secret stored only as a hash, wrong secret rejected, successful tickets non-replayable;
 - browser POST atomically reserves a waiting ticket before media creation, concurrent claims cannot both create attachments, and only one finalizer can complete;
 - partial multi-file failures and finalization persistence failures roll back attachments already created by that attempt;
 - ready results omit filesystem paths;
 - raster allowlist rejects HTML/PHP/JS/SVG from the raster path.
+- optional PDF provider text uses the shared provider-output sanitizer and Unicode-safe `max_text_chars` truncation, so multibyte text cannot be split into invalid MCP JSON.
 
 ### Hosted/provider-backed public contracts
 
@@ -98,6 +103,7 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - `search_images` accepts current count/orientation plus Direct `per_page`;
 - `audit_page` accepts `page_url`, categories, refresh, and local-site default;
 - `get_page_html` accepts current URL/selector/max-length forms; native fallback is same-site only while external rendering requires a browser provider;
+- `get_page_html` applies `max_length` as Unicode characters to both provider and native response shapes, preserving valid UTF-8 and reporting full rendered length in characters when truncated;
 - `connect_site` and fleet job options match the current public contract without fabricating WPVibe cloud state;
 - `connect_site`, `list_sites`, and `remove_site` remain provider-only compatibility names in the single-site architecture and never fall back to a Direct-managed local site registry;
 - screenshot, browser, Lighthouse/PageSpeed, stock image, SeedProd compile, account/fleet and usage capabilities remain explicitly provider-backed where external infrastructure is required.
@@ -107,6 +113,7 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 
 - required workflow skill catalog and version metadata;
 - current `load_skill` Direct and WPVibe forms (`skill`, `name`, `query`, `resource`), bounded catalog metadata/search, and exact saved reference reads;
+- saved-skill create/update/delete and editable field/group/setting registration re-read durable WordPress option state and fail closed instead of reporting persistence that did not occur;
 - compatibility summary and secret-free admin status;
 - every audited public WPVibe tool name, MCP Apps approval/upload resources, saved skills, upstream infrastructure/model-route classification, current Works-with-AI/Cookbook playbooks, and 1.4.1 release metadata;
 - current manifest records `call_armored` as a Direct-only extension;
@@ -168,7 +175,7 @@ This is real disposable-site E2E evidence for schema-first Elementor Core page c
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. For 1.4.1, publication requires all of the following:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.4.1, publication requires all of the following:
 
 1. source PHP syntax validation;
 2. source legacy, parity, reference, and focused Abilities raw-JSON request-body regression suites;
@@ -205,4 +212,4 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 
 ## Current integration status
 
-Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, Direct-side preservation of Elementor page settings, two-page shared global-class/global-variable application, one-write propagation, rendered local-over-global cascade verification, in-use class dependency cleanup, native variable tombstones, reversible default-style coverage, and actual generated Elementor CSS refresh verification. No production PHP change was required for the shared-style phase: the verified public Elementor contracts already behaved correctly once the E2E used the full public structure serializer and generated Atomic CSS assets. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, Direct-side preservation of Elementor page settings, two-page shared global-class/global-variable application, one-write propagation, rendered local-over-global cascade verification, in-use class dependency cleanup, native variable tombstones, reversible default-style coverage, and actual generated Elementor CSS refresh verification. No production PHP change was required for the shared-style phase: the verified public Elementor contracts already behaved correctly once the E2E used the full public structure serializer and generated Atomic CSS assets. The 2026-10-13 full-code audit additionally hardens approval/upload/app/CLI transient persistence, validated Gutenberg writes, saved-skill/editable-definition persistence, wp-admin credential/settings state, UTF-8 PDF/rendered-HTML bounds, and release-asset immutability. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.

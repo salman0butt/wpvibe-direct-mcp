@@ -132,15 +132,28 @@ final class WPVDMCP_Provider_Contracts {
 		// Provider results normally expose html directly; native REST responses
 		// wrap it under data. Preserve either shape while applying the same bound.
 		if ( isset( $result['html'] ) && is_string( $result['html'] ) ) {
-			$full = strlen( $result['html'] );
-			if ( $full > $max ) { $result['html'] = substr( $result['html'], 0, $max ); $result['html_truncated'] = true; $result['html_full_length'] = $full; }
+			$full = self::utf8_length( $result['html'] );
+			if ( $full > $max ) { $result['html'] = self::utf8_prefix( $result['html'], $max ); $result['html_truncated'] = true; $result['html_full_length'] = $full; }
 			return $result;
 		}
 		if ( isset( $result['data'] ) && is_array( $result['data'] ) && isset( $result['data']['html'] ) && is_string( $result['data']['html'] ) ) {
-			$full = strlen( $result['data']['html'] );
-			if ( $full > $max ) { $result['data']['html'] = substr( $result['data']['html'], 0, $max ); $result['data']['html_truncated'] = true; $result['data']['html_full_length'] = $full; }
+			$full = self::utf8_length( $result['data']['html'] );
+			if ( $full > $max ) { $result['data']['html'] = self::utf8_prefix( $result['data']['html'], $max ); $result['data']['html_truncated'] = true; $result['data']['html_full_length'] = $full; }
 		}
 		return $result;
+	}
+
+	private static function utf8_length( $value ) {
+		if ( function_exists( 'mb_strlen' ) ) { return (int) mb_strlen( $value, 'UTF-8' ); }
+		$matched = preg_match_all( '/./us', $value, $chars );
+		return false === $matched ? strlen( $value ) : (int) $matched;
+	}
+
+	private static function utf8_prefix( $value, $max ) {
+		$max = max( 0, (int) $max );
+		if ( function_exists( 'mb_substr' ) ) { return (string) mb_substr( $value, 0, $max, 'UTF-8' ); }
+		$matched = preg_match_all( '/./us', $value, $chars );
+		return false === $matched ? substr( $value, 0, $max ) : implode( '', array_slice( $chars[0], 0, $max ) );
 	}
 
 	private static function preview_or_site_root() {

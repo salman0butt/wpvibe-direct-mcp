@@ -188,6 +188,19 @@ parity_test('inline approval decision requires opaque app token and consumes it 
     assert_true(is_wp_error($replay),'panel token single use');
 });
 
+parity_test('inline approval panel fails closed when panel token state cannot be persisted',function(){
+    $GLOBALS['wp_current_user']=1;
+    $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>56),'Delete user #56');
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($pending){
+        if($key==='wpvdmcp_ui_panel_'.hash('sha256',$pending['approval_id'])) return false;
+        return null;
+    };
+    $panel=WPVDMCP_Parity::execute('show_approval_panel',array('approval_id'=>$pending['approval_id']));
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($panel),'unpersisted approval-panel token must not be returned');
+    assert_same('approval_panel_persist_failed',$panel->get_error_code(),'approval panel persistence failure code');
+});
+
 parity_test('screenshot capability is provider backed and never fabricates image output',function(){
     unset($GLOBALS['wpvdmcp_reference_providers']);
     $missing=WPVDMCP_Parity::execute('screenshot_page',array('url'=>'https://example.test/'));

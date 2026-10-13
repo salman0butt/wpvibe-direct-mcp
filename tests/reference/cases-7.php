@@ -51,6 +51,15 @@ parity_test('get page html accepts path or current WPVibe url selector max_lengt
     assert_same(200,$r['html_full_length']??null,'full size reported');
 });
 
+parity_test('get page html max_length preserves UTF-8 character boundaries',function(){
+    $GLOBALS['wpvdmcp_providers']=array('render_browser'=>function($args){return array('html'=>str_repeat('a',49)."€b",'javascript_executed'=>true);});
+    $r=WPVDMCP_Parity::execute('get_page_html',array('url'=>'https://example.test/unicode/','max_length'=>50));
+    unset($GLOBALS['wpvdmcp_providers']);
+    assert_true(isset($r['html']) && preg_match('//u',$r['html'])===1,'bounded rendered HTML must remain valid UTF-8');
+    assert_same(str_repeat('a',49)."€",$r['html'],'max_length must count rendered HTML characters');
+    assert_same(51,$r['html_full_length']??null,'full rendered HTML length must be reported in characters');
+});
+
 parity_test('get page html server fallback accepts same-site absolute URL but rejects external URL without browser provider',function(){
     set_test_routes(array('/wpvibe/v1/rendered-html'=>array('POST')));
     unset($GLOBALS['wpvdmcp_providers']);
