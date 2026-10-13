@@ -415,7 +415,8 @@ var_delete_input="$(jq -cn --arg id "$VAR_ID" '{operations:[{action:"delete",id:
 var_delete_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_delete_input")"
 assert_jq "$var_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable cleanup failed'
 vars_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
-assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables | has(\"${VAR_ID}\")) == false" 'Disposable Elementor global variable remained after cleanup'
+assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables[\"${VAR_ID}\"].deleted) == true" 'Disposable Elementor global variable was not soft-deleted after cleanup'
+assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and (.value.deleted // false) == false)) == false" 'Soft-deleted Elementor global variable remained active after cleanup'
 
 note 'Creating, reading, updating, and deleting a real Elementor global class'
 CLASS_LABEL="WPVDMCP_E2E_Class_${PAGE_ID}"
