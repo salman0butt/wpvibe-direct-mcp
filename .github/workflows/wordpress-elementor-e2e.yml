@@ -134,6 +134,14 @@ jobs:
           # Use Elementor's own feature-option keys rather than guessing option names.
           wp eval 'foreach ( array( "e_opt_in_v4", "container", "e_atomic_elements" ) as $feature ) { $key = Elementor\Plugin::$instance->experiments->get_feature_option_key( $feature ); update_option( $key, Elementor\Core\Experiments\Manager::STATE_ACTIVE ); } update_option( "elementor_v4_opt_in_clicked", true );' --path="$WP_ROOT"
 
+          # Global Classes registers its DB updater only when Atomic is already
+          # active during Elementor bootstrap, and that updater normally runs on
+          # admin_init. This disposable runner enables Atomic non-interactively
+          # and immediately exercises REST, so run Elementor's own updater here
+          # rather than bypassing its custom capability checks in Direct MCP.
+          wp eval '( new Elementor\Modules\GlobalClasses\Database\Global_Classes_Database_Updater() )->up();' --path="$WP_ROOT"
+          wp eval '$admin = get_user_by( "login", "admin" ); if ( ! $admin || ! user_can( $admin, Elementor\Modules\GlobalClasses\Database\Migrations\Add_Capabilities::UPDATE_CLASS ) ) { fwrite( STDERR, "Elementor Global Classes capability migration did not complete.\n" ); exit( 1 ); }' --path="$WP_ROOT"
+
           echo "ADMIN_ID=$ADMIN_ID" >> "$GITHUB_ENV"
           echo "DIRECT_TOKEN=$DIRECT_TOKEN" >> "$GITHUB_ENV"
           echo 'BASE_URL=http://127.0.0.1:8080' >> "$GITHUB_ENV"
