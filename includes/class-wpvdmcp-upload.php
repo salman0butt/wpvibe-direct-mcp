@@ -342,12 +342,30 @@ final class WPVDMCP_Upload {
 			delete_option( self::transition_key( $id ) );
 			return new WP_Error( 'upload_expired', 'Upload request was not found or has expired.', array( 'status' => 410 ) );
 		}
-		if ( empty( $record['expires_at'] ) || (int) $record['expires_at'] < time() ) {
+		if ( ! self::is_valid_record( $record, $id ) ) {
+			delete_transient( self::key( $id ) );
+			delete_option( self::transition_key( $id ) );
+			return new WP_Error( 'upload_corrupt', 'Upload state is invalid and cannot be used.', array( 'status' => 410 ) );
+		}
+		if ( (int) $record['expires_at'] < time() ) {
 			delete_transient( self::key( $id ) );
 			delete_option( self::transition_key( $id ) );
 			return new WP_Error( 'upload_expired', 'Upload request has expired.', array( 'status' => 410 ) );
 		}
 		return $record;
+	}
+
+	private static function is_valid_record( $record, $id ) {
+		return isset( $record['id'], $record['secret_hash'], $record['owner_user_id'], $record['status'], $record['expires_at'], $record['post_id'], $record['title'], $record['alt_text'], $record['files'] )
+			&& $record['id'] === $id
+			&& is_string( $record['secret_hash'] )
+			&& (int) $record['owner_user_id'] > 0
+			&& in_array( $record['status'], array( 'waiting', 'processing', 'ready', 'failed' ), true )
+			&& is_numeric( $record['expires_at'] )
+			&& is_numeric( $record['post_id'] )
+			&& is_string( $record['title'] )
+			&& is_string( $record['alt_text'] )
+			&& is_array( $record['files'] );
 	}
 
 	private static function safe_record( $record ) {
