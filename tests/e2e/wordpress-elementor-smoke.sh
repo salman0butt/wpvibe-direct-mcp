@@ -506,8 +506,8 @@ assert_jq "$global_page_b_publish" '.result.structuredContent.data.status == "pu
 
 global_page_a_frontend_before="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${GLOBAL_PAGE_A_ID}")"
 global_page_b_frontend_before="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${GLOBAL_PAGE_B_ID}")"
-grep -Fq "$CLASS_ID" <<<"$global_page_a_frontend_before" || fail 'Rendered page A did not carry the persisted global class id'
-grep -Fq "$CLASS_ID" <<<"$global_page_b_frontend_before" || fail 'Rendered page B did not carry the persisted global class id'
+grep -Fq "$CLASS_LABEL" <<<"$global_page_a_frontend_before" || fail 'Rendered page A did not resolve the persisted global class id to its public label'
+grep -Fq "$CLASS_LABEL" <<<"$global_page_b_frontend_before" || fail 'Rendered page B did not resolve the persisted global class id to its public label'
 global_page_a_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
 global_page_b_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
 grep -Eqi '112233' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global class color'
