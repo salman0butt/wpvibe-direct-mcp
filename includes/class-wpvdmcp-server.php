@@ -142,7 +142,7 @@ final class WPVDMCP_Server {
 				}
 				$this->modern_request = $this->is_modern_rpc( $item, $http_version );
 				$result = $this->process_rpc( $item );
-				if ( null !== $result ) {
+				if ( array_key_exists( 'id', $item ) && null !== $result ) {
 					$responses[] = $result;
 				}
 			}
@@ -155,6 +155,9 @@ final class WPVDMCP_Server {
 		}
 		$this->modern_request = $this->is_modern_rpc( $payload, $http_version );
 		$result = $this->process_rpc( $payload );
+		if ( ! array_key_exists( 'id', $payload ) ) {
+			return new WP_REST_Response( null, 202 );
+		}
 		return null === $result ? new WP_REST_Response( null, 202 ) : rest_ensure_response( $result );
 	}
 

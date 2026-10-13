@@ -23,6 +23,7 @@ Supported strings: `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. L
 - OPTIONS advertises accepted auth/routing headers.
 - Authenticated diagnostics use `/wp-json/wpvibe-direct/v1/health`.
 - Notification-only POSTs/batches return HTTP 202 with no JSON-RPC body.
+- Known-method notifications still execute normally, but their method result is never emitted; retained legacy mixed batches include responses only for ID-bearing requests.
 
 ## MCP Apps
 
