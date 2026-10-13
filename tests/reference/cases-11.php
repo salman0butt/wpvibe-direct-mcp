@@ -50,3 +50,21 @@ parity_test('corrupted activity option cannot fatal a tool call',function(){
         update_option('wpvdmcp_activity',$previous,false);
     }
 });
+
+parity_test('corrupted activity option cannot fatal wp-admin rendering',function(){
+    $previous=get_option('wpvdmcp_activity',array());
+    try {
+        update_option('wpvdmcp_activity','corrupted-legacy-value',false);
+        ob_start();
+        try {
+            WPVDMCP_Admin::instance()->render();
+            $html=ob_get_clean();
+        } catch (Throwable $e) {
+            ob_end_clean();
+            throw $e;
+        }
+        assert_true(strpos($html,'WPVibe Direct MCP')!==false,'admin page must still render when historical activity state is malformed');
+    } finally {
+        update_option('wpvdmcp_activity',$previous,false);
+    }
+});
