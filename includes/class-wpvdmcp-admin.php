@@ -181,6 +181,9 @@ final class WPVDMCP_Admin {
 		$user_id = (int) $status['token_owner_user_id'];
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
 		$log     = get_option( 'wpvdmcp_activity', array() );
+		if ( ! is_array( $log ) ) {
+			$log = array();
+		}
 		$approval_id = isset( $_GET['approval'] ) && is_string( $_GET['approval'] ) ? sanitize_text_field( wp_unslash( $_GET['approval'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- status display only.
 		?>
 		<div class="wrap">
