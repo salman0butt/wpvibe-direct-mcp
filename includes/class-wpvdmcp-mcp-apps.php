@@ -121,6 +121,10 @@ final class WPVDMCP_MCP_Apps {
 		if ( ! is_array( $record ) || empty( $record['token_hash'] ) ) {
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
+		if ( ! isset( $record['approval_id'] ) || ! is_string( $record['approval_id'] ) || $record['approval_id'] !== $id ) {
+			delete_transient( self::panel_key( $id ) );
+			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
+		}
 		if ( empty( $token ) || ! hash_equals( (string) $record['token_hash'], hash( 'sha256', $token ) ) ) {
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
