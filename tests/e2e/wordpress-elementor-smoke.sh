@@ -140,6 +140,37 @@ resolved_element_id() {
   ' "$configuration_id"
 }
 
+elementor_document_settings() {
+  local post_id="$1"
+  [[ "$post_id" =~ ^[0-9]+$ ]] || fail 'Elementor document settings requested for invalid post id'
+  "$WP_BIN" --path="$WP_ROOT" eval "\$d = Elementor\\Plugin::\$instance->documents->get((int) ${post_id}); if (!\$d) { exit(2); } echo wp_json_encode(array('margin'=>\$d->get_settings('margin'),'padding'=>\$d->get_settings('padding')));"
+}
+
+elementor_global_class_json() {
+  local class_id="$1"
+  [[ "$class_id" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global class id contained unexpected characters'
+  "$WP_BIN" --path="$WP_ROOT" eval "\$repo = Elementor\\Modules\\GlobalClasses\\Global_Classes_Repository::make(Elementor\\Plugin::\$instance->kits_manager->get_active_kit()); echo wp_json_encode(\$repo->get('${class_id}'));"
+}
+
+elementor_post_css() {
+  local post_id="$1"
+  local html href
+  [[ "$post_id" =~ ^[0-9]+$ ]] || fail 'Elementor CSS requested for invalid post id'
+  html="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${post_id}")"
+  href="$(printf '%s' "$html" | php -r '
+    $html = stream_get_contents(STDIN);
+    $post_id = $argv[1] ?? "";
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    if (!$dom->loadHTML($html)) { exit(2); }
+    $node = $dom->getElementById("elementor-post-" . $post_id . "-css");
+    if (!$node) { exit(3); }
+    echo html_entity_decode($node->getAttribute("href"), ENT_QUOTES | ENT_HTML5);
+  ' "$post_id")"
+  [[ -n "$href" ]] || fail "Elementor post stylesheet link was not present for page ${post_id}"
+  curl --fail-with-body --silent --show-error "$href"
+}
+
 note 'Checking authenticated Direct MCP health endpoint'
 health="$(curl --fail-with-body --silent --show-error "${auth_headers[@]}" "$HEALTH_URL")"
 assert_jq "$health" '.name == "WPVibe Direct MCP" and .wpvibe_active == true' 'Direct MCP health did not report an active WPVibe bridge'
@@ -199,6 +230,10 @@ assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elemen
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/list-widget-schemas"))' 'Elementor list-widget-schemas ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-widget-schema"))' 'Elementor get-widget-schema ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-elements"))' 'Elementor manage-elements ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/update-page-settings"))' 'Elementor update-page-settings ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/read-resource"))' 'Elementor read-resource ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-global-variable"))' 'Elementor manage-global-variable ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-classes"))' 'Elementor manage-classes ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-default-styles"))' 'Elementor get-default-styles ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-default-styles"))' 'Elementor manage-default-styles ability was not discovered'
 
@@ -212,6 +247,22 @@ note 'Creating a draft Elementor page through Direct MCP approval flow'
 create_result="$(run_approved_ability 'elementor/create-page' '{"title":"WPVibe Direct MCP E2E","post_type":"page"}')"
 PAGE_ID="$(jq -r '.result.structuredContent.data.id // empty' <<<"$create_result")"
 [[ "$PAGE_ID" =~ ^[0-9]+$ ]] || fail 'create-page did not return a numeric page id'
+
+note 'Verifying Elementor page-settings partial merge semantics with reversible document settings'
+initial_page_settings="$(elementor_document_settings "$PAGE_ID")"
+assert_jq "$initial_page_settings" 'has("margin") and has("padding")' 'Could not snapshot initial Elementor margin/padding settings'
+
+initial_settings_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,settings:{margin:{unit:"px",top:"23",right:"23",bottom:"23",left:"23",isLinked:true},padding:{unit:"px",top:"13",right:"13",bottom:"13",left:"13",isLinked:true}}}')"
+initial_settings_result="$(run_approved_ability 'elementor/update-page-settings' "$initial_settings_input")"
+assert_jq "$initial_settings_result" '.result.structuredContent.data.success == true' 'Initial Elementor page-settings update failed'
+settings_after_pair="$(elementor_document_settings "$PAGE_ID")"
+assert_jq "$settings_after_pair" '.margin.top == "23" and .margin.unit == "px" and .padding.top == "13" and .padding.unit == "px"' 'Elementor did not persist the paired margin/padding document settings'
+
+margin_only_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,settings:{margin:{unit:"px",top:"29",right:"29",bottom:"29",left:"29",isLinked:true}}}')"
+margin_only_result="$(run_approved_ability 'elementor/update-page-settings' "$margin_only_input")"
+assert_jq "$margin_only_result" '.result.structuredContent.data.success == true' 'Elementor margin-only page-settings update failed'
+settings_after_partial="$(elementor_document_settings "$PAGE_ID")"
+assert_jq "$settings_after_partial" '.margin.top == "29" and .padding.top == "13" and .padding.unit == "px"' 'Elementor partial page-settings update did not preserve untouched padding'
 
 note 'Discovering live Elementor widget schemas before page composition'
 widget_summary="$(run_readonly_ability 'elementor/list-widget-schemas' '{"summary":true}')"
@@ -345,6 +396,53 @@ repair_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITL
 repair_result="$(run_approved_ability 'elementor/manage-elements' "$repair_input")"
 assert_jq "$repair_result" '.result.structuredContent.data.status == "ok"' 'Elementor repair after partial mutation did not succeed'
 
+note 'Creating, reading, updating, and deleting a real Elementor global variable'
+VAR_LABEL="WPVDMCP_E2E_Brand_${PAGE_ID}"
+var_create_input="$(jq -cn --arg label "$VAR_LABEL" '{operations:[{action:"create",type:"global-color-variable",label:$label,value:"#123456"}]}')"
+var_create_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_create_input")"
+VAR_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$var_create_result")"
+[[ "$VAR_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global variable create did not return a safe id'
+vars_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
+assert_jq "$vars_after_create" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and .value.label == \"${VAR_LABEL}\" and .value.value == \"#123456\"))" 'Created Elementor global variable was not visible through the public resource'
+
+var_update_input="$(jq -cn --arg id "$VAR_ID" --arg label "$VAR_LABEL" '{operations:[{action:"update",id:$id,label:$label,value:"#654321"}]}')"
+var_update_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_update_input")"
+assert_jq "$var_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable update failed'
+vars_after_update="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
+assert_jq "$vars_after_update" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and .value.label == \"${VAR_LABEL}\" and .value.value == \"#654321\"))" 'Updated Elementor global variable value was not visible through the public resource'
+
+var_delete_input="$(jq -cn --arg id "$VAR_ID" '{operations:[{action:"delete",id:$id}]}')"
+var_delete_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_delete_input")"
+assert_jq "$var_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable cleanup failed'
+vars_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
+assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables | has(\"${VAR_ID}\")) == false" 'Disposable Elementor global variable remained after cleanup'
+
+note 'Creating, reading, updating, and deleting a real Elementor global class'
+CLASS_LABEL="WPVDMCP_E2E_Class_${PAGE_ID}"
+class_create_input="$(jq -cn --arg label "$CLASS_LABEL" '{operations:[{action:"create",label:$label,css:"color: #112233; font-weight: 600;"}]}')"
+class_create_result="$(run_approved_ability 'elementor/manage-classes' "$class_create_input")"
+CLASS_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$class_create_result")"
+[[ "$CLASS_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global class create did not return a safe id'
+classes_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
+assert_jq "$classes_after_create" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\" and .label == \"${CLASS_LABEL}\"))" 'Created Elementor global class was not visible through the public resource'
+class_state_after_create="$(elementor_global_class_json "$CLASS_ID")"
+grep -Fq '112233' <<<"$class_state_after_create" || fail 'Created Elementor global class CSS was not persisted in Elementor repository state'
+
+CLASS_LABEL_UPDATED="${CLASS_LABEL}_Updated"
+class_update_input="$(jq -cn --arg id "$CLASS_ID" --arg label "$CLASS_LABEL_UPDATED" '{operations:[{action:"update",id:$id,label:$label,css:"color: #334455; font-weight: 700;",mode:"replace"}]}')"
+class_update_result="$(run_approved_ability 'elementor/manage-classes' "$class_update_input")"
+assert_jq "$class_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class update failed'
+classes_after_update="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
+assert_jq "$classes_after_update" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\" and .label == \"${CLASS_LABEL_UPDATED}\"))" 'Updated Elementor global class label was not visible through the public resource'
+class_state_after_update="$(elementor_global_class_json "$CLASS_ID")"
+grep -Fq '334455' <<<"$class_state_after_update" || fail 'Updated Elementor global class CSS was not persisted in Elementor repository state'
+
+class_delete_input="$(jq -cn --arg id "$CLASS_ID" '{operations:[{action:"delete",id:$id}]}')"
+class_delete_result="$(run_approved_ability 'elementor/manage-classes' "$class_delete_input")"
+assert_jq "$class_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class cleanup failed'
+classes_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
+assert_jq "$classes_after_delete" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\")) == false" 'Disposable Elementor global class remained after cleanup'
+
 note 'Proving a site-wide default-style partial batch is surfaced as an error and its applied sibling remains inspectable'
 initial_h6_style="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
 assert_jq "$initial_h6_style" '(.result.isError // false) == false' 'Could not read initial Elementor h6 default style'
@@ -384,6 +482,30 @@ grep -Fq 'Schema-first page building' <<<"$frontend" || fail 'Published frontend
 grep -Fq 'realistic multi-section Elementor composition' <<<"$frontend" || fail 'Published frontend did not contain the second-section paragraph'
 if grep -Fq 'This must never persist' <<<"$frontend"; then
   fail 'Rejected invalid Elementor content leaked into the published page'
+fi
+
+note 'Verifying Elementor generated CSS/cache refresh after an approved page-style mutation'
+"$WP_BIN" --path="$WP_ROOT" option update elementor_css_print_method external >/dev/null
+css_before_refresh="$(elementor_post_css "$PAGE_ID")"
+grep -Eq 'margin:[^;}]*29px' <<<"$css_before_refresh" || fail 'Generated Elementor post CSS did not contain the current 29px page margin'
+grep -Eq 'padding:[^;}]*13px' <<<"$css_before_refresh" || fail 'Generated Elementor post CSS did not contain the preserved 13px page padding'
+
+post_publish_margin_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id,settings:{margin:{unit:"px",top:"37",right:"37",bottom:"37",left:"37",isLinked:true}}}')"
+post_publish_margin_result="$(run_approved_ability 'elementor/update-page-settings' "$post_publish_margin_input")"
+assert_jq "$post_publish_margin_result" '.result.structuredContent.data.success == true' 'Published Elementor page margin update failed'
+css_after_refresh="$(elementor_post_css "$PAGE_ID")"
+grep -Eq 'margin:[^;}]*37px' <<<"$css_after_refresh" || fail 'Generated Elementor CSS/cache did not refresh to the approved 37px page margin'
+grep -Eq 'padding:[^;}]*13px' <<<"$css_after_refresh" || fail 'Generated Elementor CSS refresh lost the untouched 13px page padding'
+[[ "$css_before_refresh" != "$css_after_refresh" ]] || fail 'Elementor post stylesheet content did not change after approved page-style mutation'
+
+note 'Restoring the disposable page settings snapshot after merge/cache verification'
+restore_page_settings_input="$(jq -cn --argjson post_id "$PAGE_ID" --argjson original "$initial_page_settings" '{post_id:$post_id,settings:{margin:$original.margin,padding:$original.padding}}')"
+restore_page_settings_result="$(run_approved_ability 'elementor/update-page-settings' "$restore_page_settings_input")"
+assert_jq "$restore_page_settings_result" '.result.structuredContent.data.success == true' 'Elementor page-settings restoration failed'
+settings_after_restore="$(elementor_document_settings "$PAGE_ID")"
+if ! jq -e --argjson original "$initial_page_settings" '.margin == $original.margin and .padding == $original.padding' >/dev/null 2>&1 <<<"$settings_after_restore"; then
+  printf '%s\n' "$settings_after_restore" | jq . >&2 || true
+  fail 'Elementor page margin/padding did not return to the initial snapshot'
 fi
 
 note 'Turning Elementor Atomic Editor off and checking failure/fallback behavior'
