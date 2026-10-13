@@ -508,7 +508,32 @@ grep -Fq "$CLASS_LABEL" <<<"$global_page_a_frontend_before" || fail 'Rendered pa
 grep -Fq "$CLASS_LABEL" <<<"$global_page_b_frontend_before" || fail 'Rendered page B did not resolve the persisted global class id to its public label'
 global_page_a_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
 global_page_b_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
-grep -Eqi '112233' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global class color'
+if ! grep -Eqi '112233' <<<"$global_page_a_css_before"; then
+  printf '%s\n' '--- page A Elementor CSS links ---' >&2
+  printf '%s' "$global_page_a_frontend_before" | php -r '
+    $html = stream_get_contents(STDIN);
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    if (!$dom->loadHTML($html)) { exit(2); }
+    foreach ($dom->getElementsByTagName("link") as $node) {
+      $href = html_entity_decode($node->getAttribute("href"), ENT_QUOTES | ENT_HTML5);
+      if ($href !== "" && strpos($href, "/elementor/css/") !== false) {
+        fwrite(STDERR, $node->getAttribute("id") . "\t" . $href . PHP_EOL);
+      }
+    }
+  '
+  printf '%s\n' '--- generated Elementor CSS files containing disposable shared-style markers ---' >&2
+  for css_file in "$WP_ROOT"/wp-content/uploads/elementor/css/*.css; do
+    [[ -f "$css_file" ]] || continue
+    if grep -Eq "${CLASS_LABEL}|112233|123456" "$css_file"; then
+      printf 'FILE %s\n' "$(basename "$css_file")" >&2
+      grep -E "${CLASS_LABEL}|112233|123456" "$css_file" >&2 || true
+    fi
+  done
+  printf '%s\n' '--- Elementor global class relation for page A ---' >&2
+  "$WP_BIN" --path="$WP_ROOT" eval "echo wp_json_encode((new Elementor\\Modules\\GlobalClasses\\Global_Classes_Relations())->get_styles_by_post(${GLOBAL_PAGE_A_ID}));" >&2 || true
+  fail 'Rendered CSS for page A did not include the initial global class color'
+fi
 grep -Eqi '112233' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global class color'
 grep -Eqi '123456' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global variable value'
 grep -Eqi '123456' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global variable value'
