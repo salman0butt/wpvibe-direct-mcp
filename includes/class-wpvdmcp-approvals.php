@@ -134,12 +134,28 @@ final class WPVDMCP_Approvals {
 			delete_option( self::claim_key( $id ) );
 			return new WP_Error( 'approval_expired', 'Approval was not found or has expired.', array( 'status' => 410 ) );
 		}
-		if ( empty( $record['expires_at'] ) || (int) $record['expires_at'] < time() ) {
+		if ( ! self::is_valid_record( $record, $id ) ) {
+			delete_transient( self::key( $id ) );
+			delete_option( self::claim_key( $id ) );
+			return new WP_Error( 'approval_corrupt', 'Approval state is invalid and cannot be used.', array( 'status' => 410 ) );
+		}
+		if ( (int) $record['expires_at'] < time() ) {
 			delete_transient( self::key( $id ) );
 			delete_option( self::claim_key( $id ) );
 			return new WP_Error( 'approval_expired', 'Approval has expired.', array( 'status' => 410 ) );
 		}
 		return $record;
+	}
+
+	private static function is_valid_record( $record, $id ) {
+		return isset( $record['id'], $record['owner_user_id'], $record['operation'], $record['payload_hash'], $record['summary'], $record['status'], $record['expires_at'] )
+			&& $record['id'] === $id
+			&& (int) $record['owner_user_id'] > 0
+			&& is_string( $record['operation'] )
+			&& is_string( $record['payload_hash'] ) && 1 === preg_match( '/^[a-f0-9]{64}$/', $record['payload_hash'] )
+			&& is_string( $record['summary'] )
+			&& in_array( $record['status'], array( 'pending', 'approved', 'rejected', 'consumed' ), true )
+			&& is_numeric( $record['expires_at'] );
 	}
 
 	private static function safe_record( $record ) {
