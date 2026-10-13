@@ -252,6 +252,131 @@ parity_test('Elementor manage elements partial failures are not reported as succ
     assert_same('partial_error',$data['response']['status']??null,'upstream partial result retained for repair');
 });
 
+parity_test('Elementor global class partial failures surface applied siblings instead of false success',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/manage-classes'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/manage-classes',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>false,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/manage-classes/run'===$route){
+            return new WP_REST_Response(array(
+                'status'=>'partial_error',
+                'results'=>array(
+                    array('index'=>0,'action'=>'create','status'=>'ok','id'=>'g-abc','label'=>'E2E Class'),
+                    array('index'=>1,'action'=>'update','status'=>'error','code'=>'class_not_found','message'=>'Global class not found'),
+                ),
+                'order'=>array('g-abc'),
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $input=array('operations'=>array(
+        array('action'=>'create','label'=>'E2E Class','css'=>'color: red;'),
+        array('action'=>'update','id'=>'missing','label'=>'Missing','css'=>'color: blue;'),
+    ));
+    $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-classes','input'=>$input));
+    assert_same('approval_required',$pending['status']??null,'global class mutation should request approval');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'global class approval should succeed');
+    $result=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-classes','input'=>$input,'approval_id'=>$pending['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(is_wp_error($result),'partial global class mutation must surface as an MCP error');
+    assert_same('elementor_manage_classes_partial_failure',$result->get_error_code(),'partial global class error code');
+    $data=$result->get_error_data();
+    assert_same(true,$data['partial_applied']??null,'global class error must disclose applied sibling');
+    assert_same('elementor/manage-classes',$data['ability']??null,'global class ability retained for recovery');
+    assert_same('partial_error',$data['response']['status']??null,'global class upstream response retained');
+});
+
+parity_test('Elementor global variable partial failures surface applied siblings instead of false success',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/manage-global-variable'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/manage-global-variable',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>false,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/manage-global-variable/run'===$route){
+            return new WP_REST_Response(array(
+                'status'=>'partial_error',
+                'results'=>array(
+                    array('index'=>0,'action'=>'create','status'=>'ok','id'=>'e-gv-abc','label'=>'Brand','type'=>'global-color-variable'),
+                    array('index'=>1,'action'=>'delete','status'=>'error','code'=>'variable_not_found','message'=>'Variable not found'),
+                ),
+                'watermark'=>4,
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $input=array('operations'=>array(
+        array('action'=>'create','type'=>'global-color-variable','label'=>'Brand','value'=>'#112233'),
+        array('action'=>'delete','id'=>'missing'),
+    ));
+    $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-global-variable','input'=>$input));
+    assert_same('approval_required',$pending['status']??null,'global variable mutation should request approval');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'global variable approval should succeed');
+    $result=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-global-variable','input'=>$input,'approval_id'=>$pending['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(is_wp_error($result),'partial global variable mutation must surface as an MCP error');
+    assert_same('elementor_manage_global_variable_partial_failure',$result->get_error_code(),'partial global variable error code');
+    $data=$result->get_error_data();
+    assert_same(true,$data['partial_applied']??null,'global variable error must disclose applied sibling');
+    assert_same('elementor/manage-global-variable',$data['ability']??null,'global variable ability retained for recovery');
+    assert_same(4,$data['response']['watermark']??null,'global variable upstream watermark retained');
+});
+
+parity_test('Elementor default style partial failures surface applied siblings instead of false success',function(){
+    set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['rest_dispatch_callback']=function($r){
+        $route=$r->get_param('_route');
+        if('/wp-abilities/v1/abilities/elementor/manage-default-styles'===$route){
+            return new WP_REST_Response(array(
+                'name'=>'elementor/manage-default-styles',
+                'meta'=>array('annotations'=>array('readonly'=>false,'destructive'=>true,'idempotent'=>false)),
+            ),200);
+        }
+        if('/wp-abilities/v1/abilities/elementor/manage-default-styles/run'===$route){
+            return new WP_REST_Response(array(
+                'status'=>'partial_error',
+                'results'=>array(
+                    array('index'=>0,'action'=>'update','status'=>'ok','tag'=>'h2'),
+                    array('index'=>1,'action'=>'update','status'=>'error','code'=>'invalid_tag','message'=>'Invalid HTML tag'),
+                ),
+            ),200);
+        }
+        return new WP_REST_Response(array('code'=>'not_found','message'=>'not found'),404);
+    };
+
+    $input=array('operations'=>array(
+        array('action'=>'update','tag'=>'h2','css'=>'font-size: 40px;'),
+        array('action'=>'update','tag'=>'definitely-not-a-tag','css'=>'font-size: 10px;'),
+    ));
+    $pending=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-default-styles','input'=>$input));
+    assert_same('approval_required',$pending['status']??null,'default style mutation should request approval');
+    assert_true(true===WPVDMCP_Approvals::approve($pending['approval_id'],1),'default style approval should succeed');
+    $result=WPVDMCP_Parity::execute('run_ability',array('ability_name'=>'elementor/manage-default-styles','input'=>$input,'approval_id'=>$pending['approval_id']));
+    unset($GLOBALS['rest_dispatch_callback']);
+
+    assert_true(is_wp_error($result),'partial default style mutation must surface as an MCP error');
+    assert_same('elementor_manage_default_styles_partial_failure',$result->get_error_code(),'partial default style error code');
+    $data=$result->get_error_data();
+    assert_same(true,$data['partial_applied']??null,'default style error must disclose applied sibling');
+    assert_same('elementor/manage-default-styles',$data['ability']??null,'default style ability retained for recovery');
+    assert_same('partial_error',$data['response']['status']??null,'default style upstream response retained');
+});
+
 parity_test('ability metadata overrides conflicting fallback annotation hints',function(){
     set_test_routes(array('/wp-abilities/v1/abilities'=>array('GET')));
     $method='';

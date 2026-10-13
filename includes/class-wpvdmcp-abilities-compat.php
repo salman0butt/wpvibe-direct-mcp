@@ -201,7 +201,26 @@ final class WPVDMCP_Abilities_Compat {
 			return $result;
 		}
 
-		if ( 'elementor/manage-elements' !== $name ) { return $result; }
+		$bulk_mutations = array(
+			'elementor/manage-elements' => array(
+				'code' => 'elementor_manage_elements',
+				'label' => 'element',
+			),
+			'elementor/manage-classes' => array(
+				'code' => 'elementor_manage_classes',
+				'label' => 'global class',
+			),
+			'elementor/manage-global-variable' => array(
+				'code' => 'elementor_manage_global_variable',
+				'label' => 'global variable',
+			),
+			'elementor/manage-default-styles' => array(
+				'code' => 'elementor_manage_default_styles',
+				'label' => 'default style',
+			),
+		);
+		if ( ! isset( $bulk_mutations[ $name ] ) ) { return $result; }
+		$bulk = $bulk_mutations[ $name ];
 
 		$status = isset( $data['status'] ) ? (string) $data['status'] : '';
 		$rows = isset( $data['results'] ) && is_array( $data['results'] ) ? $data['results'] : array();
@@ -217,16 +236,16 @@ final class WPVDMCP_Abilities_Compat {
 
 		if ( 'partial_error' === $status || 'error' === $status ) {
 			return new WP_Error(
-				'elementor_manage_elements_partial_failure',
-				'Elementor did not apply every requested element operation. Re-read the current page structure and repair only the failed operations before reporting success.',
-				array( 'status' => 409, 'partial_applied' => $applied, 'response' => $data )
+				$bulk['code'] . '_partial_failure',
+				sprintf( 'Elementor did not apply every requested %s operation. Re-read the current Elementor state and repair only the failed operations before reporting success.', $bulk['label'] ),
+				array( 'status' => 409, 'partial_applied' => $applied, 'ability' => $name, 'response' => $data )
 			);
 		}
 		if ( $warnings ) {
 			return new WP_Error(
-				'elementor_manage_elements_warning',
-				'Elementor applied the element mutation with warnings. Re-read the current page structure and verify the affected content/styles before reporting success.',
-				array( 'status' => 409, 'partial_applied' => $applied, 'response' => $data, 'warnings' => array_values( $warnings ) )
+				$bulk['code'] . '_warning',
+				sprintf( 'Elementor applied the %s mutation with warnings. Re-read the current Elementor state and verify the affected result before reporting success.', $bulk['label'] ),
+				array( 'status' => 409, 'partial_applied' => $applied, 'ability' => $name, 'response' => $data, 'warnings' => array_values( $warnings ) )
 			);
 		}
 

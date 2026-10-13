@@ -17,7 +17,7 @@ Use this workflow for Elementor 4.3+ Atomic Editor sites on WordPress 6.9+. Disc
 
 ## Site-wide styles
 
-`elementor/manage-global-variable`, `elementor/manage-classes`, `elementor/reorder-classes`, and `elementor/manage-default-styles` are site-wide operations. Read the corresponding resources/defaults first, preserve unrelated values, describe broad impact before mutation, and verify representative pages after the change. Per-widget/local values can override global styles, so a global rebrand is not complete until rendered pages are inspected.
+`elementor/manage-global-variable`, `elementor/manage-classes`, `elementor/reorder-classes`, and `elementor/manage-default-styles` are site-wide operations. Read the corresponding resources/defaults first, preserve unrelated values, describe broad impact before mutation, and verify representative pages after the change. `manage-global-variable`, `manage-classes`, and `manage-default-styles` can return partial batch success; Direct converts those responses to actionable MCP errors with `partial_applied` plus the upstream per-operation result. Re-read the affected global state and repair only failed operations instead of replaying successful siblings. Per-widget/local values can override global styles, so a global rebrand is not complete until rendered pages are inspected.
 
 ## Capability boundaries
 

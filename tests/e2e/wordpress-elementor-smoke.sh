@@ -199,6 +199,8 @@ assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elemen
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/list-widget-schemas"))' 'Elementor list-widget-schemas ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-widget-schema"))' 'Elementor get-widget-schema ability was not discovered'
 assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-elements"))' 'Elementor manage-elements ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/get-default-styles"))' 'Elementor get-default-styles ability was not discovered'
+assert_jq "$abilities" '(.result.structuredContent | tostring | contains("elementor/manage-default-styles"))' 'Elementor manage-default-styles ability was not discovered'
 
 note 'Verifying live ability annotations used by Direct MCP routing'
 build_info="$(tool_call get_ability_info '{"ability_name":"elementor/build-composition"}')"
@@ -277,8 +279,10 @@ assert_jq "$build_result" '(.result.structuredContent.data.resolved_xml | contai
 resolved_xml="$(jq -r '.result.structuredContent.data.resolved_xml // empty' <<<"$build_result")"
 HERO_SECTION_ID="$(resolved_element_id "$resolved_xml" 'hero-section')"
 HERO_TITLE_ID="$(resolved_element_id "$resolved_xml" 'hero-title')"
+PROOF_SECTION_ID="$(resolved_element_id "$resolved_xml" 'proof-section')"
 [[ "$HERO_SECTION_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve hero-section server element id from build-composition resolved_xml'
 [[ "$HERO_TITLE_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve hero-title server element id from build-composition resolved_xml'
+[[ "$PROOF_SECTION_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve proof-section server element id from build-composition resolved_xml'
 
 note 'Reading Elementor page structure through readonly GET ability'
 structure_args="$(jq -cn --argjson post_id "$PAGE_ID" '{ability_name:"elementor/get-page-structure",input:{post_id:$post_id}}')"
@@ -296,6 +300,30 @@ note 'Updating one element using only the fresh id returned by build-composition
 update_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Build Elementor pages reliably — verified"}}]}')"
 update_result="$(run_approved_ability 'elementor/manage-elements' "$update_input")"
 assert_jq "$update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor manage-elements did not apply the fresh-id update cleanly'
+
+note 'Duplicating, moving, and deleting a real Atomic element with current server IDs'
+duplicate_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"duplicate",element_id:$element_id}]}')"
+duplicate_result="$(run_approved_ability 'elementor/manage-elements' "$duplicate_input")"
+assert_jq "$duplicate_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].action == "duplicate" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor duplicate operation did not succeed'
+
+hero_after_duplicate="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_SECTION_ID" '{post_id:$post_id,element_id:$element_id}')")"
+DUP_TITLE_ID="$(jq -r --arg original "$HERO_TITLE_ID" '[.result.structuredContent.data.elements[] | .. | objects | select(.widgetType? == "e-heading") | .id | select(. != $original)] | last // empty' <<<"$hero_after_duplicate")"
+[[ "$DUP_TITLE_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not identify fresh duplicate heading id from current Elementor structure'
+
+move_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$DUP_TITLE_ID" --arg parent_id "$PROOF_SECTION_ID" '{post_id:$post_id,operations:[{action:"move",element_id:$element_id,new_parent_id:$parent_id,index:0}]}')"
+move_result="$(run_approved_ability 'elementor/manage-elements' "$move_input")"
+assert_jq "$move_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].action == "move" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor move operation did not succeed'
+
+hero_after_move="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_SECTION_ID" '{post_id:$post_id,element_id:$element_id}')")"
+assert_jq "$hero_after_move" "([.result.structuredContent.data.elements[] | .. | objects | .id?] | index(\"${DUP_TITLE_ID}\")) == null" 'Moved Elementor duplicate still appeared under its old parent'
+proof_after_move="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$PROOF_SECTION_ID" '{post_id:$post_id,element_id:$element_id}')")"
+assert_jq "$proof_after_move" "([.result.structuredContent.data.elements[] | .. | objects | .id?] | index(\"${DUP_TITLE_ID}\")) != null" 'Moved Elementor duplicate did not appear under its new parent'
+
+delete_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$DUP_TITLE_ID" '{post_id:$post_id,operations:[{action:"delete",element_id:$element_id}]}')"
+delete_result="$(run_approved_ability 'elementor/manage-elements' "$delete_input")"
+assert_jq "$delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].action == "delete" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor delete operation did not succeed'
+proof_after_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$PROOF_SECTION_ID" '{post_id:$post_id,element_id:$element_id}')")"
+assert_jq "$proof_after_delete" "([.result.structuredContent.data.elements[] | .. | objects | .id?] | index(\"${DUP_TITLE_ID}\")) == null" 'Deleted Elementor duplicate still appeared in current page structure'
 
 note 'Proving partial Elementor bulk mutations surface as errors instead of false success'
 partial_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Partial write applied — repair required"}},{action:"update",element_id:"deadbeef",settings:{title:"Must fail"}}]}')"
@@ -316,6 +344,28 @@ assert_jq "$after_partial_content" '.result.structuredContent.data.elements[0].s
 repair_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITLE_ID" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,settings:{title:"Build Elementor pages reliably — verified"}}]}')"
 repair_result="$(run_approved_ability 'elementor/manage-elements' "$repair_input")"
 assert_jq "$repair_result" '.result.structuredContent.data.status == "ok"' 'Elementor repair after partial mutation did not succeed'
+
+note 'Proving a site-wide default-style partial batch is surfaced as an error and its applied sibling remains inspectable'
+initial_h6_style="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
+assert_jq "$initial_h6_style" '(.result.isError // false) == false' 'Could not read initial Elementor h6 default style'
+default_style_input='{"operations":[{"action":"update","tag":"h6","css":"color: #123456; font-size: 31px;"},{"action":"update","tag":"definitely-not-a-tag","css":"font-size: 10px;"}]}'
+default_style_pending_args="$(jq -cn --argjson input "$default_style_input" '{ability_name:"elementor/manage-default-styles",input:$input}')"
+default_style_pending="$(tool_call run_ability "$default_style_pending_args")"
+assert_jq "$default_style_pending" '.result.structuredContent.status == "approval_required"' 'Default-style partial batch did not request approval'
+default_style_approval="$(approval_id_from "$default_style_pending")"
+approve_operation "$default_style_approval"
+default_style_approved_args="$(jq -cn --argjson input "$default_style_input" --arg approval "$default_style_approval" '{ability_name:"elementor/manage-default-styles",input:$input,approval_id:$approval}')"
+default_style_result="$(tool_call run_ability "$default_style_approved_args")"
+assert_jq "$default_style_result" '.result.isError == true' 'Partial Elementor default-style batch was incorrectly reported as MCP success'
+[[ "$(tool_error_code "$default_style_result")" == 'elementor_manage_default_styles_partial_failure' ]] || fail 'Partial Elementor default-style batch did not expose the expected error code'
+assert_jq "$default_style_result" '(.result.content[0].text | fromjson | .data.partial_applied) == true' 'Partial Elementor default-style batch did not disclose its applied sibling'
+
+h6_after_partial="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
+assert_jq "$h6_after_partial" '(.result.structuredContent.data.default_styles // "") | length > 0' 'Valid sibling of partial default-style batch was not persisted'
+cleanup_default_style="$(run_approved_ability 'elementor/manage-default-styles' '{"operations":[{"action":"delete","tag":"h6"}]}')"
+assert_jq "$cleanup_default_style" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Disposable default-style cleanup did not succeed'
+h6_after_cleanup="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
+assert_jq "$h6_after_cleanup" '(.result.structuredContent.data.default_styles // "") == ""' 'Disposable h6 default style remained after cleanup'
 
 note "Publishing page ${PAGE_ID}; this proves destructive+idempotent routes as DELETE"
 publish_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id}')"
