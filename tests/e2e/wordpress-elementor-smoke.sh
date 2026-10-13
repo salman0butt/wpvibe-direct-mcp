@@ -508,46 +508,7 @@ grep -Fq "$CLASS_LABEL" <<<"$global_page_a_frontend_before" || fail 'Rendered pa
 grep -Fq "$CLASS_LABEL" <<<"$global_page_b_frontend_before" || fail 'Rendered page B did not resolve the persisted global class id to its public label'
 global_page_a_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
 global_page_b_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
-if ! grep -Eqi '112233' <<<"$global_page_a_css_before"; then
-  printf '%s\n' '--- page A Elementor CSS links ---' >&2
-  printf '%s' "$global_page_a_frontend_before" | php -r '
-    $html = stream_get_contents(STDIN);
-    libxml_use_internal_errors(true);
-    $dom = new DOMDocument();
-    if (!$dom->loadHTML($html)) { exit(2); }
-    foreach ($dom->getElementsByTagName("link") as $node) {
-      $href = html_entity_decode($node->getAttribute("href"), ENT_QUOTES | ENT_HTML5);
-      if ($href !== "" && strpos($href, "/elementor/css/") !== false) {
-        fwrite(STDERR, $node->getAttribute("id") . "\t" . $href . PHP_EOL);
-      }
-    }
-  '
-  printf '%s\n' '--- generated Elementor CSS files containing disposable shared-style markers ---' >&2
-  printf '%s\n' '--- all generated Elementor CSS files before manual style-manager probe ---' >&2
-  for css_file in "$WP_ROOT"/wp-content/uploads/elementor/css/*.css; do
-    [[ -f "$css_file" ]] || continue
-    printf 'FILE %s (%s bytes)\n' "$(basename "$css_file")" "$(wc -c < "$css_file" | tr -d ' ')" >&2
-  done
-  for css_file in "$WP_ROOT"/wp-content/uploads/elementor/css/*.css; do
-    [[ -f "$css_file" ]] || continue
-    if grep -Eq "${CLASS_LABEL}|112233|123456" "$css_file"; then
-      printf 'FILE %s\n' "$(basename "$css_file")" >&2
-      grep -E "${CLASS_LABEL}|112233|123456" "$css_file" >&2 || true
-    fi
-  done
-  printf '%s\n' '--- Elementor global class relation for page A ---' >&2
-  "$WP_BIN" --path="$WP_ROOT" eval "echo wp_json_encode((new Elementor\\Modules\\GlobalClasses\\Global_Classes_Relations())->get_styles_by_post(${GLOBAL_PAGE_A_ID}));" >&2 || true
-  printf '%s\n' '--- Elementor Atomic runtime state for page A ---' >&2
-  "$WP_BIN" --path="$WP_ROOT" eval "\$document=Elementor\\Plugin::instance()->documents->get(${GLOBAL_PAGE_A_ID}); echo wp_json_encode(['built'=>(bool)(\$document && \$document->is_built_with_elementor()),'edit_mode'=>get_post_meta(${GLOBAL_PAGE_A_ID},'_elementor_edit_mode',true),'atomic_active'=>Elementor\\Modules\\AtomicWidgets\\Module::is_active(),'after_enqueue_hook'=>(bool)has_action('elementor/frontend/after_enqueue_post_styles'),'styles_register_hook'=>(bool)has_action('elementor/atomic-widgets/styles/register')]);" >&2 || true
-  printf '%s\n' '--- manually invoking Elementor Atomic style-manager lifecycle ---' >&2
-  "$WP_BIN" --path="$WP_ROOT" eval "do_action('elementor/post/render',${GLOBAL_PAGE_A_ID}); do_action('elementor/frontend/after_enqueue_post_styles'); global \$wp_styles; echo wp_json_encode(array_values(array_filter(array_keys((array)\$wp_styles->registered),fn(\$handle)=>str_starts_with(\$handle,'global-')||str_starts_with(\$handle,'local-'))));" >&2 || true
-  printf '%s\n' '--- all generated Elementor CSS files after manual style-manager probe ---' >&2
-  for css_file in "$WP_ROOT"/wp-content/uploads/elementor/css/*.css; do
-    [[ -f "$css_file" ]] || continue
-    printf 'FILE %s (%s bytes)\n' "$(basename "$css_file")" "$(wc -c < "$css_file" | tr -d ' ')" >&2
-  done
-  fail 'Rendered CSS for page A did not include the initial global class color'
-fi
+grep -Eqi '112233' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global class color'
 grep -Eqi '112233' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global class color'
 grep -Eqi '123456' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global variable value'
 grep -Eqi '123456' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global variable value'
@@ -572,6 +533,8 @@ note 'Applying one local Atomic override and proving it remains page-local while
 local_override_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" --arg class_label "$CLASS_LABEL" --arg css "color: #445566; background-color: var(--${VAR_LABEL});" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,classes:[$class_label],style:$css}]}')"
 local_override_result="$(run_approved_ability 'elementor/manage-elements' "$local_override_input")"
 assert_jq "$local_override_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor local override did not apply cleanly'
+local_override_publish="$(run_approved_ability 'elementor/publish-document' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" '{post_id:$post_id}')")"
+assert_jq "$local_override_publish" '.result.structuredContent.data.status == "publish"' 'Elementor local override was not promoted from autosave to the live document'
 global_page_a_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 global_page_b_after_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 assert_jq "$global_page_a_override_structure" '(.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")' 'Page A local color override was not persisted'
