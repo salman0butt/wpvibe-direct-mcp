@@ -243,6 +243,7 @@ final class WPVDMCP_Server {
 				if ( '' === $header_name || $header_name !== $expected_name ) {
 					return $this->rpc_error_array( $id, -32020, 'MCP name header does not match the request body.', array( 'header' => 'Mcp-Name', 'expected' => $expected_name, 'received' => $header_name ) );
 				}
+			}
 		}
 		return null;
 	}
