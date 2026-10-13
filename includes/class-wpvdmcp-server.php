@@ -419,6 +419,9 @@ final class WPVDMCP_Server {
 
 	private function log_call( $name, $args, $success, $message ) {
 		$log = get_option( 'wpvdmcp_activity', array() );
+		if ( ! is_array( $log ) ) {
+			$log = array();
+		}
 		$summary = array();
 		foreach ( array( 'path', 'command', 'post_id', 'id', 'target_type', 'theme_name', 'title', 'skill' ) as $key ) {
 			if ( isset( $args[ $key ] ) && is_scalar( $args[ $key ] ) ) {
