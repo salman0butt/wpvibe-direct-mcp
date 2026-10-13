@@ -171,6 +171,29 @@ elementor_post_css() {
   curl --fail-with-body --silent --show-error "$href"
 }
 
+elementor_page_css_bundle() {
+  local post_id="$1"
+  local html href
+  [[ "$post_id" =~ ^[0-9]+$ ]] || fail 'Elementor CSS bundle requested for invalid post id'
+  html="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${post_id}")"
+  while IFS= read -r href; do
+    [[ -n "$href" ]] || continue
+    curl --fail-with-body --silent --show-error "$href"
+    printf '\n'
+  done < <(printf '%s' "$html" | php -r '
+    $html = stream_get_contents(STDIN);
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    if (!$dom->loadHTML($html)) { exit(2); }
+    foreach ($dom->getElementsByTagName("link") as $node) {
+      $id = $node->getAttribute("id");
+      if (strpos($id, "elementor-post-") !== 0 || substr($id, -4) !== "-css") { continue; }
+      $href = html_entity_decode($node->getAttribute("href"), ENT_QUOTES | ENT_HTML5);
+      if ($href !== "") { echo $href . PHP_EOL; }
+    }
+  ')
+}
+
 note 'Checking authenticated Direct MCP health endpoint'
 health="$(curl --fail-with-body --silent --show-error "${auth_headers[@]}" "$HEALTH_URL")"
 assert_jq "$health" '.name == "WPVibe Direct MCP" and .wpvibe_active == true' 'Direct MCP health did not report an active WPVibe bridge'
@@ -396,54 +419,6 @@ repair_input="$(jq -cn --argjson post_id "$PAGE_ID" --arg element_id "$HERO_TITL
 repair_result="$(run_approved_ability 'elementor/manage-elements' "$repair_input")"
 assert_jq "$repair_result" '.result.structuredContent.data.status == "ok"' 'Elementor repair after partial mutation did not succeed'
 
-note 'Creating, reading, updating, and deleting a real Elementor global variable'
-VAR_LABEL="WPVDMCP_E2E_Brand_${PAGE_ID}"
-var_create_input="$(jq -cn --arg label "$VAR_LABEL" '{operations:[{action:"create",type:"global-color-variable",label:$label,value:"#123456"}]}')"
-var_create_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_create_input")"
-VAR_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$var_create_result")"
-[[ "$VAR_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global variable create did not return a safe id'
-vars_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
-assert_jq "$vars_after_create" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and .value.label == \"${VAR_LABEL}\" and .value.value == \"#123456\"))" 'Created Elementor global variable was not visible through the public resource'
-
-var_update_input="$(jq -cn --arg id "$VAR_ID" --arg label "$VAR_LABEL" '{operations:[{action:"update",id:$id,label:$label,value:"#654321"}]}')"
-var_update_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_update_input")"
-assert_jq "$var_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable update failed'
-vars_after_update="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
-assert_jq "$vars_after_update" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and .value.label == \"${VAR_LABEL}\" and .value.value == \"#654321\"))" 'Updated Elementor global variable value was not visible through the public resource'
-
-var_delete_input="$(jq -cn --arg id "$VAR_ID" '{operations:[{action:"delete",id:$id}]}')"
-var_delete_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_delete_input")"
-assert_jq "$var_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable cleanup failed'
-vars_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
-assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables[\"${VAR_ID}\"].deleted) == true" 'Disposable Elementor global variable was not soft-deleted after cleanup'
-assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and (.value.deleted // false) == false)) == false" 'Soft-deleted Elementor global variable remained active after cleanup'
-
-note 'Creating, reading, updating, and deleting a real Elementor global class'
-CLASS_LABEL="WPVDMCP_E2E_Class_${PAGE_ID}"
-class_create_input="$(jq -cn --arg label "$CLASS_LABEL" '{operations:[{action:"create",label:$label,css:"color: #112233; font-weight: 600;"}]}')"
-class_create_result="$(run_approved_ability 'elementor/manage-classes' "$class_create_input")"
-CLASS_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$class_create_result")"
-[[ "$CLASS_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global class create did not return a safe id'
-classes_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
-assert_jq "$classes_after_create" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\" and .label == \"${CLASS_LABEL}\"))" 'Created Elementor global class was not visible through the public resource'
-class_state_after_create="$(elementor_global_class_json "$CLASS_ID")"
-grep -Fq '112233' <<<"$class_state_after_create" || fail 'Created Elementor global class CSS was not persisted in Elementor repository state'
-
-CLASS_LABEL_UPDATED="${CLASS_LABEL}_Updated"
-class_update_input="$(jq -cn --arg id "$CLASS_ID" --arg label "$CLASS_LABEL_UPDATED" '{operations:[{action:"update",id:$id,label:$label,css:"color: #334455; font-weight: 700;",mode:"replace"}]}')"
-class_update_result="$(run_approved_ability 'elementor/manage-classes' "$class_update_input")"
-assert_jq "$class_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class update failed'
-classes_after_update="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
-assert_jq "$classes_after_update" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\" and .label == \"${CLASS_LABEL_UPDATED}\"))" 'Updated Elementor global class label was not visible through the public resource'
-class_state_after_update="$(elementor_global_class_json "$CLASS_ID")"
-grep -Fq '334455' <<<"$class_state_after_update" || fail 'Updated Elementor global class CSS was not persisted in Elementor repository state'
-
-class_delete_input="$(jq -cn --arg id "$CLASS_ID" '{operations:[{action:"delete",id:$id}]}')"
-class_delete_result="$(run_approved_ability 'elementor/manage-classes' "$class_delete_input")"
-assert_jq "$class_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class cleanup failed'
-classes_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
-assert_jq "$classes_after_delete" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\")) == false" 'Disposable Elementor global class remained after cleanup'
-
 note 'Proving a site-wide default-style partial batch is surfaced as an error and its applied sibling remains inspectable'
 initial_h6_style="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
 assert_jq "$initial_h6_style" '(.result.isError // false) == false' 'Could not read initial Elementor h6 default style'
@@ -465,6 +440,140 @@ cleanup_default_style="$(run_approved_ability 'elementor/manage-default-styles' 
 assert_jq "$cleanup_default_style" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Disposable default-style cleanup did not succeed'
 h6_after_cleanup="$(run_readonly_ability 'elementor/get-default-styles' '{"tag":"h6"}')"
 assert_jq "$h6_after_cleanup" '(.result.structuredContent.data.default_styles // "") == ""' 'Disposable h6 default style remained after cleanup'
+
+note 'Proving shared Elementor global classes and variables propagate across two real Atomic pages'
+VAR_LABEL="WPVDMCP_E2E_Brand_${PAGE_ID}"
+var_create_input="$(jq -cn --arg label "$VAR_LABEL" '{operations:[{action:"create",type:"global-color-variable",label:$label,value:"#123456"}]}')"
+var_create_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_create_input")"
+VAR_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$var_create_result")"
+[[ "$VAR_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global variable create did not return a safe id'
+vars_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
+assert_jq "$vars_after_create" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and .value.label == \"${VAR_LABEL}\" and .value.value == \"#123456\"))" 'Created Elementor global variable was not visible through the public resource'
+
+CLASS_LABEL="WPVDMCP_E2E_Class_${PAGE_ID}"
+class_create_input="$(jq -cn --arg label "$CLASS_LABEL" '{operations:[{action:"create",label:$label,css:"color: #112233; font-weight: 600;"}]}')"
+class_create_result="$(run_approved_ability 'elementor/manage-classes' "$class_create_input")"
+CLASS_ID="$(jq -r '.result.structuredContent.data.results[0].id // empty' <<<"$class_create_result")"
+[[ "$CLASS_ID" =~ ^[A-Za-z0-9_-]+$ ]] || fail 'Elementor global class create did not return a safe id'
+classes_after_create="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
+assert_jq "$classes_after_create" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\" and .label == \"${CLASS_LABEL}\"))" 'Created Elementor global class was not visible through the public resource'
+class_state_after_create="$(elementor_global_class_json "$CLASS_ID")"
+grep -Fq '112233' <<<"$class_state_after_create" || fail 'Created Elementor global class CSS was not persisted in Elementor repository state'
+
+global_page_a_create="$(run_approved_ability 'elementor/create-page' '{"title":"WPVDMCP Shared Styles A","post_type":"page"}')"
+GLOBAL_PAGE_A_ID="$(jq -r '.result.structuredContent.data.id // empty' <<<"$global_page_a_create")"
+global_page_b_create="$(run_approved_ability 'elementor/create-page' '{"title":"WPVDMCP Shared Styles B","post_type":"page"}')"
+GLOBAL_PAGE_B_ID="$(jq -r '.result.structuredContent.data.id // empty' <<<"$global_page_b_create")"
+[[ "$GLOBAL_PAGE_A_ID" =~ ^[0-9]+$ && "$GLOBAL_PAGE_B_ID" =~ ^[0-9]+$ ]] || fail 'Shared-style Elementor pages were not created with numeric ids'
+
+global_page_a_build_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" '{post_id:$post_id,xml_structure:"<e-flexbox configuration-id=\"shared-shell-a\"><e-heading configuration-id=\"shared-title-a\"></e-heading></e-flexbox>",element_config:{"shared-shell-a":{tag:"section"},"shared-title-a":{tag:"h2",title:"Shared design system page A"}},style:{"shared-shell-a":"padding: 32px;","shared-title-a":"font-size: 32px;"}}')"
+global_page_a_build="$(run_approved_ability 'elementor/build-composition' "$global_page_a_build_input")"
+assert_jq "$global_page_a_build" '.result.structuredContent.data.success == true and ((.result.structuredContent.data.warnings // []) | length) == 0' 'Shared-style page A did not build cleanly'
+GLOBAL_PAGE_A_TITLE_ID="$(resolved_element_id "$(jq -r '.result.structuredContent.data.resolved_xml // empty' <<<"$global_page_a_build")" 'shared-title-a')"
+
+global_page_b_build_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" '{post_id:$post_id,xml_structure:"<e-flexbox configuration-id=\"shared-shell-b\"><e-heading configuration-id=\"shared-title-b\"></e-heading></e-flexbox>",element_config:{"shared-shell-b":{tag:"section"},"shared-title-b":{tag:"h2",title:"Shared design system page B"}},style:{"shared-shell-b":"padding: 32px;","shared-title-b":"font-size: 32px;"}}')"
+global_page_b_build="$(run_approved_ability 'elementor/build-composition' "$global_page_b_build_input")"
+assert_jq "$global_page_b_build" '.result.structuredContent.data.success == true and ((.result.structuredContent.data.warnings // []) | length) == 0' 'Shared-style page B did not build cleanly'
+GLOBAL_PAGE_B_TITLE_ID="$(resolved_element_id "$(jq -r '.result.structuredContent.data.resolved_xml // empty' <<<"$global_page_b_build")" 'shared-title-b')"
+[[ "$GLOBAL_PAGE_A_TITLE_ID" =~ ^[a-f0-9]+$ && "$GLOBAL_PAGE_B_TITLE_ID" =~ ^[a-f0-9]+$ ]] || fail 'Could not resolve fresh shared-style heading ids from build-composition'
+
+shared_style_css="background-color: var(--${VAR_LABEL});"
+global_page_a_apply_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" --arg class_label "$CLASS_LABEL" --arg css "$shared_style_css" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,classes:[$class_label],style:$css}]}')"
+global_page_a_apply="$(run_approved_ability 'elementor/manage-elements' "$global_page_a_apply_input")"
+assert_jq "$global_page_a_apply" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Shared global class/variable style did not apply to page A'
+global_page_b_apply_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" --arg class_label "$CLASS_LABEL" --arg css "$shared_style_css" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,classes:[$class_label],style:$css}]}')"
+global_page_b_apply="$(run_approved_ability 'elementor/manage-elements' "$global_page_b_apply_input")"
+assert_jq "$global_page_b_apply" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Shared global class/variable style did not apply to page B'
+
+global_page_a_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_b_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+for shared_structure in "$global_page_a_structure" "$global_page_b_structure"; do
+  if ! jq -e --arg class_id "$CLASS_ID" --arg var_id "$VAR_ID" --arg var_label "$VAR_LABEL" '
+    (.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null
+    and ((.result.structuredContent.data.elements[0].styles.css // "") | contains("var("))
+    and (((.result.structuredContent.data.elements[0].styles.css // "") | contains($var_id)) or ((.result.structuredContent.data.elements[0].styles.css // "") | contains($var_label)))
+  ' >/dev/null 2>&1 <<<"$shared_structure"; then
+    printf '%s\n' "$shared_structure" | jq . >&2 || true
+    fail 'Elementor public page structure did not persist the shared class id and variable-backed Atomic style'
+  fi
+done
+
+"$WP_BIN" --path="$WP_ROOT" option update elementor_css_print_method external >/dev/null
+global_page_a_publish="$(run_approved_ability 'elementor/publish-document' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" '{post_id:$post_id}')")"
+global_page_b_publish="$(run_approved_ability 'elementor/publish-document' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" '{post_id:$post_id}')")"
+assert_jq "$global_page_a_publish" '.result.structuredContent.data.status == "publish"' 'Shared-style page A did not publish'
+assert_jq "$global_page_b_publish" '.result.structuredContent.data.status == "publish"' 'Shared-style page B did not publish'
+
+global_page_a_frontend_before="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${GLOBAL_PAGE_A_ID}")"
+global_page_b_frontend_before="$(curl --fail-with-body --silent --show-error "${BASE_URL}/?page_id=${GLOBAL_PAGE_B_ID}")"
+grep -Fq "$CLASS_ID" <<<"$global_page_a_frontend_before" || fail 'Rendered page A did not carry the persisted global class id'
+grep -Fq "$CLASS_ID" <<<"$global_page_b_frontend_before" || fail 'Rendered page B did not carry the persisted global class id'
+global_page_a_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
+global_page_b_css_before="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
+grep -Eqi '112233' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global class color'
+grep -Eqi '112233' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global class color'
+grep -Eqi '123456' <<<"$global_page_a_css_before" || fail 'Rendered CSS for page A did not include the initial global variable value'
+grep -Eqi '123456' <<<"$global_page_b_css_before" || fail 'Rendered CSS for page B did not include the initial global variable value'
+
+note 'Updating the shared class and variable once without rewriting either dependent page'
+class_update_input="$(jq -cn --arg id "$CLASS_ID" --arg label "$CLASS_LABEL" '{operations:[{action:"update",id:$id,label:$label,css:"color: #334455; font-weight: 700;",mode:"replace"}]}')"
+class_update_result="$(run_approved_ability 'elementor/manage-classes' "$class_update_input")"
+assert_jq "$class_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class update failed'
+var_update_input="$(jq -cn --arg id "$VAR_ID" --arg label "$VAR_LABEL" '{operations:[{action:"update",id:$id,label:$label,value:"#654321"}]}')"
+var_update_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_update_input")"
+assert_jq "$var_update_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable update failed'
+
+global_page_a_css_after="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
+global_page_b_css_after="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
+grep -Eqi '334455' <<<"$global_page_a_css_after" || fail 'Page A did not receive the updated global class CSS without an element rewrite'
+grep -Eqi '334455' <<<"$global_page_b_css_after" || fail 'Page B did not receive the updated global class CSS without an element rewrite'
+grep -Eqi '654321' <<<"$global_page_a_css_after" || fail 'Page A did not receive the updated global variable value without an element rewrite'
+grep -Eqi '654321' <<<"$global_page_b_css_after" || fail 'Page B did not receive the updated global variable value without an element rewrite'
+[[ "$global_page_a_css_before" != "$global_page_a_css_after" && "$global_page_b_css_before" != "$global_page_b_css_after" ]] || fail 'Shared global updates did not change both dependent page CSS bundles'
+
+note 'Applying one local Atomic override and proving it remains page-local while the shared class stays attached'
+local_override_input="$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" --arg class_label "$CLASS_LABEL" --arg css "color: #445566; background-color: var(--${VAR_LABEL});" '{post_id:$post_id,operations:[{action:"update",element_id:$element_id,classes:[$class_label],style:$css}]}')"
+local_override_result="$(run_approved_ability 'elementor/manage-elements' "$local_override_input")"
+assert_jq "$local_override_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor local override did not apply cleanly'
+global_page_a_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_b_after_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+assert_jq "$global_page_a_override_structure" '(.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")' 'Page A local color override was not persisted'
+assert_jq "$global_page_b_after_override_structure" '((.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")) == false' 'Page A local override leaked into page B structure'
+global_page_a_css_override="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
+global_page_b_css_override="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
+grep -Eqi '445566' <<<"$global_page_a_css_override" || fail 'Page A generated CSS did not include its local override'
+if grep -Eqi '445566' <<<"$global_page_b_css_override"; then
+  fail 'Page A local override leaked into page B generated CSS'
+fi
+grep -Eqi '334455' <<<"$global_page_a_css_override" || fail 'Page A lost the shared global class CSS after a local override'
+grep -Eqi '334455' <<<"$global_page_b_css_override" || fail 'Page B lost the shared global class CSS after page A local override'
+
+note 'Deleting the in-use global class and verifying Elementor cleans both dependent structures'
+class_delete_input="$(jq -cn --arg id "$CLASS_ID" '{operations:[{action:"delete",id:$id}]}')"
+class_delete_result="$(run_approved_ability 'elementor/manage-classes' "$class_delete_input")"
+assert_jq "$class_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global class cleanup failed'
+classes_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-classes"}')"
+assert_jq "$classes_after_delete" "(.result.structuredContent.data.content | fromjson | .classes | any(.id == \"${CLASS_ID}\")) == false" 'Disposable Elementor global class remained after cleanup'
+global_page_a_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_A_ID" --arg element_id "$GLOBAL_PAGE_A_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+global_page_b_after_class_delete="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id}')")"
+for cleaned_structure in "$global_page_a_after_class_delete" "$global_page_b_after_class_delete"; do
+  if jq -e --arg class_id "$CLASS_ID" '(.result.structuredContent.data.elements[0].settings.classes.value // [] | index($class_id)) != null' >/dev/null 2>&1 <<<"$cleaned_structure"; then
+    printf '%s\n' "$cleaned_structure" | jq . >&2 || true
+    fail 'Deleted global class id remained attached to a dependent Elementor element'
+  fi
+done
+
+var_delete_input="$(jq -cn --arg id "$VAR_ID" '{operations:[{action:"delete",id:$id}]}')"
+var_delete_result="$(run_approved_ability 'elementor/manage-global-variable' "$var_delete_input")"
+assert_jq "$var_delete_result" '.result.structuredContent.data.status == "ok" and .result.structuredContent.data.results[0].status == "ok"' 'Elementor global variable cleanup failed'
+vars_after_delete="$(run_readonly_ability 'elementor/read-resource' '{"uri":"elementor://global-variables"}')"
+assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables[\"${VAR_ID}\"].deleted) == true" 'Disposable Elementor global variable was not soft-deleted after cleanup'
+assert_jq "$vars_after_delete" "(.result.structuredContent.data.content | fromjson | .variables | to_entries | any(.key == \"${VAR_ID}\" and (.value.deleted // false) == false)) == false" 'Soft-deleted Elementor global variable remained active after cleanup'
+
+"$WP_BIN" --path="$WP_ROOT" post delete "$GLOBAL_PAGE_A_ID" "$GLOBAL_PAGE_B_ID" --force >/dev/null
+if "$WP_BIN" --path="$WP_ROOT" post exists "$GLOBAL_PAGE_A_ID" >/dev/null 2>&1 || "$WP_BIN" --path="$WP_ROOT" post exists "$GLOBAL_PAGE_B_ID" >/dev/null 2>&1; then
+  fail 'Disposable shared-style pages remained after cleanup'
+fi
 
 note "Publishing page ${PAGE_ID}; this proves destructive+idempotent routes as DELETE"
 publish_input="$(jq -cn --argjson post_id "$PAGE_ID" '{post_id:$post_id}')"
