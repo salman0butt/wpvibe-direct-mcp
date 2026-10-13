@@ -539,6 +539,10 @@ global_page_a_override_structure="$(run_readonly_ability 'elementor/get-page-str
 global_page_b_after_override_structure="$(run_readonly_ability 'elementor/get-page-structure' "$(jq -cn --argjson post_id "$GLOBAL_PAGE_B_ID" --arg element_id "$GLOBAL_PAGE_B_TITLE_ID" '{post_id:$post_id,element_id:$element_id,include_content:true}')")"
 assert_jq "$global_page_a_override_structure" '(.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")' 'Page A local color override was not persisted'
 assert_jq "$global_page_b_after_override_structure" '((.result.structuredContent.data.elements[0].styles.css // "") | contains("445566")) == false' 'Page A local override leaked into page B structure'
+assert_jq "$global_page_a_override_structure" "(.result.structuredContent.data.elements[0].settings.classes // [] | index(\"${CLASS_ID}\")) != null" 'Page A lost its shared global class attachment after the local override'
+assert_jq "$global_page_b_after_override_structure" "(.result.structuredContent.data.elements[0].settings.classes // [] | index(\"${CLASS_ID}\")) != null" 'Page B lost its shared global class attachment after the page A local override'
+LOCAL_OVERRIDE_STYLE_ID="$(jq -r '.result.structuredContent.data.elements[0].styles.__style_id // empty' <<<"$global_page_a_override_structure")"
+[[ "$LOCAL_OVERRIDE_STYLE_ID" =~ ^e-[A-Za-z0-9_-]+$ ]] || fail 'Page A local override did not expose a safe serialized local style id'
 global_page_a_css_override="$(elementor_page_css_bundle "$GLOBAL_PAGE_A_ID")"
 global_page_b_css_override="$(elementor_page_css_bundle "$GLOBAL_PAGE_B_ID")"
 grep -Eqi '445566' <<<"$global_page_a_css_override" || fail 'Page A generated CSS did not include its local override'
@@ -547,6 +551,16 @@ if grep -Eqi '445566' <<<"$global_page_b_css_override"; then
 fi
 grep -Eqi '334455' <<<"$global_page_a_css_override" || fail 'Page A lost the shared global class CSS after a local override'
 grep -Eqi '334455' <<<"$global_page_b_css_override" || fail 'Page B lost the shared global class CSS after page A local override'
+grep -Eq "\\.elementor[[:space:]]+\\.${CLASS_LABEL}\\{[^}]*color:#334455" <<<"$global_page_a_css_override" || fail 'Page A generated CSS did not expose the shared class selector/color used for cascade verification'
+grep -Eq "\\.elementor[[:space:]]+\\.${LOCAL_OVERRIDE_STYLE_ID}\\{[^}]*color:#445566" <<<"$global_page_a_css_override" || fail 'Page A generated CSS did not expose the local style selector/color used for cascade verification'
+if ! printf '%s' "$global_page_a_css_override" | php -r '
+  $css = stream_get_contents(STDIN);
+  $global = stripos($css, "334455");
+  $local = stripos($css, "445566");
+  exit(false !== $global && false !== $local && $local > $global ? 0 : 1);
+'; then
+  fail 'Page A local color rule did not follow the equal-specificity shared global class rule in the rendered CSS cascade'
+fi
 
 note 'Deleting the in-use global class and verifying Elementor cleans both dependent structures'
 class_delete_input="$(jq -cn --arg id "$CLASS_ID" '{operations:[{action:"delete",id:$id}]}')"
