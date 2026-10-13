@@ -199,6 +199,36 @@ test_case('one-time approval cannot be consumed twice across an interleaved race
     assert_same('consumed',$status['status']??null,'winning consumer must leave the approval consumed');
 });
 
+test_case('approval request fails closed when pending receipt cannot be persisted', function () {
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl){
+        if(strpos($key,'wpvdmcp_approval_')===0 && is_array($value) && ($value['status']??'')==='pending') return false;
+        return null;
+    };
+    $result=WPVDMCP_Approvals::request('run_ability',array('name'=>'demo/request-persist','input'=>array('value'=>1),'method'=>'POST'),'Request persistence failure');
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($result),'unpersisted approval request must fail closed');
+    assert_same('approval_persist_failed',$result->get_error_code(),'request persistence failure code');
+});
+
+test_case('approval decisions fail closed when decision state cannot be persisted', function () {
+    $payload=array('name'=>'demo/decision-persist','input'=>array('value'=>2),'method'=>'POST');
+    $approval=WPVDMCP_Approvals::request('run_ability',$payload,'Decision persistence failure');
+    $approval_id=$approval['approval_id']??'';
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($approval_id){
+        if($key==='wpvdmcp_approval_'.$approval_id && is_array($value) && in_array($value['status']??'',array('approved','rejected'),true)) return false;
+        return null;
+    };
+    $approved=WPVDMCP_Approvals::approve($approval_id,1);
+    assert_true(is_wp_error($approved),'unpersisted approval decision must fail closed');
+    assert_same('approval_persist_failed',$approved->get_error_code(),'approve persistence failure code');
+    $rejected=WPVDMCP_Approvals::reject($approval_id,1);
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($rejected),'unpersisted rejection decision must fail closed');
+    assert_same('approval_persist_failed',$rejected->get_error_code(),'reject persistence failure code');
+    $status=WPVDMCP_Approvals::status($approval_id);
+    assert_same('pending',$status['status']??null,'failed decision persistence leaves receipt pending');
+});
+
 test_case('approval consumer never steals an existing claim based only on claim age', function () {
     $payload=array('name'=>'demo/stale-claim','input'=>array('value'=>10),'method'=>'POST');
     $approval=WPVDMCP_Approvals::request('run_ability',$payload,'Stale claim test');
@@ -290,6 +320,17 @@ test_case('device upload tools expose expiring browser transfer flow', function 
     assert_true($stored!==false,'ticket stored');
     assert_true(empty($stored['value']['secret']),'plaintext secret not stored');
     assert_true(!empty($stored['value']['secret_hash']),'secret hash stored');
+});
+
+test_case('device upload request fails closed when ticket state cannot be persisted', function () {
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl){
+        if(strpos($key,'wpvdmcp_upload_')===0 && is_array($value) && ($value['status']??'')==='waiting') return false;
+        return null;
+    };
+    $result=WPVDMCP_Upload::request(array('title'=>'Must persist'));
+    unset($GLOBALS['set_transient_override']);
+    assert_true(is_wp_error($result),'unpersisted upload ticket must not return a dead browser URL');
+    assert_same('upload_persist_failed',$result->get_error_code(),'upload request persistence failure code');
 });
 
 test_case('device upload ticket secret is scoped and single-use', function () {
@@ -564,6 +605,107 @@ test_case('admin settings persist query token compatibility opt in and opt out',
     $_POST=$previous_post;
     unset($GLOBALS['throw_on_redirect']);
     unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token']);
+});
+
+test_case('admin settings fail closed and roll back when query-token opt out cannot persist', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $GLOBALS['wp_options']['wpvdmcp_enabled']='1';
+    $GLOBALS['wp_options']['wpvdmcp_allow_query_token']='1';
+    $GLOBALS['throw_on_redirect']=true;
+    $previous_post=$_POST;
+    $_POST=array();
+    $GLOBALS['update_option_override']=function($key,$value){if($key==='wpvdmcp_allow_query_token' && $value==='0')return false;return null;};
+    try { $admin->save(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed settings save redirects'); }
+    unset($GLOBALS['update_option_override'],$GLOBALS['throw_on_redirect']);
+    $_POST=$previous_post;
+    assert_true(strpos($GLOBALS['last_redirect']??'','settings_error=1')!==false,'failed opt-out must report a settings persistence error');
+    assert_same('1',$GLOBALS['wp_options']['wpvdmcp_enabled']??null,'failed settings save restores previous enabled state');
+    assert_same('1',$GLOBALS['wp_options']['wpvdmcp_allow_query_token']??null,'failed settings save restores previous query-token state');
+    unset($GLOBALS['wp_options']['wpvdmcp_allow_query_token'],$GLOBALS['last_redirect']);
+});
+
+test_case('admin token regeneration rolls back partial credential persistence before exposing a token', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $old_hash=$GLOBALS['wp_options']['wpvdmcp_token_hash'];
+    $old_owner=$GLOBALS['wp_options']['wpvdmcp_user_id'];
+    $GLOBALS['wp_current_user']=2;
+    $GLOBALS['throw_on_redirect']=true;
+    $GLOBALS['update_option_override']=function($key,$value){
+        if($key==='wpvdmcp_user_id' && (int)$value===2) return false;
+        return null;
+    };
+    try { $admin->generate_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed regeneration redirects'); }
+    unset($GLOBALS['update_option_override'],$GLOBALS['throw_on_redirect']);
+    $GLOBALS['wp_current_user']=0;
+    assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'failed regeneration restores previous token hash');
+    assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'failed regeneration restores previous owner');
+    assert_same(false,get_transient('wpvdmcp_new_token_2'),'failed regeneration must not expose the unusable new token');
+});
+
+test_case('admin token regeneration rolls back when one-time token display state cannot persist', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $old_hash=$GLOBALS['wp_options']['wpvdmcp_token_hash'];
+    $old_owner=$GLOBALS['wp_options']['wpvdmcp_user_id'];
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['throw_on_redirect']=true;
+    $GLOBALS['set_transient_override']=function($key,$value,$ttl){if($key==='wpvdmcp_new_token_1')return false;return null;};
+    try { $admin->generate_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed token display persistence redirects'); }
+    unset($GLOBALS['set_transient_override'],$GLOBALS['throw_on_redirect']);
+    $GLOBALS['wp_current_user']=0;
+    assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'display persistence failure restores previous token hash');
+    assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'display persistence failure restores previous owner');
+    assert_true(strpos($GLOBALS['last_redirect']??'','token_error=1')!==false,'display persistence failure reports token error');
+    unset($GLOBALS['last_redirect']);
+});
+
+test_case('admin token revoke uses a fail-closed fallback when option deletion fails', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','revocable-token');
+    $GLOBALS['wp_options']['wpvdmcp_user_id']=1;
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['throw_on_redirect']=true;
+    $GLOBALS['delete_option_override']=function($key){if(in_array($key,array('wpvdmcp_token_hash','wpvdmcp_user_id'),true))return false;return null;};
+    try { $admin->revoke_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'revoke redirects'); }
+    unset($GLOBALS['delete_option_override'],$GLOBALS['throw_on_redirect']);
+    $GLOBALS['wp_current_user']=0;
+    assert_same('',$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'failed delete falls back to an unusable empty token hash');
+    assert_same(0,(int)($GLOBALS['wp_options']['wpvdmcp_user_id']??-1),'failed delete falls back to an unusable owner id');
+    assert_true(strpos($GLOBALS['last_redirect']??'','token_revoked=1')!==false,'verified fallback revocation may report success');
+    $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','test-token');
+    $GLOBALS['wp_options']['wpvdmcp_user_id']=1;
+    unset($GLOBALS['last_redirect']);
+});
+
+test_case('admin token revoke reports failure when neither delete nor fail-closed fallback can persist', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $old_hash=hash('sha256','still-active-token');
+    $GLOBALS['wp_options']['wpvdmcp_token_hash']=$old_hash;
+    $GLOBALS['wp_options']['wpvdmcp_user_id']=1;
+    $GLOBALS['wp_current_user']=1;
+    $GLOBALS['throw_on_redirect']=true;
+    $GLOBALS['delete_option_override']=function($key){if(in_array($key,array('wpvdmcp_token_hash','wpvdmcp_user_id'),true))return false;return null;};
+    $GLOBALS['update_option_override']=function($key,$value){if(($key==='wpvdmcp_token_hash' && $value==='')||($key==='wpvdmcp_user_id' && (int)$value===0))return false;return null;};
+    try { $admin->revoke_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed revoke redirects'); }
+    unset($GLOBALS['delete_option_override'],$GLOBALS['update_option_override'],$GLOBALS['throw_on_redirect']);
+    $GLOBALS['wp_current_user']=0;
+    assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'failed revoke does not falsely mutate stored hash in fixture');
+    assert_true(strpos($GLOBALS['last_redirect']??'','token_revoke_error=1')!==false,'unpersistable revoke must report an explicit error');
+    $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','test-token');
+    $GLOBALS['wp_options']['wpvdmcp_user_id']=1;
+    unset($GLOBALS['last_redirect']);
+});
+
+test_case('admin render surfaces credential and settings persistence errors', function () {
+    $admin=WPVDMCP_Admin::instance();
+    $old_get=$_GET;
+    $_GET=array('token_error'=>'1','token_revoke_error'=>'1','settings_error'=>'1');
+    ob_start();
+    $admin->render();
+    $html=ob_get_clean();
+    $_GET=$old_get;
+    assert_true(strpos($html,'could not be saved')!==false,'token generation persistence error notice missing');
+    assert_true(strpos($html,'could not be fully revoked')!==false,'token revoke persistence error notice missing');
+    assert_true(strpos($html,'settings could not be saved')!==false,'settings persistence error notice missing');
 });
 
 test_case('authentication rejects revoked token and owner who lost administrator access', function () {

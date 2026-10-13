@@ -24,7 +24,9 @@ final class WPVDMCP_Approvals {
 			'created_at' => time(),
 			'expires_at' => time() + self::TTL,
 		);
-		set_transient( self::key( $id ), $record, self::TTL );
+		if ( ! set_transient( self::key( $id ), $record, self::TTL ) ) {
+			return new WP_Error( 'approval_persist_failed', 'The approval request could not be durably persisted. No approval was created.', array( 'status' => 503 ) );
+		}
 		return self::safe_record( $record );
 	}
 
@@ -43,7 +45,9 @@ final class WPVDMCP_Approvals {
 		}
 		$record['status'] = 'approved';
 		$record['approved_at'] = time();
-		set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+		if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
+			return new WP_Error( 'approval_persist_failed', 'The approved state could not be durably persisted. The approval remains pending.', array( 'status' => 503 ) );
+		}
 		return true;
 	}
 
@@ -57,7 +61,9 @@ final class WPVDMCP_Approvals {
 		}
 		$record['status'] = 'rejected';
 		$record['rejected_at'] = time();
-		set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+		if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
+			return new WP_Error( 'approval_persist_failed', 'The rejected state could not be durably persisted. The approval state is unchanged.', array( 'status' => 503 ) );
+		}
 		return true;
 	}
 

@@ -84,11 +84,15 @@ final class WPVDMCP_CLI_Safety {
 		if ( is_wp_error( $approval ) ) {
 			return $approval;
 		}
-		set_transient(
+		$stored = set_transient(
 			self::snapshot_key( $approval['approval_id'] ),
 			array( 'approved_state' => $approved_state ),
 			WPVDMCP_Approvals::TTL
 		);
+		if ( ! $stored ) {
+			WPVDMCP_Approvals::reject( $approval['approval_id'], (int) get_option( 'wpvdmcp_user_id', 0 ) );
+			return new WP_Error( 'approval_snapshot_persist_failed', 'The destructive WP-CLI approval snapshot could not be durably persisted. The command was not executed.', array( 'status' => 503 ) );
+		}
 
 		return array_merge( $approval, array(
 			'status' => 'approval_required',

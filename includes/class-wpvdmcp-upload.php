@@ -52,7 +52,9 @@ final class WPVDMCP_Upload {
 			'alt_text'      => isset( $args['alt_text'] ) ? sanitize_text_field( $args['alt_text'] ) : '',
 			'files'         => array(),
 		);
-		set_transient( self::key( $id ), $record, self::TTL );
+		if ( ! set_transient( self::key( $id ), $record, self::TTL ) ) {
+			return new WP_Error( 'upload_persist_failed', 'The upload ticket could not be durably persisted. No browser upload URL was created.', array( 'status' => 503 ) );
+		}
 
 		return array(
 			'upload_id'     => $id,
