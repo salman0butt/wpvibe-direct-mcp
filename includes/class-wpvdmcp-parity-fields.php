@@ -15,11 +15,52 @@ final class WPVDMCP_Parity_Fields {
 	);}
 	public static function handles($name){foreach(self::definitions() as $d){if($d['name']===$name)return true;}return false;}
 	public static function execute($name,$args){$args=is_array($args)?$args:array();switch($name){case'list_editable_fields':return self::list_all();case'register_editable_field':return self::write('field',$args);case'register_editable_group':return self::write('group',$args);case'register_editable_setting':return self::write('setting',$args);case'validate_blocks':return self::validate_blocks($args);case'save_validated_blocks':return self::save_validated_blocks($args);}return new WP_Error('unknown_fields_tool','Unknown fields/block tool.',array('status'=>404));}
-	private static function list_all(){$d=get_option(self::OPTION,array());return array('field_types'=>self::FIELD_TYPES,'setting_types'=>self::SETTING_TYPES,'fields'=>array_values(isset($d['fields'])&&is_array($d['fields'])?$d['fields']:array()),'groups'=>array_values(isset($d['groups'])&&is_array($d['groups'])?$d['groups']:array()),'settings'=>array_values(isset($d['settings'])&&is_array($d['settings'])?$d['settings']:array()));}
+		private static function list_all(){
+			$data=get_option(self::OPTION,array());
+			if(!is_array($data))$data=array();
+			return array(
+				'field_types'=>self::FIELD_TYPES,
+				'setting_types'=>self::SETTING_TYPES,
+				'fields'=>self::stored_records($data,'fields','field'),
+				'groups'=>self::stored_records($data,'groups','group'),
+				'settings'=>self::stored_records($data,'settings','setting'),
+			);
+		}
+		private static function stored_records($data,$bucket,$kind){
+			if(!is_array($data)||!isset($data[$bucket])||!is_array($data[$bucket]))return array();
+			$out=array();
+			foreach($data[$bucket]as$storage_key=>$record){if(self::valid_record($kind,$record,$storage_key))$out[]=$record;}
+			return $out;
+		}
+		private static function valid_record($kind,$record,$storage_key){
+			if(!is_array($record)||!isset($record['config'])||!is_array($record['config']))return false;
+			if('field'===$kind){
+				if(!isset($record['post_type'],$record['key'])||!is_string($record['post_type'])||''===$record['post_type']||!is_string($record['key'])||''===$record['key'])return false;
+				$expected_id=$record['post_type'].':'.$record['key'];
+			}elseif('group'===$kind){
+				if(!isset($record['post_type'],$record['group_id'])||!is_string($record['post_type'])||''===$record['post_type']||!is_string($record['group_id'])||''===$record['group_id'])return false;
+				$expected_id=$record['post_type'].':'.$record['group_id'];
+			}elseif('setting'===$kind){
+				if(!isset($record['key'])||!is_string($record['key'])||''===$record['key'])return false;
+				$expected_id=$record['key'];
+			}else{return false;}
+			if((string)$storage_key!==$expected_id)return false;
+			return self::valid_config($kind,$record['config']);
+		}
+		private static function valid_config($kind,$config){
+			$string_keys='group'===$kind?array('title','context','priority'):array('type','label','description');
+			if('field'===$kind)$string_keys[]='group';
+			foreach($string_keys as$key){if(array_key_exists($key,$config)&&null!==$config[$key]&&!is_string($config[$key]))return false;}
+			if(isset($config['type'])){
+				if('field'===$kind&&!in_array($config['type'],self::FIELD_TYPES,true))return false;
+				if('setting'===$kind&&!in_array($config['type'],self::SETTING_TYPES,true))return false;
+			}
+			return true;
+		}
 	private static function write($kind,$args){$config=isset($args['config'])&&is_array($args['config'])?self::clean_config($args['config']):array();if('field'===$kind){$post_type=sanitize_key($args['post_type']??'');$key=sanitize_key($args['key']??'');if(!$post_type||!$key)return new WP_Error('invalid_field','post_type and key are required.',array('status'=>400));$type=$config['type']??'text';if(!in_array($type,self::FIELD_TYPES,true))return new WP_Error('invalid_field_type','Unsupported editable field type.',array('status'=>400,'allowed'=>self::FIELD_TYPES));$id=$post_type.':'.$key;$record=array('post_type'=>$post_type,'key'=>$key,'config'=>$config);}elseif('group'===$kind){$post_type=sanitize_key($args['post_type']??'');$group_id=sanitize_key($args['group_id']??'');if(!$post_type||!$group_id)return new WP_Error('invalid_group','post_type and group_id are required.',array('status'=>400));$id=$post_type.':'.$group_id;$record=array('post_type'=>$post_type,'group_id'=>$group_id,'config'=>$config);}else{$key=sanitize_key($args['key']??'');if(!$key)return new WP_Error('invalid_setting','key is required.',array('status'=>400));$type=$config['type']??'text';if(!in_array($type,self::SETTING_TYPES,true))return new WP_Error('invalid_setting_type','Unsupported editable setting type.',array('status'=>400,'allowed'=>self::SETTING_TYPES));$id=$key;$record=array('key'=>$key,'config'=>$config);} $payload=array('kind'=>$kind,'id'=>$id,'record'=>$record);$approval=self::approve('register_editable_'.$kind,$payload,$args);if(is_array($approval)||is_wp_error($approval))return $approval;$data=get_option(self::OPTION,array());if(!is_array($data))$data=array();$previous=$data;$bucket=$kind.'s';if(!isset($data[$bucket])||!is_array($data[$bucket]))$data[$bucket]=array();$data[$bucket][$id]=$record;update_option(self::OPTION,$data,false);$stored=get_option(self::OPTION,array());if(!is_array($stored)||!isset($stored[$bucket])||!is_array($stored[$bucket])||!array_key_exists($id,$stored[$bucket])||$stored[$bucket][$id]!==$record)return new WP_Error('editable_'.$kind.'_persist_failed','The editable '.$kind.' could not be durably persisted; it was not registered for this request.',array('status'=>503,'kind'=>$kind,'id'=>$id));$registered=self::register_record($kind,$record);if(is_wp_error($registered)||false===$registered){update_option(self::OPTION,$previous,false);if(get_option(self::OPTION,array())!==$previous)return new WP_Error('editable_'.$kind.'_rollback_failed','Native registration failed and the previous durable editable-definition state could not be restored.',array('status'=>503,'kind'=>$kind,'id'=>$id,'native_error'=>is_wp_error($registered)?$registered->get_error_code():'registration_failed'));if(is_wp_error($registered))return $registered;return new WP_Error('editable_'.$kind.'_registration_failed','WPVibe rejected native editable '.$kind.' registration; the durable definition was rolled back.',array('status'=>500,'kind'=>$kind,'id'=>$id));}return array('status'=>'registered','kind'=>$kind,'record'=>$record,'persistent'=>true);}
 	private static function approve($operation,$payload,$args){if(WPVDMCP_Approvals::bypass_enabled())return true;$id=isset($args['approval_id'])?(string)$args['approval_id']:'';if(!$id){$r=WPVDMCP_Approvals::request($operation,$payload,$operation);if(is_wp_error($r))return $r;return array_merge($r,array('status'=>'approval_required'));}return WPVDMCP_Approvals::consume($id,$operation,$payload);}
 	private static function clean_config($config){$out=array();foreach(array('type','label','description','group','default','context','priority','title','options','sub_fields')as$k){if(array_key_exists($k,$config))$out[$k]=$config[$k];}if(isset($out['type']))$out['type']=sanitize_key($out['type']);foreach(array('label','description','group','context','priority','title')as$k){if(isset($out[$k]))$out[$k]=sanitize_text_field($out[$k]);}return $out;}
-	public static function replay(){$data=get_option(self::OPTION,array());if(!is_array($data))return;foreach(array('groups'=>'group','fields'=>'field','settings'=>'setting')as$bucket=>$kind){foreach((array)($data[$bucket]??array())as$record){if(!is_array($record))continue;self::register_record($kind,$record);}}}
+		public static function replay(){$data=get_option(self::OPTION,array());if(!is_array($data))return;foreach(array('groups'=>'group','fields'=>'field','settings'=>'setting')as$bucket=>$kind){foreach(self::stored_records($data,$bucket,$kind)as$record)self::register_record($kind,$record);}}
 	private static function register_record($kind,$r){if('field'===$kind&&function_exists('wpvibe_field_register'))return wpvibe_field_register($r['post_type'],$r['key'],$r['config']);if('group'===$kind&&function_exists('wpvibe_field_group_register'))return wpvibe_field_group_register($r['post_type'],$r['group_id'],$r['config']);if('setting'===$kind&&function_exists('wpvibe_setting_register'))return wpvibe_setting_register($r['key'],$r['config']);return true;}
 	public static function block_types(){if(isset($GLOBALS['wpvdmcp_block_types'])&&is_array($GLOBALS['wpvdmcp_block_types']))return $GLOBALS['wpvdmcp_block_types'];$out=array();if(class_exists('WP_Block_Type_Registry')){foreach(WP_Block_Type_Registry::get_instance()->get_all_registered()as$name=>$obj)$out[$name]=array('attributes'=>is_array($obj->attributes)?$obj->attributes:array());}return $out;}
 	private static function validate_blocks($args){$blocks=isset($args['blocks'])&&is_array($args['blocks'])?$args['blocks']:array();if(!$blocks&&!empty($args['content'])&&function_exists('parse_blocks'))$blocks=parse_blocks((string)$args['content']);$errors=array();$warnings=array();self::validate_list($blocks,self::block_types(),!empty($args['strict']),$errors,$warnings,'root');return array('valid'=>empty($errors),'errors'=>$errors,'warnings'=>$warnings,'checked_blocks'=>self::count_blocks($blocks));}
