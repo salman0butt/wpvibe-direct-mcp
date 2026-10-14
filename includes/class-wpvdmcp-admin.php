@@ -123,7 +123,11 @@ final class WPVDMCP_Admin {
 		$this->guard();
 		$id       = isset( $_POST['approval_id'] ) && is_string( $_POST['approval_id'] ) ? sanitize_text_field( wp_unslash( $_POST['approval_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard().
 		$decision = isset( $_POST['decision'] ) && is_string( $_POST['decision'] ) ? sanitize_key( wp_unslash( $_POST['decision'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard().
-		$result   = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, get_current_user_id() ) : WPVDMCP_Approvals::reject( $id, get_current_user_id() );
+		if ( ! in_array( $decision, array( 'approve', 'reject' ), true ) ) {
+			$result = new WP_Error( 'invalid_approval_decision', 'Approval decision must be approve or reject.', array( 'status' => 400 ) );
+		} else {
+			$result = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, get_current_user_id() ) : WPVDMCP_Approvals::reject( $id, get_current_user_id() );
+		}
 		if ( is_wp_error( $result ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&approval=' . rawurlencode( $id ) . '&approval_error=1' ) );
 			exit;
