@@ -63,18 +63,18 @@ final class WPVDMCP_Admin {
 		exit;
 	}
 
-	private function restore_token_state( $hash, $user_id ) {
-		if ( null === $hash ) {
-			delete_option( 'wpvdmcp_token_hash' );
-		} else {
-			update_option( 'wpvdmcp_token_hash', $hash, false );
+		private function restore_token_state( $hash, $user_id ) {
+			if ( null === $user_id ) {
+				delete_option( 'wpvdmcp_user_id' );
+			} else {
+				update_option( 'wpvdmcp_user_id', $user_id, false );
+			}
+			if ( null === $hash ) {
+				delete_option( 'wpvdmcp_token_hash' );
+			} else {
+				update_option( 'wpvdmcp_token_hash', $hash, false );
+			}
 		}
-		if ( null === $user_id ) {
-			delete_option( 'wpvdmcp_user_id' );
-		} else {
-			update_option( 'wpvdmcp_user_id', $user_id, false );
-		}
-	}
 
 	public function revoke_token() {
 		$this->guard();
