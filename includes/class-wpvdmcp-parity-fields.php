@@ -29,18 +29,22 @@ final class WPVDMCP_Parity_Fields {
 		private static function stored_records($data,$bucket,$kind){
 			if(!is_array($data)||!isset($data[$bucket])||!is_array($data[$bucket]))return array();
 			$out=array();
-			foreach($data[$bucket]as$record){if(self::valid_record($kind,$record))$out[]=$record;}
+			foreach($data[$bucket]as$storage_key=>$record){if(self::valid_record($kind,$record,$storage_key))$out[]=$record;}
 			return $out;
 		}
-		private static function valid_record($kind,$record){
+		private static function valid_record($kind,$record,$storage_key){
 			if(!is_array($record)||!isset($record['config'])||!is_array($record['config']))return false;
 			if('field'===$kind){
 				if(!isset($record['post_type'],$record['key'])||!is_string($record['post_type'])||''===$record['post_type']||!is_string($record['key'])||''===$record['key'])return false;
+				$expected_id=$record['post_type'].':'.$record['key'];
 			}elseif('group'===$kind){
 				if(!isset($record['post_type'],$record['group_id'])||!is_string($record['post_type'])||''===$record['post_type']||!is_string($record['group_id'])||''===$record['group_id'])return false;
+				$expected_id=$record['post_type'].':'.$record['group_id'];
 			}elseif('setting'===$kind){
 				if(!isset($record['key'])||!is_string($record['key'])||''===$record['key'])return false;
+				$expected_id=$record['key'];
 			}else{return false;}
+			if((string)$storage_key!==$expected_id)return false;
 			return self::valid_config($kind,$record['config']);
 		}
 		private static function valid_config($kind,$config){
