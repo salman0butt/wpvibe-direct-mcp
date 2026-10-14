@@ -58,8 +58,7 @@ parity_test('malformed saved-skill versions fail closed before update arithmetic
 
 parity_test('saved-skill version ceiling fails before approval and persistence',function(){
     $key=WPVDMCP_Parity_Skills::OPTION;
-    $had=array_key_exists($key,$GLOBALS['wp_options']);
-    $previous=$had?$GLOBALS['wp_options'][$key]:null;
+    $options_before=$GLOBALS['wp_options'];
     try{
         $record=array(
             'slug'=>'version-ceiling',
@@ -72,25 +71,18 @@ parity_test('saved-skill version ceiling fails before approval and persistence',
             'reference_files'=>array(),
         );
         $GLOBALS['wp_options'][$key]=array('version-ceiling'=>$record);
+        $before_call=$GLOBALS['wp_options'];
 
         $result=WPVDMCP_Parity_Skills::execute('update_skill',array(
             'slug'=>'version-ceiling',
             'title'=>'Updated version ceiling',
         ));
-        if(is_array($result)&&'approval_required'===($result['status']??null)){
-            assert_same(true,WPVDMCP_Approvals::approve($result['approval_id'],1),'version ceiling approval setup must succeed');
-            $result=WPVDMCP_Parity_Skills::execute('update_skill',array(
-                'slug'=>'version-ceiling',
-                'title'=>'Updated version ceiling',
-                'approval_id'=>$result['approval_id'],
-            ));
-        }
 
-        assert_same($record,$GLOBALS['wp_options'][$key]['version-ceiling']??null,'version ceiling update must not mutate durable state');
+        assert_same($before_call,$GLOBALS['wp_options'],'version ceiling update must not request approval or mutate durable state');
         assert_true(is_wp_error($result),'version ceiling update must fail closed');
         assert_same('skill_version_limit',$result->get_error_code(),'version ceiling failure code');
         assert_true(isset(WPVDMCP_Parity_Skills::saved()['version-ceiling']),'version ceiling record must remain visible after rejection');
     }finally{
-        if($had)$GLOBALS['wp_options'][$key]=$previous;else unset($GLOBALS['wp_options'][$key]);
+        $GLOBALS['wp_options']=$options_before;
     }
 });
