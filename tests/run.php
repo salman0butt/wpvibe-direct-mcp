@@ -763,6 +763,58 @@ test_case('admin token rollback does not reactivate the previous token when owne
     }
 });
 
+test_case('admin token regeneration never writes a replacement owner when replacement hash persistence fails', function () {
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_update_override=array_key_exists('update_option_override',$GLOBALS);
+    $update_override_before=$had_update_override?$GLOBALS['update_option_override']:null;
+    $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
+    $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    try {
+        $admin=WPVDMCP_Admin::instance();
+        $old_token='previous-token-hash-write-failure';
+        $old_hash=hash('sha256',$old_token);
+        $old_owner=99;
+        $replacement_token='wpvd_'.str_repeat('T',64);
+        $replacement_hash=hash('sha256',$replacement_token);
+        $GLOBALS['wp_options']['wpvdmcp_token_hash']=$old_hash;
+        $GLOBALS['wp_options']['wpvdmcp_user_id']=$old_owner;
+        $GLOBALS['wp_current_user']=1;
+        $GLOBALS['throw_on_redirect']=true;
+
+        $replacement_owner_written=false;
+        $nested_result=null;
+        $nested_user=null;
+        $GLOBALS['update_option_override']=function($key,$value) use ($replacement_hash,$old_token,&$replacement_owner_written,&$nested_result,&$nested_user){
+            if($key==='wpvdmcp_token_hash' && $value===$replacement_hash) return false;
+            if($key==='wpvdmcp_user_id' && (int)$value===1){
+                $replacement_owner_written=true;
+                $GLOBALS['wp_options'][$key]=$value;
+                $GLOBALS['wp_current_user']=0;
+                $request=new WP_REST_Request('GET','/wpvibe-direct/v1/health');
+                $request->set_header('authorization','Bearer '.$old_token);
+                $nested_result=WPVDMCP_Server::instance()->status($request);
+                $nested_user=$GLOBALS['wp_current_user'];
+                return true;
+            }
+            return null;
+        };
+
+        try { $admin->generate_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed replacement hash persistence redirects'); }
+
+        assert_same(false,$replacement_owner_written,'replacement owner must not be written until replacement hash persistence is proven');
+        assert_same(null,$nested_result,'no request window may observe the previous hash under the replacement owner');
+        assert_same(null,$nested_user,'no replacement identity may be assumed when replacement hash persistence fails');
+        assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'failed replacement hash persistence keeps the previous hash');
+        assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'failed replacement hash persistence keeps the previous owner');
+    } finally {
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;else unset($GLOBALS['update_option_override']);
+        if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+    }
+});
+
 test_case('admin token revoke uses a fail-closed fallback when option deletion fails', function () {
     $admin=WPVDMCP_Admin::instance();
     $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','revocable-token');
