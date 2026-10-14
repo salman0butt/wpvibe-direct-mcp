@@ -364,7 +364,7 @@ final class WPVDMCP_Server {
 	private function authenticate( $request ) {
 		$stored_hash = get_option( 'wpvdmcp_token_hash', '' );
 		$stored_user_id = get_option( 'wpvdmcp_user_id', 0 );
-		if ( ! is_string( $stored_hash ) || ( ! is_int( $stored_user_id ) && ! is_string( $stored_user_id ) ) ) {
+		if ( ! is_string( $stored_hash ) || ( ! is_int( $stored_user_id ) && ! is_string( $stored_user_id ) ) || ( is_string( $stored_user_id ) && ! preg_match( '/^[0-9]+$/D', $stored_user_id ) ) ) {
 			return new WP_Error( 'mcp_not_configured', 'Generate a Direct MCP access token in WPVibe → Direct MCP.', array( 'status' => 401 ) );
 		}
 		$hash = $stored_hash;
