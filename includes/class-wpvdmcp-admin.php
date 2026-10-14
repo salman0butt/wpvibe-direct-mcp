@@ -69,6 +69,9 @@ final class WPVDMCP_Admin {
 			} else {
 				update_option( 'wpvdmcp_user_id', $user_id, false );
 			}
+			if ( $user_id !== get_option( 'wpvdmcp_user_id', null ) ) {
+				return;
+			}
 			if ( null === $hash ) {
 				delete_option( 'wpvdmcp_token_hash' );
 			} else {
