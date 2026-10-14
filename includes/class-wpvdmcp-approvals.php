@@ -150,7 +150,7 @@ final class WPVDMCP_Approvals {
 	private static function is_valid_record( $record, $id ) {
 		return isset( $record['id'], $record['owner_user_id'], $record['operation'], $record['payload_hash'], $record['summary'], $record['status'], $record['expires_at'] )
 			&& $record['id'] === $id
-			&& (int) $record['owner_user_id'] > 0
+			&& is_int( $record['owner_user_id'] ) && $record['owner_user_id'] > 0
 			&& is_string( $record['operation'] )
 			&& is_string( $record['payload_hash'] ) && 1 === preg_match( '/^[a-f0-9]{64}$/', $record['payload_hash'] )
 			&& is_string( $record['summary'] )
