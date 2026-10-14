@@ -658,6 +658,63 @@ test_case('admin token regeneration rolls back when one-time token display state
     unset($GLOBALS['last_redirect']);
 });
 
+test_case('admin token rollback never exposes the previous token under the replacement owner', function () {
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_update_override=array_key_exists('update_option_override',$GLOBALS);
+    $update_override_before=$had_update_override?$GLOBALS['update_option_override']:null;
+    $had_transient_override=array_key_exists('set_transient_override',$GLOBALS);
+    $transient_override_before=$had_transient_override?$GLOBALS['set_transient_override']:null;
+    $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
+    $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    try {
+        $admin=WPVDMCP_Admin::instance();
+        $old_token='previous-token';
+        $old_hash=hash('sha256',$old_token);
+        $old_owner=99;
+        $GLOBALS['wp_options']['wpvdmcp_token_hash']=$old_hash;
+        $GLOBALS['wp_options']['wpvdmcp_user_id']=$old_owner;
+        $GLOBALS['wp_current_user']=1;
+        $GLOBALS['throw_on_redirect']=true;
+        $GLOBALS['set_transient_override']=function($key,$value,$ttl){
+            if($key==='wpvdmcp_new_token_1') return false;
+            return null;
+        };
+
+        $nested_result=null;
+        $nested_user=null;
+        $saw_old_hash_restore=false;
+        $GLOBALS['update_option_override']=function($key,$value) use ($old_hash,$old_token,&$nested_result,&$nested_user,&$saw_old_hash_restore){
+            if($key==='wpvdmcp_token_hash' && $value===$old_hash && ($GLOBALS['wp_options']['wpvdmcp_token_hash']??null)!==$old_hash){
+                $saw_old_hash_restore=true;
+                $GLOBALS['wp_options'][$key]=$value;
+                $GLOBALS['wp_current_user']=0;
+                $request=new WP_REST_Request('GET','/wpvibe-direct/v1/health');
+                $request->set_header('authorization','Bearer '.$old_token);
+                $nested_result=WPVDMCP_Server::instance()->status($request);
+                $nested_user=$GLOBALS['wp_current_user'];
+                return true;
+            }
+            return null;
+        };
+
+        try { $admin->generate_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'failed token display persistence redirects'); }
+
+        assert_true($saw_old_hash_restore,'regression must observe the old token hash being restored');
+        assert_true(is_wp_error($nested_result),'previous token must stay unusable until its previous owner is restored');
+        assert_same('invalid_mcp_user',$nested_result->get_error_code(),'rollback window must expose the previous owner before the previous token hash');
+        assert_same(0,$nested_user,'failed nested authentication must not assume the replacement owner');
+        assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'rollback restores the previous token hash');
+        assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'rollback restores the previous token owner');
+    } finally {
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;else unset($GLOBALS['update_option_override']);
+        if($had_transient_override)$GLOBALS['set_transient_override']=$transient_override_before;else unset($GLOBALS['set_transient_override']);
+        if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+    }
+});
+
 test_case('admin token revoke uses a fail-closed fallback when option deletion fails', function () {
     $admin=WPVDMCP_Admin::instance();
     $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','revocable-token');
