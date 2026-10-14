@@ -145,3 +145,36 @@ parity_test('old-looking live editable-definition claim is never stolen from an 
         else unset($GLOBALS['wpdb']);
     }
 });
+
+parity_test('fallback editable-definition locking never steals an existing owner without database proof',function(){
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_wpdb=array_key_exists('wpdb',$GLOBALS);
+    $wpdb_before=$had_wpdb?$GLOBALS['wpdb']:null;
+    try{
+        $GLOBALS['wp_current_user']=1;
+        unset($GLOBALS['wpdb']);
+        $args=array(
+            'post_type'=>'page',
+            'key'=>'fallback_live_owner',
+            'config'=>array('type'=>'text','label'=>'Fallback owner'),
+        );
+        $approval=WPVDMCP_Parity_Fields::execute('register_editable_field',$args);
+        assert_same('approval_required',$approval['status']??null,'field requires approval');
+        assert_same(true,WPVDMCP_Approvals::approve($approval['approval_id'],1),'field approval succeeds');
+
+        $GLOBALS['wp_options'][WPVDMCP_Parity_Fields::MUTATION_CLAIM]='fallback-live-owner-token';
+        $result=WPVDMCP_Parity_Fields::execute('register_editable_field',array_merge($args,array('approval_id'=>$approval['approval_id'])));
+
+        assert_true(is_wp_error($result),'fallback contender must fail closed while an owner claim exists');
+        assert_same('editable_definition_mutation_in_progress',$result->get_error_code(),'fallback owner contention must not steal the claim');
+        $approval_status=WPVDMCP_Approvals::status($approval['approval_id']);
+        assert_same('approved',$approval_status['status']??null,'fallback contention must not consume approval');
+        assert_same('fallback-live-owner-token',get_option(WPVDMCP_Parity_Fields::MUTATION_CLAIM,''),'fallback live owner token must remain unchanged');
+    }finally{
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_wpdb)$GLOBALS['wpdb']=$wpdb_before;
+        else unset($GLOBALS['wpdb']);
+    }
+});
