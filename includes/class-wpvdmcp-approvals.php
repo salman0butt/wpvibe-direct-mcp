@@ -59,6 +59,9 @@ final class WPVDMCP_Approvals {
 		if ( (int) $user_id !== (int) $record['owner_user_id'] ) {
 			return new WP_Error( 'approval_forbidden', 'Only the Direct MCP token owner can reject this operation.', array( 'status' => 403 ) );
 		}
+		if ( 'pending' !== $record['status'] ) {
+			return new WP_Error( 'approval_not_pending', 'This approval is no longer pending.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
+		}
 		$record['status'] = 'rejected';
 		$record['rejected_at'] = time();
 		if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
