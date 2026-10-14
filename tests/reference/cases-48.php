@@ -1,4 +1,27 @@
 <?php
+if(!class_exists('WPVDMCP_Test_Advisory_DB')){
+    class WPVDMCP_Test_Advisory_DB{
+        public $options='wp_options';
+        public $lock_available=true;
+        private $prepared_args=array();
+        public function __construct($lock_available=true){$this->lock_available=(bool)$lock_available;}
+        public function prepare($sql,...$args){$this->prepared_args=$args;return $sql;}
+        public function get_var($sql){
+            if(false!==strpos($sql,'GET_LOCK'))return $this->lock_available?'1':'0';
+            if(false!==strpos($sql,'RELEASE_LOCK'))return '1';
+            return null;
+        }
+        public function query($sql){
+            if(false===strpos($sql,'DELETE FROM'))return 0;
+            $key=$this->prepared_args[0]??null;
+            $claim=$this->prepared_args[1]??null;
+            if(!is_string($key)||get_option($key,null)!==$claim)return 0;
+            unset($GLOBALS['wp_options'][$key]);
+            return 1;
+        }
+    }
+}
+
 parity_test('concurrent editable-field registrations cannot both succeed while dropping a sibling definition',function(){
     $options_before=$GLOBALS['wp_options'];
     $current_user_before=$GLOBALS['wp_current_user'];
@@ -60,8 +83,11 @@ parity_test('concurrent editable-field registrations cannot both succeed while d
 parity_test('stale editable-definition mutation claim can be recovered without blocking approved writes forever',function(){
     $options_before=$GLOBALS['wp_options'];
     $current_user_before=$GLOBALS['wp_current_user'];
+    $had_wpdb=array_key_exists('wpdb',$GLOBALS);
+    $wpdb_before=$had_wpdb?$GLOBALS['wpdb']:null;
     try{
         $GLOBALS['wp_current_user']=1;
+        $GLOBALS['wpdb']=new WPVDMCP_Test_Advisory_DB(true);
         $args=array(
             'post_type'=>'page',
             'key'=>'stale_claim_recovery',
@@ -82,5 +108,40 @@ parity_test('stale editable-definition mutation claim can be recovered without b
     }finally{
         $GLOBALS['wp_options']=$options_before;
         $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_wpdb)$GLOBALS['wpdb']=$wpdb_before;
+        else unset($GLOBALS['wpdb']);
+    }
+});
+
+parity_test('old-looking live editable-definition claim is never stolen from an active owner',function(){
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_wpdb=array_key_exists('wpdb',$GLOBALS);
+    $wpdb_before=$had_wpdb?$GLOBALS['wpdb']:null;
+    try{
+        $GLOBALS['wp_current_user']=1;
+        $args=array(
+            'post_type'=>'page',
+            'key'=>'live_old_claim',
+            'config'=>array('type'=>'text','label'=>'Live owner'),
+        );
+        $approval=WPVDMCP_Parity_Fields::execute('register_editable_field',$args);
+        assert_same('approval_required',$approval['status']??null,'field requires approval');
+        assert_same(true,WPVDMCP_Approvals::approve($approval['approval_id'],1),'field approval succeeds');
+
+        $GLOBALS['wp_options'][WPVDMCP_Parity_Fields::MUTATION_CLAIM]=(time()-600).'|still-live-owner';
+        $GLOBALS['wpdb']=new WPVDMCP_Test_Advisory_DB(false);
+        $result=WPVDMCP_Parity_Fields::execute('register_editable_field',array_merge($args,array('approval_id'=>$approval['approval_id'])));
+
+        assert_true(is_wp_error($result),'live mutation owner must keep exclusivity regardless of claim age');
+        assert_same('editable_definition_mutation_in_progress',$result->get_error_code(),'live owner contention must fail closed');
+        $approval_status=WPVDMCP_Approvals::status($approval['approval_id']);
+        assert_same('approved',$approval_status['status']??null,'failed live-owner contention must not consume approval');
+        assert_same((time()-600).'|still-live-owner',(string)get_option(WPVDMCP_Parity_Fields::MUTATION_CLAIM,''),'live owner claim must not be replaced');
+    }finally{
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_wpdb)$GLOBALS['wpdb']=$wpdb_before;
+        else unset($GLOBALS['wpdb']);
     }
 });
