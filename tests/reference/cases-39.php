@@ -2,6 +2,8 @@
 
 parity_test('numeric-only saved-skill slug fails before approval or persistence',function(){
     $key=WPVDMCP_Parity_Skills::OPTION;
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
     $had_saved=array_key_exists($key,$GLOBALS['wp_options']);
     $saved_before=$had_saved?$GLOBALS['wp_options'][$key]:null;
     $approval_keys_before=array_values(array_filter(array_keys($GLOBALS['wp_options']),function($option_key){return 0===strpos((string)$option_key,'transient:wpvdmcp_approval_');}));
@@ -33,13 +35,34 @@ parity_test('numeric-only saved-skill slug fails before approval or persistence'
         assert_same($approval_keys_before,$approval_keys_after,'numeric-only slug must fail before approval creation');
         if($had_saved)assert_same($saved_before,$GLOBALS['wp_options'][$key]??null,'numeric-only slug must not mutate saved-skill persistence');
         else assert_true(!array_key_exists($key,$GLOBALS['wp_options']),'numeric-only slug must not create saved-skill persistence');
+
+        $leading_zero=$server->handle(test_request(array(
+            'jsonrpc'=>'2.0',
+            'id'=>3904,
+            'method'=>'tools/call',
+            'params'=>array(
+                'name'=>'create_skill',
+                'arguments'=>array(
+                    'slug'=>'01',
+                    'title'=>'Leading zero slug',
+                    'instructions'=>'A leading-zero identifier remains a real string array key and must stay compatible.',
+                ),
+                '_meta'=>array(
+                    'io.modelcontextprotocol/protocolVersion'=>'2026-07-28',
+                    'io.modelcontextprotocol/clientCapabilities'=>(object)array(),
+                ),
+            ),
+        ),'2026-07-28'));
+        assert_same('approval_required',$leading_zero->get_data()['result']['structuredContent']['status']??null,'leading-zero string slug must remain valid');
     }finally{
-        if($had_saved)$GLOBALS['wp_options'][$key]=$saved_before;else unset($GLOBALS['wp_options'][$key]);
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
     }
 });
 
 parity_test('persisted numeric saved-skill keys stay out of public discovery',function(){
     $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
     try{
         $numeric=array(
             'slug'=>'123',
@@ -98,5 +121,6 @@ parity_test('persisted numeric saved-skill keys stay out of public discovery',fu
         assert_same('custom-ok',$loaded->get_data()['result']['structuredContent']['skill']??null,'valid saved-skill sibling must remain publicly loadable');
     }finally{
         $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
     }
 });
