@@ -129,14 +129,18 @@ final class WPVDMCP_MCP_Apps {
 			delete_transient( self::panel_key( $id ) );
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
+		if ( ! isset( $record['owner_user_id'] ) || ! is_int( $record['owner_user_id'] ) || $record['owner_user_id'] <= 0 ) {
+			delete_transient( self::panel_key( $id ) );
+			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
+		}
 		if ( empty( $token ) || ! hash_equals( $record['token_hash'], hash( 'sha256', $token ) ) ) {
 			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
 		}
-		if ( (int) $record['owner_user_id'] !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
+		if ( $record['owner_user_id'] !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
 			return new WP_Error( 'panel_owner_changed', 'The Direct MCP token owner changed after the panel was opened.', array( 'status' => 409 ) );
 		}
 		delete_transient( self::panel_key( $id ) ); // One UI decision per panel token.
-		$user_id = (int) $record['owner_user_id'];
+		$user_id = $record['owner_user_id'];
 		$result = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, $user_id ) : WPVDMCP_Approvals::reject( $id, $user_id );
 		if ( is_wp_error( $result ) ) { return $result; }
 		return WPVDMCP_Approvals::status( $id );
