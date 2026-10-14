@@ -667,6 +667,8 @@ test_case('admin token rollback never exposes the previous token under the repla
     $transient_override_before=$had_transient_override?$GLOBALS['set_transient_override']:null;
     $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
     $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
     try {
         $admin=WPVDMCP_Admin::instance();
         $old_token='previous-token';
@@ -712,6 +714,7 @@ test_case('admin token rollback never exposes the previous token under the repla
         if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;else unset($GLOBALS['update_option_override']);
         if($had_transient_override)$GLOBALS['set_transient_override']=$transient_override_before;else unset($GLOBALS['set_transient_override']);
         if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;else unset($GLOBALS['last_redirect']);
     }
 });
 
@@ -724,6 +727,8 @@ test_case('admin token rollback does not reactivate the previous token when owne
     $transient_override_before=$had_transient_override?$GLOBALS['set_transient_override']:null;
     $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
     $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
     try {
         $admin=WPVDMCP_Admin::instance();
         $old_token='previous-token-owner-restore-failure';
@@ -760,6 +765,7 @@ test_case('admin token rollback does not reactivate the previous token when owne
         if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;else unset($GLOBALS['update_option_override']);
         if($had_transient_override)$GLOBALS['set_transient_override']=$transient_override_before;else unset($GLOBALS['set_transient_override']);
         if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;else unset($GLOBALS['last_redirect']);
     }
 });
 
@@ -770,6 +776,8 @@ test_case('admin token regeneration never writes a replacement owner when replac
     $update_override_before=$had_update_override?$GLOBALS['update_option_override']:null;
     $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
     $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
     try {
         $admin=WPVDMCP_Admin::instance();
         $old_token='previous-token-hash-write-failure';
@@ -812,6 +820,70 @@ test_case('admin token regeneration never writes a replacement owner when replac
         $GLOBALS['wp_current_user']=$current_user_before;
         if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;else unset($GLOBALS['update_option_override']);
         if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;else unset($GLOBALS['last_redirect']);
+    }
+});
+
+test_case('admin token regeneration refuses to mutate credentials while another token mutation is in progress', function () {
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
+    $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
+    try {
+        $admin=WPVDMCP_Admin::instance();
+        $old_hash=hash('sha256','busy-generate-token');
+        $old_owner=99;
+        $GLOBALS['wp_options']['wpvdmcp_token_hash']=$old_hash;
+        $GLOBALS['wp_options']['wpvdmcp_user_id']=$old_owner;
+        $GLOBALS['wp_options']['wpvdmcp_token_mutation_claim']='other-request';
+        $GLOBALS['wp_current_user']=1;
+        $GLOBALS['throw_on_redirect']=true;
+
+        try { $admin->generate_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'busy token regeneration redirects'); }
+
+        assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'busy token regeneration must not change token hash');
+        assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'busy token regeneration must not change token owner');
+        assert_same(false,get_transient('wpvdmcp_new_token_1'),'busy token regeneration must not expose a replacement token');
+        assert_same('other-request',$GLOBALS['wp_options']['wpvdmcp_token_mutation_claim']??null,'busy token regeneration must not disturb another request claim');
+        assert_true(strpos($GLOBALS['last_redirect']??'','token_error=1')!==false,'busy token regeneration must report an explicit token error');
+    } finally {
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;else unset($GLOBALS['last_redirect']);
+    }
+});
+
+test_case('admin token revoke refuses to mutate credentials while another token mutation is in progress', function () {
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
+    $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
+    try {
+        $admin=WPVDMCP_Admin::instance();
+        $old_hash=hash('sha256','busy-revoke-token');
+        $old_owner=99;
+        $GLOBALS['wp_options']['wpvdmcp_token_hash']=$old_hash;
+        $GLOBALS['wp_options']['wpvdmcp_user_id']=$old_owner;
+        $GLOBALS['wp_options']['wpvdmcp_token_mutation_claim']='other-request';
+        $GLOBALS['wp_current_user']=1;
+        $GLOBALS['throw_on_redirect']=true;
+
+        try { $admin->revoke_token(); } catch (RuntimeException $e) { assert_same('redirect',$e->getMessage(),'busy token revoke redirects'); }
+
+        assert_same($old_hash,$GLOBALS['wp_options']['wpvdmcp_token_hash']??null,'busy token revoke must not change token hash');
+        assert_same($old_owner,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'busy token revoke must not change token owner');
+        assert_same('other-request',$GLOBALS['wp_options']['wpvdmcp_token_mutation_claim']??null,'busy token revoke must not disturb another request claim');
+        assert_true(strpos($GLOBALS['last_redirect']??'','token_revoke_error=1')!==false,'busy token revoke must report an explicit revoke error');
+    } finally {
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;else unset($GLOBALS['last_redirect']);
     }
 });
 
