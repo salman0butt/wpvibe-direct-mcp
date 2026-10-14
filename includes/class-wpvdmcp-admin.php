@@ -45,13 +45,18 @@ final class WPVDMCP_Admin {
 		$old_hash = get_option( 'wpvdmcp_token_hash', null );
 		$old_user = get_option( 'wpvdmcp_user_id', null );
 		$token = 'wpvd_' . wp_generate_password( 64, false, false );
-		$hash = hash( 'sha256', $token );
-		$user_id = get_current_user_id();
-		update_option( 'wpvdmcp_token_hash', $hash, false );
-		update_option( 'wpvdmcp_user_id', $user_id, false );
-		if ( $hash !== get_option( 'wpvdmcp_token_hash', null ) || $user_id !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
-			$this->restore_token_state( $old_hash, $old_user );
-			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+			$hash = hash( 'sha256', $token );
+			$user_id = get_current_user_id();
+			update_option( 'wpvdmcp_token_hash', $hash, false );
+			if ( $hash !== get_option( 'wpvdmcp_token_hash', null ) ) {
+				$this->restore_token_state( $old_hash, $old_user );
+				wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+				exit;
+			}
+			update_option( 'wpvdmcp_user_id', $user_id, false );
+			if ( $user_id !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
+				$this->restore_token_state( $old_hash, $old_user );
+				wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
 			exit;
 		}
 		if ( ! set_transient( 'wpvdmcp_new_token_' . $user_id, $token, 5 * MINUTE_IN_SECONDS ) ) {
