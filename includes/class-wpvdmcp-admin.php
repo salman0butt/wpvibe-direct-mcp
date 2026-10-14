@@ -123,7 +123,11 @@ final class WPVDMCP_Admin {
 		$this->guard();
 		$id       = isset( $_POST['approval_id'] ) && is_string( $_POST['approval_id'] ) ? sanitize_text_field( wp_unslash( $_POST['approval_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard().
 		$decision = isset( $_POST['decision'] ) && is_string( $_POST['decision'] ) ? sanitize_key( wp_unslash( $_POST['decision'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- guard().
-		$result   = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, get_current_user_id() ) : WPVDMCP_Approvals::reject( $id, get_current_user_id() );
+		if ( ! in_array( $decision, array( 'approve', 'reject' ), true ) ) {
+			$result = new WP_Error( 'invalid_approval_decision', 'Approval decision must be approve or reject.', array( 'status' => 400 ) );
+		} else {
+			$result = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, get_current_user_id() ) : WPVDMCP_Approvals::reject( $id, get_current_user_id() );
+		}
 		if ( is_wp_error( $result ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&approval=' . rawurlencode( $id ) . '&approval_error=1' ) );
 			exit;
@@ -230,37 +234,7 @@ final class WPVDMCP_Admin {
 			<h2>Detected capabilities</h2>
 			<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Capability</th><th>Status</th></tr></thead><tbody>
 			<?php foreach ( $status['capabilities'] as $name => $available ) : if ( 'hosted_only' === $name ) { continue; } ?>
-				<tr><td><code><?php echo esc_html( $name ); ?></code></td><td><?php echo $available ? '<span style="color:#008a20">Available</span>' : '<span style="color:#646970">Not detected / unavailable on this site</span>'; ?></td></tr>
-			<?php endforeach; ?>
-			</tbody></table>
-			<p><strong>Hosted-only / not applicable to a single-site Direct MCP:</strong> <?php echo esc_html( implode( ', ', $status['capabilities']['hosted_only'] ) ); ?>.</p>
-
-			<h2>Access token</h2>
-			<p>Preferred: <code>Authorization: Bearer YOUR_TOKEN</code>. Regenerating immediately revokes the previous token.</p>
-			<p><strong>Query-string compatibility:</strong> <?php echo $status['query_token_enabled'] ? '<strong>enabled</strong>' : '<strong>disabled by default</strong>'; ?>.</p>
-			<?php if ( $status['query_token_enabled'] ) : ?><p><strong>Compatibility URL:</strong> <code><?php echo esc_html( $status['endpoint'] ); ?>?token=YOUR_TOKEN</code></p><?php endif; ?>
-			<p><em>Security warning:</em> query-string tokens can enter browser history, proxy logs, analytics, and server logs. Use Bearer authentication whenever the client supports headers, and rotate a URL token if it may have leaked.</p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px"><input type="hidden" name="action" value="wpvdmcp_generate_token"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><button class="button button-primary"><?php echo $status['authentication_configured'] ? 'Regenerate token' : 'Generate token'; ?></button></form>
-			<?php if ( $status['authentication_configured'] ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block"><input type="hidden" name="action" value="wpvdmcp_revoke_token"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><button class="button" onclick="return confirm('Revoke the current MCP token?')">Revoke token</button></form><?php endif; ?>
-
-			<h2>Settings</h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="wpvdmcp_save"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><p><label><input type="checkbox" name="enabled" <?php checked( $status['enabled'] ); ?>> Enable direct MCP endpoint</label></p><p><label><input type="checkbox" name="allow_query_token" <?php checked( $status['query_token_enabled'] ); ?>> Allow query-string token compatibility for clients that cannot send authentication headers</label><br><span class="description">Disabled by default because URL credentials can leak through logs, browser history, analytics, referrers, screenshots, and support tooling.</span></p><p><button class="button button-primary">Save settings</button></p></form>
-
-			<h2>Client configuration</h2>
-			<pre style="max-width:1100px;overflow:auto;background:#fff;border:1px solid #ccd0d4;padding:16px">{
-  "mcpServers": {
-    "wordpress": {
-      "url": "<?php echo esc_html( $status['endpoint'] ); ?>",
-      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
-    }
-  }
-}</pre>
-			<p>Modern MCP requests use the <code>2026-07-28</code> discovery/version metadata. Legacy <code>initialize</code> clients remain supported for compatibility.</p>
-
-			<h2>Recent Direct MCP activity</h2>
-			<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Time</th><th>Tool</th><th>Result</th><th>Target</th></tr></thead><tbody>
-			<?php if ( ! $log ) : ?><tr><td colspan="4">No direct MCP calls yet.</td></tr><?php else : foreach ( array_slice( $log, 0, 20 ) as $row ) : ?>
-			<tr><td><?php echo esc_html( wp_date( 'Y-m-d H:i:s', (int) $row['time'] ) ); ?></td><td><code><?php echo esc_html( $row['tool'] ); ?></code></td><td><?php echo ! empty( $row['success'] ) ? '<span style="color:#008a20">Success</span>' : '<span style="color:#b32d2e">Error</span>'; ?> <?php echo ! empty( $row['message'] ) ? esc_html( $row['message'] ) : ''; ?></td><td><code><?php echo esc_html( wp_json_encode( $row['summary'] ) ); ?></code></td></tr>
+				<tr><td><code><?php echo esc_html( $name ); ?></code></td><td><?php echo $available ? '<span style="color:#008a20">Available</span>' : '<span style="color:#646970">Not detected / unavailable on this site</span>'; ?> </td></tr>
 			<?php endforeach; endif; ?></tbody></table>
 		</div>
 		<?php
