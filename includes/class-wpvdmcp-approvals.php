@@ -140,6 +140,10 @@ final class WPVDMCP_Approvals {
 				$record['status'] = 'consumed';
 				$record['consumed_at'] = time();
 				$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+				if ( $stored ) {
+					$persisted = get_transient( self::key( $id ) );
+					$stored = is_array( $persisted ) && $persisted === $record;
+				}
 				if ( ! $stored ) {
 					// The destructive caller must not run when we cannot prove the receipt
 					// was durably consumed. Keep the claim until the receipt expires so a
