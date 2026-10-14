@@ -43,12 +43,32 @@ final class WPVDMCP_Approvals {
 		if ( 'pending' !== $record['status'] ) {
 			return new WP_Error( 'approval_not_pending', 'This approval is no longer pending.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
 		}
-		$record['status'] = 'approved';
-		$record['approved_at'] = time();
-		if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
-			return new WP_Error( 'approval_persist_failed', 'The approved state could not be durably persisted. The approval remains pending.', array( 'status' => 503 ) );
+		$claim = self::acquire_claim( $id );
+		if ( is_wp_error( $claim ) ) {
+			return $claim;
 		}
-		return true;
+		try {
+			// Re-read under the shared claim so a concurrent approve/reject/consume
+			// cannot make this decision from stale pending state.
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) {
+				return $record;
+			}
+			if ( $user_id !== (int) $record['owner_user_id'] || ! $user || ! user_can( $user, 'manage_options' ) ) {
+				return new WP_Error( 'approval_forbidden', 'Only the Direct MCP token owner can approve this operation.', array( 'status' => 403 ) );
+			}
+			if ( 'pending' !== $record['status'] ) {
+				return new WP_Error( 'approval_not_pending', 'This approval is no longer pending.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
+			}
+			$record['status'] = 'approved';
+			$record['approved_at'] = time();
+			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
+				return new WP_Error( 'approval_persist_failed', 'The approved state could not be durably persisted. The approval remains pending.', array( 'status' => 503 ) );
+			}
+			return true;
+		} finally {
+			delete_option( self::claim_key( $id ) );
+		}
 	}
 
 	public static function reject( $id, $user_id ) {
@@ -56,18 +76,39 @@ final class WPVDMCP_Approvals {
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		if ( (int) $user_id !== (int) $record['owner_user_id'] ) {
+		$user_id = (int) $user_id;
+		if ( $user_id !== (int) $record['owner_user_id'] ) {
 			return new WP_Error( 'approval_forbidden', 'Only the Direct MCP token owner can reject this operation.', array( 'status' => 403 ) );
 		}
 		if ( 'pending' !== $record['status'] ) {
 			return new WP_Error( 'approval_not_pending', 'This approval is no longer pending.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
 		}
-		$record['status'] = 'rejected';
-		$record['rejected_at'] = time();
-		if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
-			return new WP_Error( 'approval_persist_failed', 'The rejected state could not be durably persisted. The approval state is unchanged.', array( 'status' => 503 ) );
+		$claim = self::acquire_claim( $id );
+		if ( is_wp_error( $claim ) ) {
+			return $claim;
 		}
-		return true;
+		try {
+			// Re-read under the shared claim so a concurrent approve/reject/consume
+			// cannot make this decision from stale pending state.
+			$record = self::get_record( $id );
+			if ( is_wp_error( $record ) ) {
+				return $record;
+			}
+			if ( $user_id !== (int) $record['owner_user_id'] ) {
+				return new WP_Error( 'approval_forbidden', 'Only the Direct MCP token owner can reject this operation.', array( 'status' => 403 ) );
+			}
+			if ( 'pending' !== $record['status'] ) {
+				return new WP_Error( 'approval_not_pending', 'This approval is no longer pending.', array( 'status' => 409, 'approval_status' => $record['status'] ) );
+			}
+			$record['status'] = 'rejected';
+			$record['rejected_at'] = time();
+			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
+				return new WP_Error( 'approval_persist_failed', 'The rejected state could not be durably persisted. The approval state is unchanged.', array( 'status' => 503 ) );
+			}
+			return true;
+		} finally {
+			delete_option( self::claim_key( $id ) );
+		}
 	}
 
 	public static function consume( $id, $operation, $payload ) {
@@ -211,7 +252,7 @@ final class WPVDMCP_Approvals {
 		if ( add_option( $key, $claim, '', false ) ) {
 			return true;
 		}
-		return new WP_Error( 'approval_in_progress', 'This one-time approval is already being consumed by another request.', array( 'status' => 409 ) );
+		return new WP_Error( 'approval_in_progress', 'This one-time approval is already being changed or consumed by another request.', array( 'status' => 409 ) );
 	}
 
 	private static function payload_hash( $payload ) {
