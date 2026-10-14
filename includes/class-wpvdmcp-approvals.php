@@ -161,11 +161,14 @@ final class WPVDMCP_Approvals {
 	}
 
 	public static function bypass_enabled() {
+		$value = get_option( 'wpvibe_bypass_approvals', '' );
+		if ( ! is_array( $value ) || ! array_key_exists( 'enabled', $value ) || true !== $value['enabled'] ) {
+			return false;
+		}
 		if ( class_exists( 'WPVibe_Approval_Bypass' ) && method_exists( 'WPVibe_Approval_Bypass', 'is_on' ) ) {
 			return (bool) WPVibe_Approval_Bypass::is_on();
 		}
-		$value = get_option( 'wpvibe_bypass_approvals', '' );
-		return is_array( $value ) && ! empty( $value['enabled'] );
+		return true;
 	}
 
 	private static function get_record( $id ) {
