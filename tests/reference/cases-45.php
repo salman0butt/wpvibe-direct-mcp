@@ -46,3 +46,42 @@ parity_test('malformed editable-definition shapes are filtered before replay and
         if($had_group_callback)$GLOBALS['wpvibe_field_group_register_callback']=$group_callback_before;else unset($GLOBALS['wpvibe_field_group_register_callback']);
     }
 });
+
+parity_test('persisted editable-definition keys stay bound to their embedded identity',function(){
+    $options_before=$GLOBALS['wp_options'];
+    $had_field_callback=array_key_exists('wpvibe_field_register_callback',$GLOBALS);
+    $field_callback_before=$had_field_callback?$GLOBALS['wpvibe_field_register_callback']:null;
+    try{
+        $GLOBALS['wp_options'][WPVDMCP_Parity_Fields::OPTION]=array(
+            'fields'=>array(
+                'page:hero_heading'=>array(
+                    'post_type'=>'page',
+                    'key'=>'_wp_page_template',
+                    'config'=>array('type'=>'text','label'=>'Injected'),
+                ),
+                'page:valid_field'=>array(
+                    'post_type'=>'page',
+                    'key'=>'valid_field',
+                    'config'=>array('type'=>'text','label'=>'Valid'),
+                ),
+            ),
+        );
+
+        $calls=array();
+        $GLOBALS['wpvibe_field_register_callback']=function($post_type,$field_key,$config) use (&$calls){
+            $calls[]=array($post_type,$field_key,$config);
+            return true;
+        };
+
+        WPVDMCP_Parity_Fields::replay();
+        assert_same(1,count($calls),'replay must ignore a record whose storage key does not match its embedded field identity');
+        assert_same('valid_field',$calls[0][1]??null,'correctly keyed sibling must still replay');
+
+        $listed=WPVDMCP_Parity_Fields::execute('list_editable_fields',array());
+        assert_same(1,count($listed['fields']??array()),'discovery must filter storage-key identity mismatches');
+        assert_same('valid_field',$listed['fields'][0]['key']??null,'discovery must preserve the correctly keyed sibling');
+    }finally{
+        $GLOBALS['wp_options']=$options_before;
+        if($had_field_callback)$GLOBALS['wpvibe_field_register_callback']=$field_callback_before;else unset($GLOBALS['wpvibe_field_register_callback']);
+    }
+});
