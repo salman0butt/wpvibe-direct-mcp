@@ -4,6 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class WPVDMCP_Admin {
+	private const TOKEN_MUTATION_CLAIM = 'wpvdmcp_token_mutation_claim';
+
 	private static $instance;
 
 	public static function instance() {
@@ -42,52 +44,90 @@ final class WPVDMCP_Admin {
 
 	public function generate_token() {
 		$this->guard();
+		$claim = $this->acquire_token_mutation_claim();
+		if ( false === $claim ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+			exit;
+		}
 		$old_hash = get_option( 'wpvdmcp_token_hash', null );
 		$old_user = get_option( 'wpvdmcp_user_id', null );
 		$token = 'wpvd_' . wp_generate_password( 64, false, false );
 		$hash = hash( 'sha256', $token );
 		$user_id = get_current_user_id();
 		update_option( 'wpvdmcp_token_hash', $hash, false );
-		update_option( 'wpvdmcp_user_id', $user_id, false );
-		if ( $hash !== get_option( 'wpvdmcp_token_hash', null ) || $user_id !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
+		if ( $hash !== get_option( 'wpvdmcp_token_hash', null ) ) {
 			$this->restore_token_state( $old_hash, $old_user );
+			$this->release_token_mutation_claim( $claim );
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
+			exit;
+		}
+		update_option( 'wpvdmcp_user_id', $user_id, false );
+		if ( $user_id !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
+			$this->restore_token_state( $old_hash, $old_user );
+			$this->release_token_mutation_claim( $claim );
 			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
 			exit;
 		}
 		if ( ! set_transient( 'wpvdmcp_new_token_' . $user_id, $token, 5 * MINUTE_IN_SECONDS ) ) {
 			$this->restore_token_state( $old_hash, $old_user );
+			$this->release_token_mutation_claim( $claim );
 			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_error=1' ) );
 			exit;
 		}
+		$this->release_token_mutation_claim( $claim );
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_generated=1' ) );
 		exit;
 	}
 
 	private function restore_token_state( $hash, $user_id ) {
-		if ( null === $hash ) {
-			delete_option( 'wpvdmcp_token_hash' );
-		} else {
-			update_option( 'wpvdmcp_token_hash', $hash, false );
-		}
 		if ( null === $user_id ) {
 			delete_option( 'wpvdmcp_user_id' );
 		} else {
 			update_option( 'wpvdmcp_user_id', $user_id, false );
 		}
+		if ( $user_id !== get_option( 'wpvdmcp_user_id', null ) ) {
+			return;
+		}
+		if ( null === $hash ) {
+			delete_option( 'wpvdmcp_token_hash' );
+		} else {
+			update_option( 'wpvdmcp_token_hash', $hash, false );
+		}
+	}
+
+	private function acquire_token_mutation_claim() {
+		$claim = wp_generate_password( 32, false, false );
+		if ( ! add_option( self::TOKEN_MUTATION_CLAIM, $claim, '', false ) ) {
+			return false;
+		}
+		return $claim;
+	}
+
+	private function release_token_mutation_claim( $claim ) {
+		if ( is_string( $claim ) && '' !== $claim && $claim === get_option( self::TOKEN_MUTATION_CLAIM, null ) ) {
+			delete_option( self::TOKEN_MUTATION_CLAIM );
+		}
 	}
 
 	public function revoke_token() {
 		$this->guard();
+		$claim = $this->acquire_token_mutation_claim();
+		if ( false === $claim ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_revoke_error=1' ) );
+			exit;
+		}
 		delete_option( 'wpvdmcp_token_hash' );
 		delete_option( 'wpvdmcp_user_id' );
 		if ( null !== get_option( 'wpvdmcp_token_hash', null ) || null !== get_option( 'wpvdmcp_user_id', null ) ) {
 			update_option( 'wpvdmcp_token_hash', '', false );
 			update_option( 'wpvdmcp_user_id', 0, false );
 			if ( '' !== get_option( 'wpvdmcp_token_hash', null ) || 0 !== (int) get_option( 'wpvdmcp_user_id', -1 ) ) {
+				$this->release_token_mutation_claim( $claim );
 				wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_revoke_error=1' ) );
 				exit;
 			}
 		}
+		$this->release_token_mutation_claim( $claim );
 		wp_safe_redirect( admin_url( 'admin.php?page=wpvibe-direct-mcp&token_revoked=1' ) );
 		exit;
 	}
