@@ -1,8 +1,7 @@
 <?php
 parity_test('malformed saved-skill versions fail closed before update arithmetic',function(){
     $key=WPVDMCP_Parity_Skills::OPTION;
-    $had=array_key_exists($key,$GLOBALS['wp_options']);
-    $previous=$had?$GLOBALS['wp_options'][$key]:null;
+    $options_before=$GLOBALS['wp_options'];
     try{
         $base=array(
             'title'=>'Version fixture',
@@ -52,7 +51,7 @@ parity_test('malformed saved-skill versions fail closed before update arithmetic
         assert_same(1,$legacy_done['skill']['version']??null,'legacy saved skill update must start versioning at one');
         assert_true(isset(WPVDMCP_Parity_Skills::saved()['legacy-missing']),'updated legacy saved skill must remain discoverable');
     }finally{
-        if($had)$GLOBALS['wp_options'][$key]=$previous;else unset($GLOBALS['wp_options'][$key]);
+        $GLOBALS['wp_options']=$options_before;
     }
 });
 
