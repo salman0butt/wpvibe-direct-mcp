@@ -359,7 +359,7 @@ final class WPVDMCP_Upload {
 		return isset( $record['id'], $record['secret_hash'], $record['owner_user_id'], $record['status'], $record['expires_at'], $record['post_id'], $record['title'], $record['alt_text'], $record['files'] )
 			&& $record['id'] === $id
 			&& is_string( $record['secret_hash'] )
-			&& (int) $record['owner_user_id'] > 0
+				&& is_int( $record['owner_user_id'] ) && $record['owner_user_id'] > 0
 			&& in_array( $record['status'], array( 'waiting', 'processing', 'ready', 'failed' ), true )
 			&& is_numeric( $record['expires_at'] )
 			&& is_numeric( $record['post_id'] )
