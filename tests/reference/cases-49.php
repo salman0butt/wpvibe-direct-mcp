@@ -77,3 +77,60 @@ parity_test('live token mutation owner is never stolen while its database lock i
         else unset($GLOBALS['last_redirect']);
     }
 });
+
+parity_test('same database session cannot reenter token mutation while an owner is active',function(){
+    $options_before=$GLOBALS['wp_options'];
+    $current_user_before=$GLOBALS['wp_current_user'];
+    $had_wpdb=array_key_exists('wpdb',$GLOBALS);
+    $wpdb_before=$had_wpdb?$GLOBALS['wpdb']:null;
+    $had_update_override=array_key_exists('update_option_override',$GLOBALS);
+    $update_override_before=$had_update_override?$GLOBALS['update_option_override']:null;
+    $had_throw=array_key_exists('throw_on_redirect',$GLOBALS);
+    $throw_before=$had_throw?$GLOBALS['throw_on_redirect']:null;
+    $had_redirect=array_key_exists('last_redirect',$GLOBALS);
+    $redirect_before=$had_redirect?$GLOBALS['last_redirect']:null;
+    try{
+        $admin=WPVDMCP_Admin::instance();
+        $GLOBALS['wp_current_user']=1;
+        $GLOBALS['wp_options']['wpvdmcp_token_hash']=hash('sha256','same-session-old-token');
+        $GLOBALS['wp_options']['wpvdmcp_user_id']=1;
+        $GLOBALS['wpdb']=new WPVDMCP_Test_Advisory_DB(true);
+        $GLOBALS['throw_on_redirect']=true;
+        $inside=false;
+        $nested_redirect='';
+        $GLOBALS['update_option_override']=function($key,$value)use($admin,&$inside,&$nested_redirect){
+            if($key!=='wpvdmcp_token_hash'||$inside)return null;
+            $inside=true;
+            try{
+                $admin->revoke_token();
+            }catch(RuntimeException $e){
+                $nested_redirect=$GLOBALS['last_redirect']??'';
+            }
+            $inside=false;
+            return null;
+        };
+
+        try{
+            $admin->generate_token();
+        }catch(RuntimeException $e){
+            assert_same('redirect',$e->getMessage(),'outer token generation redirects');
+        }
+
+        assert_true(strpos($nested_redirect,'token_revoke_error=1')!==false,'same-session nested token mutation must fail closed while the outer owner is active');
+        assert_true(strpos($GLOBALS['last_redirect']??'','token_generated=1')!==false,'outer token generation must retain ownership and complete');
+        assert_true(!empty($GLOBALS['wp_options']['wpvdmcp_token_hash']),'outer token generation must leave its replacement hash active');
+        assert_same(1,$GLOBALS['wp_options']['wpvdmcp_user_id']??null,'outer token generation must retain its owner');
+        assert_true(!array_key_exists('wpvdmcp_token_mutation_claim',$GLOBALS['wp_options']),'outer completion must release the token mutation claim');
+    }finally{
+        $GLOBALS['wp_options']=$options_before;
+        $GLOBALS['wp_current_user']=$current_user_before;
+        if($had_wpdb)$GLOBALS['wpdb']=$wpdb_before;
+        else unset($GLOBALS['wpdb']);
+        if($had_update_override)$GLOBALS['update_option_override']=$update_override_before;
+        else unset($GLOBALS['update_option_override']);
+        if($had_throw)$GLOBALS['throw_on_redirect']=$throw_before;
+        else unset($GLOBALS['throw_on_redirect']);
+        if($had_redirect)$GLOBALS['last_redirect']=$redirect_before;
+        else unset($GLOBALS['last_redirect']);
+    }
+});

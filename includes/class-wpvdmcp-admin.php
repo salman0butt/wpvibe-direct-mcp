@@ -8,6 +8,7 @@ final class WPVDMCP_Admin {
 	private const TOKEN_MUTATION_DB_LOCK = 'wpvdmcp_token_mutation';
 
 	private static $instance;
+	private static $token_mutation_claim_active = false;
 
 	public static function instance() {
 		if ( ! self::$instance ) {
@@ -97,14 +98,19 @@ final class WPVDMCP_Admin {
 	}
 
 	private function acquire_token_mutation_claim() {
+		if ( self::$token_mutation_claim_active ) {
+			return false;
+		}
 		$uses_db_lock = $this->token_mutation_db_lock_available();
 		if ( ! $this->acquire_token_mutation_db_lock() ) {
 			return false;
 		}
+		self::$token_mutation_claim_active = true;
 		$claim = wp_generate_password( 32, false, false );
 		$existing = get_option( self::TOKEN_MUTATION_CLAIM, null );
 		if ( ! add_option( self::TOKEN_MUTATION_CLAIM, $claim, '', false ) ) {
 			if ( ! $uses_db_lock || null === $existing || ! $this->delete_token_mutation_claim_if_matches( $existing ) || ! add_option( self::TOKEN_MUTATION_CLAIM, $claim, '', false ) ) {
+				self::$token_mutation_claim_active = false;
 				$this->release_token_mutation_db_lock();
 				return false;
 			}
@@ -116,6 +122,7 @@ final class WPVDMCP_Admin {
 		if ( is_string( $claim ) && '' !== $claim && $claim === get_option( self::TOKEN_MUTATION_CLAIM, null ) ) {
 			delete_option( self::TOKEN_MUTATION_CLAIM );
 		}
+		self::$token_mutation_claim_active = false;
 		$this->release_token_mutation_db_lock();
 	}
 
