@@ -127,3 +127,75 @@ parity_test('form searches rank the form-builder skill ahead of performance subs
     assert_same('performance', $performance['matches'][0]['slug'] ?? null,
         'exact performance lookups must still select the performance skill');
 });
+
+parity_test('natural-language skill searches route task words without substring false positives', function() {
+    $intents = array(
+        'registration form' => 'wpforms',
+        'form submissions' => 'wpforms',
+        'form builder' => 'wpforms',
+        'manage WooCommerce stock' => 'woocommerce',
+        'configure appointment booking' => 'amelia',
+        'update product feed' => 'adtribes-product-feed',
+        'run email automation' => 'fluentcrm',
+        'fix WordPress SEO' => 'seo',
+		'build a landing page' => 'seedprod',
+		'fix image upload' => 'media',
+    );
+    foreach ($intents as $query => $slug) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same($slug, $result['matches'][0]['slug'] ?? null, 'top skill for natural request: '.$query);
+        foreach ($result['matches'] as $row) {
+            assert_true(!isset($row['instructions']), 'natural-language discovery must not expose skill instruction bodies');
+        }
+    }
+    $form = WPVDMCP_Parity::execute('load_skill', array('query' => 'REGISTRATION FORM'));
+    assert_same('wpforms', $form['matches'][0]['slug'] ?? null, 'natural-language discovery should be case-insensitive');
+    $unrelated = WPVDMCP_Parity::execute('load_skill', array('query' => 'blorptastic saucerwicket'));
+    assert_same(array(), $unrelated['matches'] ?? null, 'unrelated unknown request should not return bogus skill matches');
+    $speed = WPVDMCP_Parity::execute('load_skill', array('query' => 'performance'));
+    assert_same('performance', $speed['matches'][0]['slug'] ?? null, 'exact skill name keeps precedence over token fallback');
+});
+
+parity_test('phrase search preserves exact saved skill matches and private instructions', function() {
+    $options_before = $GLOBALS['wp_options'];
+    try {
+        $GLOBALS['wp_options'][WPVDMCP_Parity_Skills::OPTION] = array(
+            'registration-workflow' => array(
+                'slug' => 'registration-workflow',
+                'title' => 'Registration form',
+                'description' => 'Use when handling branded event registration forms.',
+                'instructions' => 'PRIVATE REGISTRATION INSTRUCTIONS',
+                'version' => 1,
+                'reference_files' => array(),
+            ),
+        );
+        $exact = WPVDMCP_Parity::execute('load_skill', array('query' => 'registration form'));
+        assert_same('registration-workflow', $exact['matches'][0]['slug'] ?? null,
+            'exact saved title must outrank lower-confidence task word matches');
+        $natural = WPVDMCP_Parity::execute('load_skill', array('query' => 'please update registration forms'));
+        assert_true(!empty($natural['matches']), 'natural-language queries should still discover saved skill metadata');
+        foreach ($natural['matches'] as $row) {
+            assert_true(strpos(wp_json_encode($row), 'PRIVATE REGISTRATION INSTRUCTIONS') === false,
+                'saved skill bodies must remain private during natural-language discovery');
+        }
+        $loaded = WPVDMCP_Parity::execute('load_skill', array('name' => 'registration-workflow'));
+        assert_same('PRIVATE REGISTRATION INSTRUCTIONS', $loaded['instructions'] ?? null,
+            'exact saved name must continue loading the complete selected instructions');
+    } finally {
+        $GLOBALS['wp_options'] = $options_before;
+    }
+});
+
+parity_test('generic platform phrases do not invent a preferred skill', function() {
+    foreach (array('how do I manage WordPress', 'change the site', 'configure a WordPress plugin', 'download all customers', 'WordPress website') as $query) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same(array(), $result['matches'] ?? null,
+            'generic multi-word platform/action request should not guess an unrelated skill: '.$query);
+    }
+});
+
+parity_test('migrate WordPress natural request discovers the dedicated Duplicator skill', function() {
+    $result = WPVDMCP_Parity::execute('load_skill', array('query' => 'migrate WordPress'));
+    assert_same('duplicator', $result['matches'][0]['slug'] ?? null,
+        'migration verb must discover Duplicator rather than generic WordPress metadata');
+});
