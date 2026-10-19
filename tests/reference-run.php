@@ -62,5 +62,6 @@ require __DIR__ . '/reference/cases-49.php';
 require __DIR__ . '/reference/cases-50.php';
 require __DIR__ . '/reference/cases-51.php';
 require __DIR__ . '/reference/cases-52.php';
+require __DIR__ . '/reference/cases-53.php';
 
 $fail=0;foreach($tests as $name=>$fn){try{$fn();echo "PASS $name\n";}catch(Throwable $e){$fail++;echo "FAIL $name: {$e->getMessage()}\n";}}echo sprintf("\n%d reference parity tests, %d failures\n",count($tests),$fail);exit($fail?1:0);
