@@ -3,6 +3,7 @@ parity_test('corrupt one-time token display state cannot fatal wp-admin renderin
     $options_before=$GLOBALS['wp_options'];
     $current_user_before=$GLOBALS['wp_current_user'];
     $get_before=$_GET;
+    $output_level_before=ob_get_level();
     try{
         $GLOBALS['wp_current_user']=1;
         $_GET=array();
@@ -13,7 +14,7 @@ parity_test('corrupt one-time token display state cannot fatal wp-admin renderin
             WPVDMCP_Admin::instance()->render();
             $corrupt_html=ob_get_clean();
         }catch(Throwable $e){
-            if(ob_get_level())ob_end_clean();
+            if(ob_get_level()>$output_level_before)ob_end_clean();
             throw new RuntimeException('corrupt one-time token display state must not break wp-admin rendering: '.$e->getMessage());
         }
 
@@ -29,7 +30,7 @@ parity_test('corrupt one-time token display state cannot fatal wp-admin renderin
         assert_true(strpos($valid_html,$valid_token)!==false,'valid one-time token remains visible exactly for its display request');
         assert_same(false,get_transient('wpvdmcp_new_token_1'),'valid one-time token is still consumed after rendering');
     }finally{
-        while(ob_get_level())ob_end_clean();
+        while(ob_get_level()>$output_level_before)ob_end_clean();
         $GLOBALS['wp_options']=$options_before;
         $GLOBALS['wp_current_user']=$current_user_before;
         $_GET=$get_before;
