@@ -23,7 +23,7 @@ Supported strings: `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. L
 - OPTIONS advertises accepted auth/routing headers.
 - Authenticated diagnostics use `/wp-json/wpvibe-direct/v1/health`.
 - Notification-only POSTs/batches return HTTP 202 with no JSON-RPC body.
-- Known-method notifications still execute normally, but their method result is never emitted; retained legacy mixed batches include responses only for ID-bearing requests.
+- Actual `notifications/*` methods remain fire-and-forget. `tools/call` always requires a JSON-RPC request `id`; omitting it fails before executing the tool, rather than silently mutating the site and returning HTTP 202. Legacy mixed batches return a JSON-RPC Invalid Request error with null `id` for an invalid idless tool call while preserving genuine notifications and valid requests.
 
 ## MCP Apps
 
