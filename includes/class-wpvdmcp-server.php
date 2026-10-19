@@ -212,6 +212,13 @@ final class WPVDMCP_Server {
 		$meta = isset( $params['_meta'] ) && is_array( $params['_meta'] ) ? $params['_meta'] : array();
 		$body_version = isset( $meta['io.modelcontextprotocol/protocolVersion'] ) ? (string) $meta['io.modelcontextprotocol/protocolVersion'] : '';
 		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
+			// A tools/call invocation is a request, not a fire-and-forget
+			// notification. An idless call can mutate the site while returning
+			// HTTP 202 with no result, leaving callers unable to detect or safely
+			// retry the operation. Reject before executing any tool.
+			if ( 'tools/call' === (string) ( $rpc['method'] ?? '' ) && ! array_key_exists( 'id', $rpc ) ) {
+				return $this->rpc_error_array( null, -32600, 'MCP tools/call requires a JSON-RPC request id.' );
+			}
 
 		if ( $body_version && $http_version && $body_version !== $http_version ) {
 			return $this->rpc_error_array( $id, -32020, 'MCP protocol header does not match request metadata.', array( 'header' => $http_version, 'metadata' => $body_version ) );

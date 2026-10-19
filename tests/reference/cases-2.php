@@ -107,7 +107,7 @@ parity_test('legacy MCP batches never mint approval authority as app metadata',f
     assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch model-visible text must not contain the approval token');
 });
 
-parity_test('legacy batch sanitizes app-only metadata while omitting notification responses with duplicate ids',function(){
+parity_test('legacy batch sanitizes app-only metadata and rejects idless tools/call with duplicate ids',function(){
     $GLOBALS['wp_current_user']=1;
     $a=WPVDMCP_Approvals::request('delete_user',array('user_id'=>79),'Delete user #79');
     $b=WPVDMCP_Approvals::request('delete_user',array('user_id'=>80),'Delete user #80');
@@ -120,7 +120,9 @@ parity_test('legacy batch sanitizes app-only metadata while omitting notificatio
     $response=WPVDMCP_Server::instance()->handle($request);
     $response=WPVDMCP_MCP_App_Transport::filter_response($response,null,$request);
     $data=response_data($response);
-    assert_same(2,count((array)$data),'notification must not add a third batch response');
+    assert_same(3,count((array)$data),'invalid idless tools/call must add an Invalid Request error even in mixed batches');
+    assert_same(-32600,$data[2]['error']['code']??null,'idless tools/call is not an allowed notification');
+    assert_true(array_key_exists('id',$data[2])&&null===$data[2]['id'],'invalid idless tool response has null request id');
     $metadata_tokens=0;
     foreach((array)$data as $item){
         $result=$item['result']??array();
