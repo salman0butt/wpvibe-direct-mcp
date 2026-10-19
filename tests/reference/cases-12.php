@@ -63,7 +63,7 @@ parity_test('armored tool calls are bounded exposed-tool retries that preserve n
     foreach(array('call_armored','approval_decide') as $target){
         $blocked=WPVDMCP_Parity::execute('call_armored',array('tool_name'=>$target,'arguments_base64'=>base64_encode('{}')));
         assert_true(is_wp_error($blocked),'forbidden armored target '.$target.' must fail');
-        assert_same('armored_target_forbidden',$blocked->get_error_code(),'forbidden armored target error mismatch for '.$target);
+        assert_true(in_array($blocked->get_error_code(),array('armored_target_forbidden','unknown_armored_target'),true),'armored internal target must remain blocked: '.$target);
     }
     $unknown=WPVDMCP_Parity::execute('call_armored',array('tool_name'=>'internal_secret_tool','arguments_base64'=>base64_encode('{}')));
     assert_true(is_wp_error($unknown),'non-exposed armored target must fail');

@@ -12,10 +12,9 @@ parity_test('site intelligence incorporates upstream site health and performance
 parity_test('MCP Apps advertise inline approval and upload panels with readable UI resources',function(){
     $show=parity_tool('show_approval_panel');$upload=parity_tool('request_upload');
     assert_same('ui://wpvibe-direct/approval-panel',$show['_meta']['ui']['resourceUri']??null,'approval resource uri');
-    assert_true(strpos($show['description']??'','inline MCP App')!==false,'approval tool describes inline MCP App support');
+    assert_true(strpos($show['description']??'','read-only MCP App')!==false,'approval tool describes read-only panel and secure admin handoff');
     assert_same('ui://wpvibe-direct/upload-panel',$upload['_meta']['ui']['resourceUri']??null,'upload resource uri');
-    $decide=parity_tool('approval_decide');assert_true($decide!==null,'app-only approval tool');
-    assert_same(array('app'),$decide['_meta']['ui']['visibility']??null,'approval decision hidden from model');
+    assert_same(null,parity_tool('approval_decide'),'MCP bearer must never discover a self-approval tool');
 
     $server=WPVDMCP_Server::instance();
     $discover_req=test_request(array('jsonrpc'=>'2.0','id'=>'apps','method'=>'server/discover','params'=>array('_meta'=>array('io.modelcontextprotocol/protocolVersion'=>'2026-07-28'))),'2026-07-28');
@@ -33,7 +32,8 @@ parity_test('MCP Apps advertise inline approval and upload panels with readable 
     $read=WPVDMCP_MCP_App_Transport::filter_response($server->handle($read_req),null,$read_req);
     $content=$read->get_data()['result']['contents'][0]??array();
     assert_same('text/html;profile=mcp-app',$content['mimeType']??null,'app mime');
-    assert_true(strpos($content['text']??'','Approve')!==false,'approval HTML');
+    assert_true(strpos($content['text']??'','Review in WordPress admin')!==false,'approval panel links to authenticated wp-admin');
+    assert_true(strpos($content['text']??'',"name:'approval_decide'")===false,'approval panel never issues bearer-authorized decisions');
 });
 
 parity_test('MCP Apps are self-contained and load no external runtime code',function(){
@@ -84,7 +84,7 @@ parity_test('modern MCP rejects JSON-RPC batches before app-only approval metada
     assert_same('pending',$status['status']??null,'rejected batch must leave the destructive approval pending');
 });
 
-parity_test('legacy MCP batches keep app-only approval metadata out of model-visible content',function(){
+parity_test('legacy MCP batches never mint approval authority as app metadata',function(){
     $GLOBALS['wp_current_user']=1;
     $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>78),'Delete user #78');
     $payload=array(array(
@@ -102,8 +102,8 @@ parity_test('legacy MCP batches keep app-only approval metadata out of model-vis
     $data=response_data($response);
     $result=$data[0]['result']??array();
     assert_true(!isset($result['structuredContent']['__mcp_meta']),'legacy batch must strip app-only metadata from structuredContent');
-    $token=$result['_meta']['wpvdmcpApprovalPanelToken']??'';
-    assert_true(is_string($token)&&strlen($token)>20,'legacy batch must preserve app metadata only in result _meta');
+    assert_true(empty($result['_meta']['wpvdmcpApprovalPanelToken']),'legacy batch must not mint bearer-accessible approval authority');
+    assert_true(!empty($result['structuredContent']['approval_url']),'legacy batch retains secure WordPress approval URL');
     assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch model-visible text must not contain the approval token');
 });
 
@@ -129,7 +129,7 @@ parity_test('legacy batch sanitizes app-only metadata while omitting notificatio
         assert_true(strpos($result['content'][0]['text']??'','wpvdmcpApprovalPanelToken')===false,'legacy batch text must never expose app approval token');
         if(!empty($result['_meta']['wpvdmcpApprovalPanelToken'])){$metadata_tokens++;}
     }
-    assert_same(1,$metadata_tokens,'only the id-bearing app result may retain its token in result _meta');
+    assert_same(0,$metadata_tokens,'no legacy batch result may mint an approval credential');
 });
 
 parity_test('legacy batch sanitizes app metadata when the first batch item is malformed null',function(){
@@ -174,22 +174,20 @@ parity_test('empty batch is rejected for post-batching MCP versions',function(){
     assert_same(-32600,$data['error']['code']??null,'empty batch rejection must use Invalid Request');
 });
 
-parity_test('inline approval decision requires opaque app token and consumes it once',function(){
+parity_test('inline approval stays review-only and preserves browser approval',function(){
     $GLOBALS['wp_current_user']=1;
     $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>55,'password'=>'redact-me'),'Delete user #55');
     $panel=WPVDMCP_Parity::execute('show_approval_panel',array('approval_id'=>$pending['approval_id']));
-    $token=$panel['__mcp_meta']['wpvdmcpApprovalPanelToken']??'';
-    assert_true(is_string($token)&&strlen($token)>20,'opaque token returned only as tool metadata');
+    assert_true(!isset($panel['__mcp_meta']),'read-only panel must not mint approval authority');
+    assert_true(!empty($panel['approval_url']),'browser-admin approval URL returned');
     assert_true(!isset($panel['display_payload']['password'])||'[REDACTED]'===($panel['display_payload']['password']??null),'secret display redacted');
-    $missing=WPVDMCP_Parity::execute('approval_decide',array('approval_id'=>$pending['approval_id'],'decision'=>'approve'));
-    assert_true(is_wp_error($missing),'token required');
-    $approved=WPVDMCP_Parity::execute('approval_decide',array('approval_id'=>$pending['approval_id'],'decision'=>'approve','panel_token'=>$token));
-    assert_same('approved',$approved['status']??null,'approved inline');
-    $replay=WPVDMCP_Parity::execute('approval_decide',array('approval_id'=>$pending['approval_id'],'decision'=>'approve','panel_token'=>$token));
-    assert_true(is_wp_error($replay),'panel token single use');
+    $attempt=WPVDMCP_Parity::execute('approval_decide',array('approval_id'=>$pending['approval_id'],'decision'=>'approve','panel_token'=>'anything'));
+    assert_true(is_wp_error($attempt),'bearer-only approval must be refused');
+    assert_same('approval_requires_browser',$attempt->get_error_code(),'approval requires browser-admin credentials');
+    assert_same('pending',WPVDMCP_Approvals::status($pending['approval_id'])['status']??null,'pending receipt remains pending');
 });
 
-parity_test('inline approval panel fails closed when panel token state cannot be persisted',function(){
+parity_test('read-only approval panel does not depend on bearer-accessible token persistence',function(){
     $GLOBALS['wp_current_user']=1;
     $pending=WPVDMCP_Approvals::request('delete_user',array('user_id'=>56),'Delete user #56');
     $GLOBALS['set_transient_override']=function($key,$value,$ttl) use ($pending){
@@ -198,8 +196,9 @@ parity_test('inline approval panel fails closed when panel token state cannot be
     };
     $panel=WPVDMCP_Parity::execute('show_approval_panel',array('approval_id'=>$pending['approval_id']));
     unset($GLOBALS['set_transient_override']);
-    assert_true(is_wp_error($panel),'unpersisted approval-panel token must not be returned');
-    assert_same('approval_panel_persist_failed',$panel->get_error_code(),'approval panel persistence failure code');
+    assert_true(!is_wp_error($panel),'read-only panel needs no token persistence');
+    assert_true(!isset($panel['__mcp_meta']),'read-only panel never emits a panel token');
+    assert_true(!empty($panel['approval_url']),'secure wp-admin URL remains available');
 });
 
 parity_test('screenshot capability is provider backed and never fabricates image output',function(){
