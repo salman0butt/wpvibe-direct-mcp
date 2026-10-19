@@ -22,6 +22,8 @@ parity_test('corrupt one-time token display state cannot fatal wp-admin renderin
         assert_same(false,get_transient('wpvdmcp_new_token_1'),'corrupt one-time token state must be consumed');
 
         $valid_token='valid-one-time-token';
+        update_option('wpvdmcp_token_hash',hash('sha256',$valid_token));
+        update_option('wpvdmcp_user_id','1');
         set_transient('wpvdmcp_new_token_1',$valid_token,5*MINUTE_IN_SECONDS);
         ob_start();
         WPVDMCP_Admin::instance()->render();
