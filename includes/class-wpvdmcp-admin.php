@@ -264,8 +264,11 @@ final class WPVDMCP_Admin {
 		}
 		$status     = self::status_snapshot();
 		$token      = get_transient( 'wpvdmcp_new_token_' . get_current_user_id() );
-		if ( $token ) {
+		if ( false !== $token ) {
 			delete_transient( 'wpvdmcp_new_token_' . get_current_user_id() );
+		}
+		if ( ! is_string( $token ) ) {
+			$token = '';
 		}
 		$user_id = (int) $status['token_owner_user_id'];
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
