@@ -311,18 +311,25 @@ final class WPVDMCP_Server {
 		}
 		if ( 'prompts/list' === $method ) {
 			$prompts = array();
-			foreach ( class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity::skill_instructions() : WPVDMCP_Tools::skills() as $name => $instructions ) {
-				$prompts[] = array( 'name' => $name, 'description' => 'WordPress workflow skill: ' . str_replace( '-', ' ', $name ), 'arguments' => array() );
+			$catalog = class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity_Skills::metadata() : WPVDMCP_Skills::list_metadata();
+			foreach ( $catalog as $meta ) {
+				$name = (string) ( $meta['slug'] ?? '' );
+				if ( '' === $name ) { continue; }
+				$title = (string) ( $meta['title'] ?? $name );
+				$description = ! empty( $meta['description'] ) && is_string( $meta['description'] ) ? $meta['description'] : 'WordPress workflow skill: ' . $title;
+				$prompts[] = array( 'name' => $name, 'title' => $title, 'description' => $description, 'arguments' => array() );
 			}
 			return $this->rpc_result( $id, $this->list_result( 'prompts', $prompts ) );
 		}
 		if ( 'prompts/get' === $method ) {
 			$name = isset( $params['name'] ) ? sanitize_key( $params['name'] ) : '';
-			$skills = class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity::skill_instructions() : WPVDMCP_Tools::skills();
-			if ( ! isset( $skills[ $name ] ) ) {
+			$loaded = class_exists( 'WPVDMCP_Parity' ) ? WPVDMCP_Parity_Skills::load( $name ) : WPVDMCP_Skills::load( $name );
+			if ( is_wp_error( $loaded ) ) {
 				return $this->rpc_error_array( $id, -32602, 'Unknown prompt.' );
 			}
-			return $this->rpc_result( $id, array( 'description' => $name, 'messages' => array( array( 'role' => 'user', 'content' => array( 'type' => 'text', 'text' => $skills[ $name ] ) ) ) ) );
+			$meta = $loaded['metadata'];
+			$description = ! empty( $meta['description'] ) && is_string( $meta['description'] ) ? $meta['description'] : 'WordPress workflow skill: ' . (string) ( $meta['title'] ?? $name );
+			return $this->rpc_result( $id, array( 'description' => $description, 'messages' => array( array( 'role' => 'user', 'content' => array( 'type' => 'text', 'text' => $loaded['instructions'] ) ) ) ) );
 		}
 		if ( 'resources/list' === $method ) {
 			return $this->rpc_result( $id, $this->list_result( 'resources', array() ) );
