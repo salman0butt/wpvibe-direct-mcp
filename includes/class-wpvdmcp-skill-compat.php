@@ -55,6 +55,15 @@ final class WPVDMCP_Skill_Compat {
 	private static function search( $query ) {
 		$q = strtolower( trim( (string) $query ) );
 		if ( '' === $q ) { return array(); }
+		$terms = array();
+		if ( preg_match( '/\s/', $q ) ) {
+			$stop_words = array_flip( array( 'a', 'an', 'and', 'are', 'at', 'by', 'can', 'do', 'for', 'from', 'how', 'i', 'in', 'is', 'me', 'my', 'of', 'on', 'please', 'the', 'to', 'with' ) );
+			foreach ( preg_split( '/[^a-z0-9]+/', substr( $q, 0, 256 ), -1, PREG_SPLIT_NO_EMPTY ) as $term ) {
+				if ( strlen( $term ) < 3 || isset( $stop_words[ $term ] ) ) { continue; }
+				$terms[ $term ] = $term;
+				if ( count( $terms ) >= 12 ) { break; }
+			}
+		}
 		$matches = array();
 		foreach ( WPVDMCP_Parity_Skills::metadata() as $row ) {
 			$slug = strtolower( (string) ( $row['slug'] ?? '' ) );
@@ -77,6 +86,7 @@ final class WPVDMCP_Skill_Compat {
 			elseif ( false !== strpos( $slug, $q ) ) { $score = 75; }
 			elseif ( false !== strpos( $title, $q ) ) { $score = 65; }
 			elseif ( '' !== $description && false !== strpos( $description, $q ) ) { $score = 45; }
+			if ( ! $score && $terms ) { $score = self::term_score( $terms, $slug, $title, $description, $row['tags'] ?? array() ); }
 			if ( ! $score ) { continue; }
 			$copy = $row;
 			unset( $copy['instructions'] );
@@ -88,6 +98,28 @@ final class WPVDMCP_Skill_Compat {
 			return 0 !== $score ? $score : strcmp( (string) ( $a['slug'] ?? '' ), (string) ( $b['slug'] ?? '' ) );
 		} );
 		return array_slice( $matches, 0, 20 );
+	}
+
+	/** Lower-confidence phrase fallback; full slug/title/tag/description matches always win. */
+	private static function term_score( $terms, $slug, $title, $description, $tags ) {
+		$best = 0;
+		$matched = 0;
+		foreach ( $terms as $term ) {
+			$score = 0;
+			foreach ( is_array( $tags ) ? $tags : array() as $tag ) {
+				if ( is_string( $tag ) && self::has_word( strtolower( $tag ), $term ) ) { $score = 40; break; }
+			}
+			if ( ! $score && self::has_word( $slug, $term ) ) { $score = 38; }
+			if ( ! $score && self::has_word( $title, $term ) ) { $score = 36; }
+			if ( ! $score && self::has_word( $description, $term ) ) { $score = 22; }
+			if ( $score ) { $best = max( $best, $score ); ++$matched; }
+		}
+		return $best ? min( 44, $best + 2 * ( $matched - 1 ) ) : 0;
+	}
+
+	/** Match a standalone task word, never an accidental substring like form in performance. */
+	private static function has_word( $text, $term ) {
+		return '' !== $text && 1 === preg_match( '/(^|[^a-z0-9])' . preg_quote( $term, '/' ) . '($|[^a-z0-9])/', $text );
 	}
 
 	private static function select_resource_match( $query, $matches ) {
