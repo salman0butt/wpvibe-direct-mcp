@@ -33,7 +33,8 @@ final class WPVDMCP_Upload {
 		$args  = is_array( $args ) ? $args : array();
 		$owner = (int) get_option( 'wpvdmcp_user_id', 0 );
 		$user  = $owner ? get_user_by( 'id', $owner ) : false;
-		if ( ! $owner || ! $user || ! user_can( $user, 'manage_options' ) ) {
+		$token_hash = get_option( 'wpvdmcp_token_hash', '' );
+		if ( ! $owner || ! $user || ! user_can( $user, 'manage_options' ) || ! is_string( $token_hash ) || ! preg_match( '/^[a-f0-9]{64}$/D', $token_hash ) ) {
 			return new WP_Error( 'upload_owner_missing', 'Direct MCP has no valid Administrator token owner.', array( 'status' => 401 ) );
 		}
 
@@ -44,6 +45,7 @@ final class WPVDMCP_Upload {
 			'id'            => $id,
 			'secret_hash'   => hash( 'sha256', $secret ),
 			'owner_user_id' => $owner,
+			'token_hash_fingerprint' => hash( 'sha256', $token_hash ),
 			'status'        => 'waiting',
 			'created_at'    => $now,
 			'expires_at'    => $now + self::TTL,
@@ -52,7 +54,7 @@ final class WPVDMCP_Upload {
 			'alt_text'      => isset( $args['alt_text'] ) ? sanitize_text_field( $args['alt_text'] ) : '',
 			'files'         => array(),
 		);
-		if ( ! set_transient( self::key( $id ), $record, self::TTL ) ) {
+		if ( ! set_transient( self::key( $id ), $record, self::TTL ) || $record !== get_transient( self::key( $id ) ) ) {
 			return new WP_Error( 'upload_persist_failed', 'The upload ticket could not be durably persisted. No browser upload URL was created.', array( 'status' => 503 ) );
 		}
 
@@ -74,9 +76,8 @@ final class WPVDMCP_Upload {
 		if ( is_wp_error( $record ) ) {
 			return $record;
 		}
-		if ( (int) get_option( 'wpvdmcp_user_id', 0 ) !== (int) $record['owner_user_id'] ) {
-			return new WP_Error( 'upload_owner_changed', 'The Direct MCP token owner changed after this upload was requested.', array( 'status' => 409 ) );
-		}
+		$owner = self::validate_owner_record( $record );
+		if ( is_wp_error( $owner ) ) { return $owner; }
 		return self::safe_record( $record );
 	}
 
@@ -116,6 +117,7 @@ final class WPVDMCP_Upload {
 			$record['status'] = 'processing';
 			$record['processing_at'] = time();
 			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( $stored ) { $stored = $record === get_transient( self::key( $id ) ); }
 			if ( ! $stored ) {
 				$release_claim = false;
 				return new WP_Error( 'upload_persist_failed', 'The upload ticket could not be durably reserved. No media was uploaded and this ticket is locked until it expires.', array( 'status' => 503 ) );
@@ -163,6 +165,7 @@ final class WPVDMCP_Upload {
 			$record['ready_at']    = time();
 			$record['secret_hash'] = ''; // Makes the browser URL non-replayable.
 			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( $stored ) { $stored = $record === get_transient( self::key( $id ) ); }
 			if ( ! $stored ) {
 				$release_claim = false;
 				return new WP_Error( 'upload_persist_failed', 'The completed upload could not be durably recorded. The uploaded attachments must be rolled back and this ticket is locked until it expires.', array( 'status' => 503 ) );
@@ -356,7 +359,7 @@ final class WPVDMCP_Upload {
 	}
 
 	private static function is_valid_record( $record, $id ) {
-		return isset( $record['id'], $record['secret_hash'], $record['owner_user_id'], $record['status'], $record['expires_at'], $record['post_id'], $record['title'], $record['alt_text'], $record['files'] )
+		return isset( $record['id'], $record['secret_hash'], $record['owner_user_id'], $record['token_hash_fingerprint'], $record['status'], $record['expires_at'], $record['post_id'], $record['title'], $record['alt_text'], $record['files'] )
 			&& $record['id'] === $id
 			&& is_string( $record['secret_hash'] )
 				&& is_int( $record['owner_user_id'] ) && $record['owner_user_id'] > 0
@@ -365,7 +368,8 @@ final class WPVDMCP_Upload {
 			&& is_numeric( $record['post_id'] )
 			&& is_string( $record['title'] )
 			&& is_string( $record['alt_text'] )
-			&& is_array( $record['files'] );
+			&& is_array( $record['files'] )
+			&& is_string( $record['token_hash_fingerprint'] ) && 1 === preg_match( '/^[a-f0-9]{64}$/D', $record['token_hash_fingerprint'] );
 	}
 
 	private static function safe_record( $record ) {
@@ -393,6 +397,8 @@ final class WPVDMCP_Upload {
 	}
 
 	private static function validate_secret_record( $record, $secret, $allowed_statuses ) {
+		$owner = self::validate_owner_record( $record );
+		if ( is_wp_error( $owner ) ) { return $owner; }
 		$status = isset( $record['status'] ) ? (string) $record['status'] : '';
 		if ( ! in_array( $status, (array) $allowed_statuses, true ) || empty( $record['secret_hash'] ) ) {
 			return new WP_Error( 'upload_not_waiting', 'This upload ticket has already been used or closed.', array( 'status' => 409, 'upload_status' => $status ) );
@@ -400,6 +406,17 @@ final class WPVDMCP_Upload {
 		$hash = hash( 'sha256', (string) $secret );
 		if ( ! hash_equals( (string) $record['secret_hash'], $hash ) ) {
 			return new WP_Error( 'upload_token_invalid', 'The upload link is invalid.', array( 'status' => 403 ) );
+		}
+		return true;
+	}
+
+	private static function validate_owner_record( $record ) {
+		$expected = $record['owner_user_id'];
+		$current = get_option( 'wpvdmcp_user_id', null );
+		$hash = get_option( 'wpvdmcp_token_hash', null );
+		if ( ( $current !== $expected && $current !== (string) $expected ) || ! is_string( $hash ) || ! preg_match( '/^[a-f0-9]{64}$/D', $hash ) ||
+			! hash_equals( $record['token_hash_fingerprint'], hash( 'sha256', $hash ) ) ) {
+			return new WP_Error( 'upload_owner_changed', 'The Direct MCP token owner or credential changed after this upload was requested.', array( 'status' => 409 ) );
 		}
 		return true;
 	}
