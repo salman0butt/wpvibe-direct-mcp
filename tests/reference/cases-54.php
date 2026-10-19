@@ -183,3 +183,17 @@ parity_test('phrase search preserves exact saved skill matches and private instr
         $GLOBALS['wp_options'] = $options_before;
     }
 });
+
+parity_test('generic platform phrases do not invent a preferred skill', function() {
+    foreach (array('how do I manage WordPress', 'change the site', 'configure a WordPress plugin') as $query) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same(array(), $result['matches'] ?? null,
+            'generic multi-word platform/action request should not guess an unrelated skill: '.$query);
+    }
+});
+
+parity_test('migrate WordPress natural request discovers the dedicated Duplicator skill', function() {
+    $result = WPVDMCP_Parity::execute('load_skill', array('query' => 'migrate WordPress'));
+    assert_same('duplicator', $result['matches'][0]['slug'] ?? null,
+        'migration verb must discover Duplicator rather than generic WordPress metadata');
+});

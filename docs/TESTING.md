@@ -13,7 +13,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, bringing the source suite to **53 core/legacy + 20 parity + 184 reference cases (257 suite cases)** plus the focused Abilities regression.
+Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, bringing the source suite to **53 core/legacy + 20 parity + 186 reference cases (259 suite cases)** plus the focused Abilities regression.
 
 ### MCP transport
 

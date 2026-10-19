@@ -85,7 +85,7 @@ final class WPVDMCP_Skills {
 			'amelia' => array( 'appointments', 'bookings', 'calendar' ),
 			'charitable' => array( 'donations', 'fundraising' ),
 			'adtribes-product-feed' => array( 'product feed', 'shopping feed' ),
-			'duplicator' => array( 'site migration', 'backup', 'restore' ),
+			'duplicator' => array( 'site migration', 'migrate', 'backup', 'restore' ),
 			'fluentcrm' => array( 'email automation', 'customer crm' ),
 			'elementor-atomic' => array( 'global styles', 'atomic elements', 'design tokens' ),
 			'security' => array( 'GDPR privacy', 'permissions', 'vulnerability' ),

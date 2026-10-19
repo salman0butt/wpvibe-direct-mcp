@@ -57,7 +57,7 @@ final class WPVDMCP_Skill_Compat {
 		if ( '' === $q ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
-			$stop_words = array_flip( array( 'a', 'an', 'and', 'are', 'at', 'by', 'can', 'do', 'for', 'from', 'how', 'i', 'in', 'is', 'me', 'my', 'of', 'on', 'please', 'the', 'to', 'with' ) );
+			$stop_words = array_flip( array( 'a', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
 			foreach ( preg_split( '/[^a-z0-9]+/', substr( $q, 0, 256 ), -1, PREG_SPLIT_NO_EMPTY ) as $term ) {
 				if ( strlen( $term ) < 3 || isset( $stop_words[ $term ] ) ) { continue; }
 				$terms[ $term ] = $term;
