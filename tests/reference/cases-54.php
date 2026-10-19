@@ -116,3 +116,14 @@ parity_test('skill discovery finds the intended workflow for common real-world t
     $ranked = WPVDMCP_Parity::execute('load_skill', array('query' => 'stock'));
     assert_same('woocommerce', $ranked['matches'][0]['slug'] ?? null, 'WooCommerce stock/inventory skill outranks generic stock photos');
 });
+
+parity_test('form searches rank the form-builder skill ahead of performance substring matches', function() {
+    foreach (array('form', 'forms', 'contact form') as $query) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same('wpforms', $result['matches'][0]['slug'] ?? null,
+            'WPForms should rank first for form intent: '.$query);
+    }
+    $performance = WPVDMCP_Parity::execute('load_skill', array('query' => 'performance'));
+    assert_same('performance', $performance['matches'][0]['slug'] ?? null,
+        'exact performance lookups must still select the performance skill');
+});
