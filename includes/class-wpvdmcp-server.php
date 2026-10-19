@@ -212,6 +212,12 @@ final class WPVDMCP_Server {
 		$meta = isset( $params['_meta'] ) && is_array( $params['_meta'] ) ? $params['_meta'] : array();
 		$body_version = isset( $meta['io.modelcontextprotocol/protocolVersion'] ) ? (string) $meta['io.modelcontextprotocol/protocolVersion'] : '';
 		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
+			// JSON-RPC IDs must be strings, numbers, or null. Invalid booleans,
+			// arrays, or objects cannot identify a result safely and must never
+			// reach a side-effecting tool, including inside legacy batches.
+			if ( array_key_exists( 'id', $rpc ) && null !== $id && ! is_string( $id ) && ! is_int( $id ) && ! is_float( $id ) ) {
+				return $this->rpc_error_array( null, -32600, 'Invalid JSON-RPC request id.' );
+			}
 			// A tools/call invocation is a request, not a fire-and-forget
 			// notification. An idless call can mutate the site while returning
 			// HTTP 202 with no result, leaving callers unable to detect or safely

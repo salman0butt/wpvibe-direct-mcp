@@ -2,6 +2,7 @@
 
 parity_test('idless MCP tools/call never creates an upload ticket or drops its result', function() {
     $options_before = $GLOBALS['wp_options'];
+    $user_before = $GLOBALS['wp_current_user'];
     try {
         $GLOBALS['wp_options']['wpvdmcp_token_hash'] = hash('sha256', 'test-token');
         $GLOBALS['wp_options']['wpvdmcp_user_id'] = 1;
@@ -24,11 +25,12 @@ parity_test('idless MCP tools/call never creates an upload ticket or drops its r
             }, ARRAY_FILTER_USE_BOTH));
             assert_same($before, $after, 'invalid tools/call must never create a media upload ticket for '.$version);
         }
-    } finally { $GLOBALS['wp_options'] = $options_before; }
+    } finally { $GLOBALS['wp_options'] = $options_before; $GLOBALS['wp_current_user'] = $user_before; }
 });
 
 parity_test('legacy mixed batch rejects idless write before dispatch but preserves notifications and requests', function() {
     $options_before = $GLOBALS['wp_options'];
+    $user_before = $GLOBALS['wp_current_user'];
     try {
         $GLOBALS['wp_options']['wpvdmcp_token_hash'] = hash('sha256', 'test-token');
         $GLOBALS['wp_options']['wpvdmcp_user_id'] = 1;
@@ -48,11 +50,12 @@ parity_test('legacy mixed batch rejects idless write before dispatch but preserv
         foreach (array_keys($GLOBALS['wp_options']) as $key) {
             assert_true(0 !== strpos((string)$key, 'transient:wpvdmcp_upload_up_'), 'idless write in mixed batch must not mint upload ticket');
         }
-    } finally { $GLOBALS['wp_options'] = $options_before; }
+    } finally { $GLOBALS['wp_options'] = $options_before; $GLOBALS['wp_current_user'] = $user_before; }
 });
 
 parity_test('id-bearing MCP tools/call remains usable and actual notifications return HTTP 202', function() {
     $options_before = $GLOBALS['wp_options'];
+    $user_before = $GLOBALS['wp_current_user'];
     try {
         $GLOBALS['wp_options']['wpvdmcp_token_hash'] = hash('sha256', 'test-token');
         $GLOBALS['wp_options']['wpvdmcp_user_id'] = 1;
@@ -66,5 +69,5 @@ parity_test('id-bearing MCP tools/call remains usable and actual notifications r
         $notification = WPVDMCP_Server::instance()->handle(test_request(array('jsonrpc'=>'2.0', 'method'=>'notifications/initialized', 'params'=>array()), '2025-11-25'));
         assert_same(202, $notification->get_status(), 'genuine notification remains accepted with no response');
         assert_same(null, response_data($notification), 'notification has no JSON-RPC result');
-    } finally { $GLOBALS['wp_options'] = $options_before; }
+    } finally { $GLOBALS['wp_options'] = $options_before; $GLOBALS['wp_current_user'] = $user_before; }
 });
