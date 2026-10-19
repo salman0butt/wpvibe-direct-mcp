@@ -80,3 +80,39 @@ parity_test('Abilities API skill describes safe idempotent destructive method se
     assert_true(strpos($body, 'non-idempotent') !== false && strpos($body, 'POST') !== false, 'non-idempotent destructive writes must use POST');
     assert_true(strpos($body, 'destructive as DELETE') === false, 'remove misleading blanket destructive mapping');
 });
+
+parity_test('all 67 shipped skills advertise concrete when-to-use discovery descriptions', function() {
+    $catalog = array_merge(WPVDMCP_Skills::list_metadata(), array_values(WPVDMCP_Parity_Skills::extra_catalog()));
+    assert_same(67, count($catalog), 'all shipped built-in skills must have indexed metadata');
+    foreach ($catalog as $meta) {
+        $description = $meta['description'] ?? '';
+        assert_true(is_string($description) && strlen($description) >= 35 && strlen($description) <= 300,
+            'built-in skill should have bounded meaningful use-case description: '.($meta['slug']??''));
+    }
+});
+
+parity_test('skill discovery finds the intended workflow for common real-world tasks', function() {
+    $intents = array(
+        'stock' => 'woocommerce',
+        'inventory' => 'woocommerce',
+        'checkout' => 'cartflows',
+        'appointments' => 'amelia',
+        'donations' => 'charitable',
+        'product feed' => 'adtribes-product-feed',
+        'site migration' => 'duplicator',
+        'email automation' => 'fluentcrm',
+        'global styles' => 'elementor-atomic',
+        'GDPR privacy' => 'security',
+    );
+    foreach ($intents as $query => $required) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_true(is_array($result), 'intent search must complete: '.$query);
+        $matches = $result['matches'] ?? array();
+        $slugs = array_map(function($item) {return $item['slug'] ?? '';}, $matches);
+        assert_true(in_array($required, $slugs, true), 'intent "'.$query.'" must discover '.$required);
+        assert_true(!empty($matches[0]['description']), 'search results explain why the skill applies: '.$query);
+        foreach ($matches as $item) assert_true(!isset($item['instructions']), 'search must not load bodies');
+    }
+    $ranked = WPVDMCP_Parity::execute('load_skill', array('query' => 'stock'));
+    assert_same('woocommerce', $ranked['matches'][0]['slug'] ?? null, 'WooCommerce stock/inventory skill outranks generic stock photos');
+});

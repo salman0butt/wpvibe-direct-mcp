@@ -60,9 +60,19 @@ final class WPVDMCP_Skill_Compat {
 			$slug = strtolower( (string) ( $row['slug'] ?? '' ) );
 			$title = strtolower( (string) ( $row['title'] ?? '' ) );
 			$description = strtolower( (string) ( $row['description'] ?? '' ) );
+			$tag_match = false;
+			if ( isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
+				foreach ( $row['tags'] as $tag ) {
+					if ( is_string( $tag ) && strtolower( $tag ) === $q ) {
+						$tag_match = true;
+						break;
+					}
+				}
+			}
 			$score = 0;
 			if ( $slug === $q ) { $score = 100; }
 			elseif ( $title === $q ) { $score = 95; }
+			elseif ( $tag_match ) { $score = 90; }
 			elseif ( 0 === strpos( $slug, $q ) ) { $score = 85; }
 			elseif ( false !== strpos( $slug, $q ) ) { $score = 75; }
 			elseif ( false !== strpos( $title, $q ) ) { $score = 65; }
