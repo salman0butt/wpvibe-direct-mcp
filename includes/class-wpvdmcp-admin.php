@@ -263,12 +263,24 @@ final class WPVDMCP_Admin {
 			return;
 		}
 		$status     = self::status_snapshot();
-		$token      = get_transient( 'wpvdmcp_new_token_' . get_current_user_id() );
-		if ( false !== $token ) {
-			delete_transient( 'wpvdmcp_new_token_' . get_current_user_id() );
-		}
-		if ( ! is_string( $token ) ) {
-			$token = '';
+		$token      = '';
+		$claim      = $this->acquire_token_mutation_claim();
+		if ( false !== $claim ) {
+			try {
+				$token_key = 'wpvdmcp_new_token_' . get_current_user_id();
+				$candidate = get_transient( $token_key );
+				if ( false !== $candidate && delete_transient( $token_key ) && false === get_transient( $token_key ) && is_string( $candidate ) && '' !== $candidate ) {
+					$owner = get_option( 'wpvdmcp_user_id', null );
+					$current_user_id = get_current_user_id();
+					$owner_matches = ( is_int( $owner ) && $owner === $current_user_id ) || ( is_string( $owner ) && $owner === (string) $current_user_id );
+					$stored_hash = get_option( 'wpvdmcp_token_hash', null );
+					if ( $owner_matches && is_string( $stored_hash ) && hash_equals( $stored_hash, hash( 'sha256', $candidate ) ) ) {
+						$token = $candidate;
+					}
+				}
+			} finally {
+				$this->release_token_mutation_claim( $claim );
+			}
 		}
 		$user_id = (int) $status['token_owner_user_id'];
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
