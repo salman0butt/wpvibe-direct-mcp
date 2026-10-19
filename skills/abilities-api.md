@@ -1,6 +1,6 @@
 # Abilities Api
 
-Requires WordPress 6.9+ and REST-exposed abilities. Discover abilities and inspect one ability before execution. Validate input against declared schemas and annotations. Treat readonly as GET, destructive as DELETE, other writes as POST, and never bypass browser approval unless the site owner explicitly enabled WPVibe approval bypass in wp-admin.
+Requires WordPress 6.9+ and REST-exposed abilities. Discover abilities and inspect one ability before execution. Validate input against declared schemas and annotations. Treat readonly as GET, destructive and idempotent as DELETE, and all other writes (including destructive non-idempotent operations) as POST. Never bypass browser approval unless the site owner explicitly enabled WPVibe approval bypass in wp-admin.
 
 ## Workflow
 
