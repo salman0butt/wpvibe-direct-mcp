@@ -85,9 +85,10 @@ parity_test('WordPress browser approval shows the exact redacted change before r
         ), 'POST /wp/v2/pages/10');
         $method = new ReflectionMethod('WPVDMCP_Admin', 'render_approval');
         if (PHP_VERSION_ID < 80100) $method->setAccessible(true);
+        $starting_level = ob_get_level();
         ob_start();
         try { $method->invoke(WPVDMCP_Admin::instance(), $pending['approval_id']); $html = ob_get_clean(); }
-        finally { if (ob_get_level() > 0) ob_end_clean(); }
+        finally { while (ob_get_level() > $starting_level) ob_end_clean(); }
         assert_true(strpos($html, 'Change only homepage heading') !== false, 'human approver must see actual redacted write payload');
         assert_true(strpos($html, 'NEVER_SHOW_APPROVAL_SECRET') === false, 'rendered review must never reveal secret values');
         assert_true(strpos($html, '[REDACTED]') !== false, 'secret fields are displayed as redacted');
