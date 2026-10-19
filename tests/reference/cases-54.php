@@ -138,6 +138,8 @@ parity_test('natural-language skill searches route task words without substring 
         'update product feed' => 'adtribes-product-feed',
         'run email automation' => 'fluentcrm',
         'fix WordPress SEO' => 'seo',
+		'build a landing page' => 'seedprod',
+		'fix image upload' => 'media',
     );
     foreach ($intents as $query => $slug) {
         $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
@@ -185,7 +187,7 @@ parity_test('phrase search preserves exact saved skill matches and private instr
 });
 
 parity_test('generic platform phrases do not invent a preferred skill', function() {
-    foreach (array('how do I manage WordPress', 'change the site', 'configure a WordPress plugin') as $query) {
+    foreach (array('how do I manage WordPress', 'change the site', 'configure a WordPress plugin', 'download all customers', 'WordPress website') as $query) {
         $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
         assert_same(array(), $result['matches'] ?? null,
             'generic multi-word platform/action request should not guess an unrelated skill: '.$query);
