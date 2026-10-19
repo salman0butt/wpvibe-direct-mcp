@@ -89,7 +89,7 @@ final class WPVDMCP_Skills {
 			'fluentcrm' => array( 'email automation', 'customer crm' ),
 			'elementor-atomic' => array( 'global styles', 'atomic elements', 'design tokens' ),
 			'security' => array( 'GDPR privacy', 'permissions', 'vulnerability' ),
-			'wpforms' => array( 'contact form', 'forms' ),
+			'wpforms' => array( 'form', 'contact form', 'forms' ),
 			'advanced-custom-fields' => array( 'acf', 'repeater fields', 'custom fields' ),
 		);
 		return isset( $tags[ $slug ] ) ? $tags[ $slug ] : array();
