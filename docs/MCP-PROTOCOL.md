@@ -27,7 +27,7 @@ Supported strings: `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. L
 
 ## MCP Apps
 
-`show_approval_panel` and `request_upload` carry MCP App UI metadata. Supporting clients render the apps inline; non-supporting clients can continue to use the returned secure browser URL. Inline approval uses a separate high-entropy, owner-bound, single-use panel token that is delivered only in tool-result `_meta`, not model-visible structured content.
+`show_approval_panel` and `request_upload` carry MCP App UI metadata. Supporting clients render the apps inline; non-supporting clients can continue to use the returned secure browser URL. **The approval app is read-only** and displays the pending operation with its WordPress admin approval URL. Actual approve/reject decisions require an authenticated WordPress administrator session and nonce. Neither the MCP bearer token nor an MCP App token can authorize a requested mutation; the earlier bearer-reachable `approval_decide` path now fails closed. The inline image-upload panel remains interactive for its independently scoped upload ticket.
 
 ## What is deliberately not claimed
 

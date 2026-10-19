@@ -84,6 +84,8 @@ See `docs/PARITY.md` for the complete matrix.
 
 ## Security highlights
 
+Current unreleased `main` hardens the MCP Apps approval boundary: a bearer-authenticated client can inspect a pending approval but cannot mint an approval credential or approve its own mutation through `approval_decide`. The read-only inline app links to the separate authenticated WordPress admin form, where administrator capability and nonce checks remain mandatory. The published `v1.4.1` artifact predates this change.
+
 - High-entropy access token, stored as SHA-256 only.
 - Token owner must still exist and retain `manage_options`.
 - Bearer and `X-WPVibe-Direct-Token` headers work by default; query-string credentials are an explicit site-owner opt-in on current unreleased `main`.

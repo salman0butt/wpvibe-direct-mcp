@@ -382,7 +382,8 @@ final class WPVDMCP_Admin {
 			return;
 		}
 		?>
-		<div class="notice notice-warning" style="padding:12px 16px"><h2 style="margin-top:4px">Direct MCP approval</h2><p><strong><?php echo esc_html( $approval['summary'] ); ?></strong></p><p>Status: <code><?php echo esc_html( $approval['status'] ); ?></code> · Operation: <code><?php echo esc_html( $approval['operation'] ); ?></code> · Expires: <?php echo esc_html( wp_date( 'Y-m-d H:i:s', (int) $approval['expires_at'] ) ); ?></p>
+			<div class="notice notice-warning" style="padding:12px 16px"><h2 style="margin-top:4px">Direct MCP approval</h2><p><strong><?php echo esc_html( $approval['summary'] ); ?></strong></p><p>Status: <code><?php echo esc_html( $approval['status'] ); ?></code> · Operation: <code><?php echo esc_html( $approval['operation'] ); ?></code> · Expires: <?php echo esc_html( wp_date( 'Y-m-d H:i:s', (int) $approval['expires_at'] ) ); ?></p>
+			<p><strong>Requested changes (sensitive values redacted):</strong></p><pre style="max-width:100%;overflow:auto;white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px"><?php echo esc_html( wp_json_encode( $approval['display_payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
 		<?php if ( 'pending' === $approval['status'] ) : ?>
 			<p>Approve only if this exactly matches the change you asked the AI to make. Approval is one-time and payload-bound.</p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px"><input type="hidden" name="action" value="wpvdmcp_approval"><input type="hidden" name="approval_id" value="<?php echo esc_attr( $approval_id ); ?>"><input type="hidden" name="decision" value="approve"><?php wp_nonce_field( 'wpvdmcp_action' ); ?><button class="button button-primary">Approve once</button></form>

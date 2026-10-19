@@ -7,26 +7,11 @@ final class WPVDMCP_MCP_Apps {
 	const MIME_TYPE = 'text/html;profile=mcp-app';
 	const APPROVAL_URI = 'ui://wpvibe-direct/approval-panel';
 	const UPLOAD_URI = 'ui://wpvibe-direct/upload-panel';
-	const PANEL_TTL = 900;
 
 	public static function definitions() {
-		return array(
-			array(
-				'name' => 'approval_decide',
-				'description' => 'MCP App-only helper for approving or declining one displayed Direct MCP approval. Requires the opaque panel token delivered only in tool result metadata.',
-				'inputSchema' => array(
-					'type' => 'object',
-					'properties' => (object) array(
-						'approval_id' => array( 'type' => 'string' ),
-						'decision' => array( 'type' => 'string', 'enum' => array( 'approve', 'decline' ) ),
-						'panel_token' => array( 'type' => 'string' ),
-					),
-					'required' => array( 'approval_id', 'decision', 'panel_token' ),
-					'additionalProperties' => false,
-				),
-				'_meta' => array( 'ui' => array( 'visibility' => array( 'app' ) ) ),
-			),
-		);
+		// A bearer-authenticated MCP client must never receive a credential that
+		// allows it to approve its own write, even through MCP Apps metadata.
+		return array();
 	}
 
 	public static function handles( $name ) {
@@ -37,24 +22,10 @@ final class WPVDMCP_MCP_Apps {
 		$args = is_array( $args ) ? $args : array();
 		if ( 'show_approval_panel' === $name ) {
 			$id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
-			$status = WPVDMCP_Approvals::status( $id );
-			if ( is_wp_error( $status ) ) { return $status; }
-			$token = 'ui_' . bin2hex( random_bytes( 24 ) );
-			$owner = (int) get_option( 'wpvdmcp_user_id', 0 );
-			$stored = set_transient( self::panel_key( $id ), array(
-				'token_hash' => hash( 'sha256', $token ),
-				'approval_id' => $id,
-				'owner_user_id' => $owner,
-				'expires_at' => time() + self::PANEL_TTL,
-			), self::PANEL_TTL );
-			if ( ! $stored ) {
-				return new WP_Error( 'approval_panel_persist_failed', 'The inline approval-panel token could not be durably persisted. Use the browser approval URL instead.', array( 'status' => 503 ) );
-			}
-			$status['__mcp_meta'] = array( 'wpvdmcpApprovalPanelToken' => $token );
-			return $status;
+			return WPVDMCP_Approvals::status( $id );
 		}
 		if ( 'approval_decide' === $name ) {
-			return self::decide( $args );
+			return new WP_Error( 'approval_requires_browser', 'Approve or reject this operation in the authenticated WordPress admin page. An MCP bearer token cannot authorize its own writes.', array( 'status' => 403 ) );
 		}
 		return new WP_Error( 'unknown_mcp_app_tool', 'Unknown MCP App tool.', array( 'status' => 404 ) );
 	}
@@ -64,7 +35,7 @@ final class WPVDMCP_MCP_Apps {
 		foreach ( $tools as &$tool ) {
 			$name = isset( $tool['name'] ) ? $tool['name'] : '';
 			if ( 'show_approval_panel' === $name ) {
-				$tool['description'] = 'Open or inspect a Direct MCP approval. Supporting clients get an inline MCP App approval panel; all clients retain the secure browser approval URL fallback.';
+				$tool['description'] = 'Inspect a pending Direct MCP approval in a read-only MCP App panel. The site administrator must approve or reject using the authenticated WordPress admin URL.';
 				$tool['_meta'] = isset( $tool['_meta'] ) && is_array( $tool['_meta'] ) ? $tool['_meta'] : array();
 				$tool['_meta']['ui'] = array( 'resourceUri' => self::APPROVAL_URI, 'visibility' => array( 'model', 'app' ) );
 				$tool['_meta']['ui/resourceUri'] = self::APPROVAL_URI;
@@ -82,7 +53,7 @@ final class WPVDMCP_MCP_Apps {
 
 	public static function resources() {
 		return array(
-			array( 'uri' => self::APPROVAL_URI, 'name' => 'WPVibe Direct Approval Panel', 'description' => 'Inline approve/decline UI for a pending Direct MCP operation.', 'mimeType' => self::MIME_TYPE ),
+			array( 'uri' => self::APPROVAL_URI, 'name' => 'WPVibe Direct Approval Review', 'description' => 'Read-only summary and authenticated WordPress admin approval link.', 'mimeType' => self::MIME_TYPE ),
 			array( 'uri' => self::UPLOAD_URI, 'name' => 'WPVibe Direct Upload Panel', 'description' => 'Inline drag/drop image upload UI for a Direct MCP upload ticket.', 'mimeType' => self::MIME_TYPE ),
 		);
 	}
@@ -110,43 +81,7 @@ final class WPVDMCP_MCP_Apps {
 		return new WP_Error( 'resource_not_found', 'Unknown MCP App resource.', array( 'status' => 404, 'uri' => $uri ) );
 	}
 
-	private static function decide( $args ) {
-		$id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
-		$decision = isset( $args['decision'] ) ? sanitize_key( $args['decision'] ) : '';
-		$token = isset( $args['panel_token'] ) ? (string) $args['panel_token'] : '';
-		if ( ! in_array( $decision, array( 'approve', 'decline' ), true ) ) {
-			return new WP_Error( 'invalid_decision', 'Decision must be approve or decline.', array( 'status' => 400 ) );
-		}
-		$record = get_transient( self::panel_key( $id ) );
-		if ( ! is_array( $record ) ) {
-			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
-		}
-		if ( ! isset( $record['token_hash'] ) || ! is_string( $record['token_hash'] ) || '' === $record['token_hash'] ) {
-			delete_transient( self::panel_key( $id ) );
-			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
-		}
-		if ( ! isset( $record['approval_id'] ) || ! is_string( $record['approval_id'] ) || $record['approval_id'] !== $id ) {
-			delete_transient( self::panel_key( $id ) );
-			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
-		}
-		if ( ! isset( $record['owner_user_id'] ) || ! is_int( $record['owner_user_id'] ) || $record['owner_user_id'] <= 0 ) {
-			delete_transient( self::panel_key( $id ) );
-			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
-		}
-		if ( empty( $token ) || ! hash_equals( $record['token_hash'], hash( 'sha256', $token ) ) ) {
-			return new WP_Error( 'panel_token_invalid', 'The inline approval panel token is missing, invalid, or expired.', array( 'status' => 403 ) );
-		}
-		if ( $record['owner_user_id'] !== (int) get_option( 'wpvdmcp_user_id', 0 ) ) {
-			return new WP_Error( 'panel_owner_changed', 'The Direct MCP token owner changed after the panel was opened.', array( 'status' => 409 ) );
-		}
-		delete_transient( self::panel_key( $id ) ); // One UI decision per panel token.
-		$user_id = $record['owner_user_id'];
-		$result = 'approve' === $decision ? WPVDMCP_Approvals::approve( $id, $user_id ) : WPVDMCP_Approvals::reject( $id, $user_id );
-		if ( is_wp_error( $result ) ) { return $result; }
-		return WPVDMCP_Approvals::status( $id );
-	}
 
-	private static function panel_key( $id ) { return 'wpvdmcp_ui_panel_' . hash( 'sha256', (string) $id ); }
 
 	private static function site_origin() {
 		$url = function_exists( 'home_url' ) ? home_url( '/' ) : admin_url( '' );
@@ -287,7 +222,7 @@ JS;
 
 	private static function approval_html() {
 		$html = <<<'HTML'
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WPVibe approval</title><style>body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:16px;color:CanvasText;background:Canvas}main{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:12px;padding:16px}pre{white-space:pre-wrap;overflow:auto;background:color-mix(in srgb,CanvasText 6%,Canvas);padding:10px;border-radius:8px}.actions{display:flex;gap:8px;margin-top:12px}button{padding:9px 14px;border-radius:8px;border:1px solid currentColor;background:Canvas;cursor:pointer}button.primary{font-weight:700}#status{margin-top:10px}</style></head><body><main><h2>Review destructive action</h2><p id="summary">Waiting for approval details…</p><pre id="payload"></pre><div class="actions"><button class="primary" id="approve">Approve</button><button id="decline">Decline</button></div><p id="status" aria-live="polite"></p></main><script>/*__WPVDMCP_APP_CLIENT__*/const app=createDirectMcpApp({name:'WPVibe Direct Approval',version:'1.0.0'});let record=null,token='';const $=id=>document.getElementById(id);function render(){if(!record)return;$('summary').textContent=(record.operation?record.operation+': ':'')+(record.summary||'Review this operation before it runs.');$('payload').textContent=JSON.stringify(record.display_payload||{},null,2);$('status').textContent='Status: '+(record.status||'pending');const disabled=record.status!=='pending'||!token;$('approve').disabled=disabled;$('decline').disabled=disabled;}app.ontoolresult=(result)=>{record=result.structuredContent||{};token=result._meta?.wpvdmcpApprovalPanelToken||'';render();};async function decide(decision){if(!record||!token)return;$('status').textContent='Submitting…';try{const res=await app.callServerTool({name:'approval_decide',arguments:{approval_id:record.approval_id,decision,panel_token:token}});if(res?.structuredContent)record=res.structuredContent;token='';render();}catch(e){$('status').textContent='Could not submit the decision. Use the browser approval fallback.';}}$('approve').onclick=()=>decide('approve');$('decline').onclick=()=>decide('decline');app.connect().catch(()=>{$('status').textContent='Inline approval unavailable. Use the browser approval fallback.';});</script></body></html>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WPVibe approval review</title><style>body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:16px;color:CanvasText;background:Canvas}main{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:12px;padding:16px}pre{white-space:pre-wrap;overflow:auto;background:color-mix(in srgb,CanvasText 6%,Canvas);padding:10px;border-radius:8px}a{display:inline-block;padding:9px 14px;border:1px solid currentColor;border-radius:8px;color:inherit}#url{overflow-wrap:anywhere}</style></head><body><main><h2>Review pending operation</h2><p id="summary">Waiting for approval details…</p><pre id="payload"></pre><p id="status" aria-live="polite"></p><p>For security, this MCP App cannot approve its own requested operations. Sign in to WordPress admin to review and decide.</p><p><a id="admin-link" target="_blank" rel="noopener noreferrer" hidden>Review in WordPress admin</a></p><p id="url"></p></main><script>/*__WPVDMCP_APP_CLIENT__*/const app=createDirectMcpApp({name:'WPVibe Direct Approval Review',version:'1.0.0'});const $=id=>document.getElementById(id);app.ontoolresult=result=>{const record=result.structuredContent||{};$('summary').textContent=(record.operation?record.operation+': ':'')+(record.summary||'Review this operation before it runs.');$('payload').textContent=JSON.stringify(record.display_payload||{},null,2);$('status').textContent='Status: '+(record.status||'unknown');const url=record.approval_url||'';const valid=typeof url==='string'&&/^https?:\/\//i.test(url);const link=$('admin-link');link.hidden=!valid;if(valid){link.href=url;$('url').textContent=url;}else{$('url').textContent='Approval URL unavailable.';}};app.connect().catch(()=>{$('status').textContent='Inline review unavailable. Open the WordPress admin approval link supplied by the tool.';});</script></body></html>
 HTML;
 		return str_replace( '/*__WPVDMCP_APP_CLIENT__*/', self::app_client_js(), $html );
 	}
