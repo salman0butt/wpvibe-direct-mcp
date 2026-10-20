@@ -1,7 +1,7 @@
 <?php
 parity_test('current Works-with-AI additions are audited and ship dedicated safe playbooks',function(){
     $manifest=WPVDMCP_Parity::execute('reference_parity_manifest',array());
-    assert_same('2026-10-12',$manifest['audited_at']??null,'reference audit date must cover the current Works-with-AI catalog');
+    assert_same('2026-10-20',$manifest['audited_at']??null,'reference audit date must cover upstream WPVibe 1.20.5');
 
     foreach(array('advanced-custom-fields','ultimate-addons-for-elementor','disable-comments') as $slug){
         assert_true(in_array($slug,$manifest['works_with_ai_integrations']??array(),true),'Works-with manifest missing '.$slug);

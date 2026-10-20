@@ -27,15 +27,15 @@ final class WPVDMCP_Reference_Manifest {
 			);
 		}
 		return array(
-			'audited_at' => '2026-10-12',
-			'upstream_version' => '1.20.3',
-			'upstream_commit' => '8f303926ae11179e38bc0ecf2a87e3cbd18984c6',
+			'audited_at' => '2026-10-20',
+			'upstream_version' => '1.20.5',
+			'upstream_commit' => '62bc77ccd1c15faf766f527a7935fe32f1b227d3',
 			'reference_sources' => array(
 				'features' => 'https://wpvibe.ai/features/',
 				'tools_reference' => 'https://wpvibe.ai/docs/tools-reference/',
 				'cookbook' => 'https://wpvibe.ai/cookbook/',
 				'works_with_ai' => 'https://wpvibe.ai/works-with/',
-				'upstream_github' => 'https://github.com/awesomemotive/wpvibe-ai-mcp/tree/8f303926ae11179e38bc0ecf2a87e3cbd18984c6',
+				'upstream_github' => 'https://github.com/awesomemotive/wpvibe-ai-mcp/tree/62bc77ccd1c15faf766f527a7935fe32f1b227d3',
 			),
 			'features_page' => array(
 				'full_rest_api','wp_cli','theme_builder','draft_preview_publish','site_intelligence','lighthouse','plugin_abilities','images_media',

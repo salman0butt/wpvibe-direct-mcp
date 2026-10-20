@@ -33,9 +33,17 @@ concurrency:
 
 jobs:
   elementor:
-    name: WordPress 6.9 / WPVibe 1.20.3 / Elementor 4.3.4
+    name: WordPress 6.9 / WPVibe ${{ matrix.wpvibe_version }} / Elementor 4.3.4
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wpvibe_version: '1.20.3'
+            wpvibe_sha: 8f303926ae11179e38bc0ecf2a87e3cbd18984c6
+          - wpvibe_version: '1.20.5'
+            wpvibe_sha: 62bc77ccd1c15faf766f527a7935fe32f1b227d3
 
     services:
       mysql:
@@ -74,7 +82,7 @@ jobs:
         id: site
         shell: bash
         env:
-          WPVIBE_SHA: 8f303926ae11179e38bc0ecf2a87e3cbd18984c6
+          WPVIBE_SHA: ${{ matrix.wpvibe_sha }}
           WP_ROOT: /tmp/wpvibe-e2e-wordpress
         run: |
           set -euo pipefail
@@ -118,9 +126,15 @@ jobs:
           wp plugin install elementor --version=4.3.4 --activate --path="$WP_ROOT"
           wp plugin activate vibe-ai/vibe-ai.php --path="$WP_ROOT"
           wp plugin activate wpvibe-direct-mcp/wpvibe-direct-mcp.php --path="$WP_ROOT"
+          # Install while the runner still owns wp-content. The Apache step
+          # chowns uploads/plugins to uid 33; installing afterward as the
+          # runner user fails when WordPress cannot create wp-content/upgrade.
+          if [[ "${{ matrix.wpvibe_version }}" == '1.20.5' ]]; then
+            wp plugin install insert-headers-and-footers --activate --path="$WP_ROOT"
+          fi
 
           test "$(wp plugin get elementor --field=version --path="$WP_ROOT")" = '4.3.4'
-          test "$(wp plugin get vibe-ai --field=version --path="$WP_ROOT")" = '1.20.3'
+          test "$(wp plugin get vibe-ai --field=version --path="$WP_ROOT")" = "${{ matrix.wpvibe_version }}"
 
           ADMIN_ID="$(wp user get admin --field=ID --path="$WP_ROOT")"
           DIRECT_TOKEN="wpvd_e2e_$(openssl rand -hex 24)"
@@ -187,6 +201,11 @@ jobs:
       - name: Run Direct MCP Elementor acceptance
         shell: bash
         run: bash tests/e2e/wordpress-elementor-smoke.sh
+
+      - name: Verify WPCode 1.20.5 retire semantics through Direct MCP
+        if: matrix.wpvibe_version == '1.20.5'
+        shell: bash
+        run: bash tests/e2e/wpcode-retire-smoke.sh
 
       - name: Verify no PHP fatal errors were logged
         if: success()

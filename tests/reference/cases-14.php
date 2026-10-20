@@ -4,6 +4,10 @@ parity_test('WPCode snippets use a Direct reviewed-write safety bridge',function
     $tool=parity_tool('code_snippet');
     assert_true(is_array($tool),'code_snippet tool missing');
     assert_true(isset($tool['inputSchema']['properties']->approval_id),'code_snippet must expose one-time Direct approval_id for reviewed writes');
+    if(!class_exists('WPVibe_Code_Snippet')){
+        $enum=$tool['inputSchema']['properties']->action['enum']??array();
+        assert_true(!in_array('delete',$enum,true),'retire actions must not be advertised without an upstream retire implementation');
+    }
     assert_true(WPVDMCP_Parity::handles('code_snippet'),'code_snippet must be handled by Direct safety logic instead of dispatching the Worker-only REST route');
 });
 
@@ -15,8 +19,19 @@ parity_test('WPCode reviewed writes preserve dormant classification approval bin
         class WPVibe_Code_Snippet {
             public static $mode='review';
             public static $calls=array();
+            public static function proof_subject($request){
+                $action=$request->get_param('action');
+                return in_array($action,array('deactivate','delete'),true) ? $action.':'.(int)$request->get_param('id') : (string)$request->get_param('code');
+            }
             public static function handle($request,$dormant=false){
                 self::$calls[]=array('dormant'=>(bool)$dormant,'params'=>$request->get_params());
+                if('retire'===self::$mode){
+                    $action=$request->get_param('action');
+                    if('delete'===$action && $dormant){
+                        return new WP_Error('snippet_review_required','Deleting a WPVibe-created snippet requires review.',array('status'=>409,'reason'=>'retire'));
+                    }
+                    return array('id'=>(int)$request->get_param('id'),'action'=>$action,'active'=>false,'dormant'=>(bool)$dormant);
+                }
                 if($dormant && 'review'===self::$mode){
                     return new WP_Error('snippet_review_required','Review this exact snippet write.',array('status'=>409,'reason'=>'not_disabled'));
                 }
@@ -93,4 +108,81 @@ parity_test('WPCode reviewed writes preserve dormant classification approval bin
     assert_same(true,WPVibe_Code_Snippet::$calls[0]['dormant'],'bypass must classify through dormant path first');
     assert_same(false,WPVibe_Code_Snippet::$calls[1]['dormant'],'bypass may use upstream approved handler only after review-required classification');
     unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+});
+
+parity_test('WPCode 1.20.4+ retire actions are discoverable and never rewritten to create',function(){
+    set_test_routes(array('/wpvibe/v1/code-snippet/dormant'=>array('POST')));
+    $definition=parity_tool('code_snippet');
+    $properties=$definition['inputSchema']['properties']??null;
+    $action=is_object($properties) ? ($properties->action??array()) : array();
+    assert_true(in_array('deactivate',$action['enum']??array(),true),'deactivate action must be discoverable');
+    assert_true(in_array('delete',$action['enum']??array(),true),'delete action must be discoverable');
+    $required=$definition['inputSchema']['required']??array();
+    foreach(array('code','title','code_type','location') as $name){
+        assert_true(!in_array($name,$required,true),'retire actions must not require source fields: '.$name);
+    }
+
+    $GLOBALS['wp_current_user']=1;
+    WPVibe_Code_Snippet::$mode='retire';
+    WPVibe_Code_Snippet::$calls=array();
+    unset($GLOBALS['wp_options']['wpvibe_bypass_approvals']);
+    foreach(array(
+        array('action'=>'delete','id'=>0),
+        array('action'=>'deactivate','id'=>0),
+        array('action'=>'trash','id'=>91),
+        array('action'=>'delete','id'=>91,'code'=>'<?php echo "not part of retirement";'),
+    ) as $bad){
+        $reject=WPVDMCP_Parity::execute('code_snippet',$bad);
+        assert_true(is_wp_error($reject),'invalid retire action or fields must fail before upstream handler');
+        assert_same(0,count(WPVibe_Code_Snippet::$calls),'invalid retire payload cannot call upstream');
+    }
+    $off=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+    assert_same(200,$off['status']??null,'deactivate must complete without approval');
+    assert_same('deactivate',$off['data']['action']??null,'deactivate action must reach upstream unchanged');
+    assert_same(false,$off['data']['active']??null,'deactivate must report disabled');
+    assert_same(1,count(WPVibe_Code_Snippet::$calls),'deactivation uses one dormant upstream invocation');
+    assert_same('deactivate',WPVibe_Code_Snippet::$calls[0]['params']['action']??null,'deactivate must not fall back to create');
+    assert_true(!isset(WPVibe_Code_Snippet::$calls[0]['params']['code']) || ''===WPVibe_Code_Snippet::$calls[0]['params']['code'],'retire must not require code');
+    assert_same(true,WPVibe_Code_Snippet::$calls[0]['dormant'],'deactivation uses no-approval upstream path');
+
+    $pending=WPVDMCP_Parity::execute('code_snippet',array('action'=>'delete','id'=>91));
+    assert_same('approval_required',$pending['status']??null,'delete must require approval');
+    assert_same('retire',$pending['reason']??null,'upstream review reason must survive');
+    assert_same('delete',WPVibe_Code_Snippet::$calls[1]['params']['action']??null,'delete classifier must not fall back to create');
+    assert_same(true,WPVibe_Code_Snippet::$calls[1]['dormant'],'delete must first classify in dormant mode');
+
+    WPVDMCP_Approvals::approve($pending['approval_id'],1);
+    $wrong=WPVDMCP_Parity::execute('code_snippet',array('action'=>'delete','id'=>92,'approval_id'=>$pending['approval_id']));
+    assert_true(is_wp_error($wrong),'approved delete must be ID-bound');
+    assert_same('approval_payload_mismatch',$wrong->get_error_code(),'delete ID drift rejected');
+    assert_same(2,count(WPVibe_Code_Snippet::$calls),'ID drift must cause no new side effect');
+    $done=WPVDMCP_Parity::execute('code_snippet',array('action'=>'delete','id'=>91,'approval_id'=>$pending['approval_id']));
+    assert_same(200,$done['status']??null,'approved delete must complete');
+    assert_same('delete',$done['data']['action']??null,'approved delete reaches upstream action');
+    assert_same(false,WPVibe_Code_Snippet::$calls[2]['dormant'],'only approved path may delete');
+    $again=WPVDMCP_Parity::execute('code_snippet',array('action'=>'delete','id'=>91,'approval_id'=>$pending['approval_id']));
+    assert_true(is_wp_error($again),'delete approval must be one-time');
+    assert_same(3,count(WPVibe_Code_Snippet::$calls),'replayed delete cannot execute');
+    WPVibe_Code_Snippet::$mode='review';
+});
+
+parity_test('WPCode retirement fails closed if the upstream execution cache still contains the snippet',function(){
+    set_test_routes(array('/wpvibe/v1/code-snippet/dormant'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    $before=$GLOBALS['wp_options'];
+    try {
+        WPVibe_Code_Snippet::$mode='retire';
+        WPVibe_Code_Snippet::$calls=array();
+        $GLOBALS['wp_options']['wpcode_snippets']=array('global'=>array(array('id'=>91)));
+        $result=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+        assert_true(is_wp_error($result),'native active:false is not sufficient when WPCode cache still executes the snippet');
+        assert_same('snippet_cache_still_active',$result->get_error_code(),'cache conflict must be an actionable explicit error');
+        assert_same(1,count(WPVibe_Code_Snippet::$calls),'do not attempt another deactivation side effect');
+        unset($GLOBALS['wp_options']['wpcode_snippets']);
+        $cleared=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+        assert_same(200,$cleared['status']??null,'cached snippet absent allows verified inactive response');
+    } finally {
+        $GLOBALS['wp_options']=$before;
+        WPVibe_Code_Snippet::$mode='review';
+    }
 });
