@@ -220,6 +220,10 @@ parity_test('WPCode retirement fails closed for object, flat or uninspectable ca
             array('id'=>91),
             array(91),
             array('global'=>(object)array('snippets'=>array((object)array('id'=>91)))),
+            array('id'=>92,'children'=>array(array('id'=>91))),
+            array('global'=>array(array('id'=>92,'snippets'=>array(array('id'=>91))))),
+            array('global'=>(object)array('id'=>92,'snippets'=>array((object)array('id'=>91)))),
+            array('global'=>array(91=>array())),
             array('global'=>'uninspectable'),
             'uninspectable',
         ) as $cache){

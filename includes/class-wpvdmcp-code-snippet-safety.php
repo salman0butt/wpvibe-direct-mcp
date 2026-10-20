@@ -175,10 +175,23 @@ final class WPVDMCP_Code_Snippet_Safety {
 			return empty( $properties ) ? true : self::cache_contains_or_unknown( $properties, $id, $depth + 1 );
 		}
 		if ( is_array( $value ) ) {
-			if ( array_key_exists( 'id', $value ) ) {
-				return ! self::valid_retire_id( $value['id'] ) || (int) $value['id'] === $id;
+			$has_record_id = array_key_exists( 'id', $value );
+			if ( $has_record_id && ( ! self::valid_retire_id( $value['id'] ) || (int) $value['id'] === $id ) ) {
+				return true;
 			}
-			foreach ( $value as $entry ) {
+			foreach ( $value as $key => $entry ) {
+				if ( 'id' === $key ) {
+					continue;
+				}
+				// Some caches key records by snippet ID instead of storing an id property.
+				if ( is_int( $key ) && $key === $id ) {
+					return true;
+				}
+				// Scalars within a known different-ID record are ordinary fields such as code/type.
+				// Nested containers must still be checked; another snippet may be inside them.
+				if ( $has_record_id && ! is_array( $entry ) && ! is_object( $entry ) ) {
+					continue;
+				}
 				if ( self::cache_contains_or_unknown( $entry, $id, $depth + 1 ) ) {
 					return true;
 				}
