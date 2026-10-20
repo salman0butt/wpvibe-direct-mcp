@@ -17,6 +17,10 @@ parity_test('release metadata is WPVibe Direct MCP 1.5.1',function(){
     assert_true(strpos($changelog,'## 1.5.0 - 2026-10-20')!==false,'1.5.0 changelog section');
     assert_true(strpos($changelog,'## 1.4.1 - 2026-10-12')!==false,'1.4.1 changelog section');
     assert_true(strpos($root,'Direct MCP: **1.5.1**')!==false,'README release version 1.5.1');
+    assert_true(strpos($root,'Audited WPVibe release/source: **1.20.5**')!==false,'README audited upstream version 1.20.5');
+    assert_true(strpos($root,'**275 suite cases**')!==false,'README 1.5.1 suite total 275');
     assert_true(strpos($parity,'Direct MCP release target: **1.5.1**')!==false,'parity release target 1.5.1');
+    assert_true(strpos($parity,'Release **1.5.1** runs **275 suite cases')!==false,'parity validation count 275');
+    assert_true(strpos($testing,'Release **1.5.1** packages')!==false,'testing docs identify 1.5.1 as released source');
     assert_true(strpos($testing,'Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)**')!==false,'testing release count 1.4.1');
 });

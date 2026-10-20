@@ -153,7 +153,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-The 1.5.0 disposable acceptance lane verifies:
+Both 1.5.1 disposable WordPress/Elementor lanes verify:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -192,6 +192,7 @@ The release workflow first resolves plugin-header/version/stable-tag consistency
 1. source PHP syntax validation;
 2. source legacy, parity, reference, 174-request skill routing benchmark, and focused Abilities raw-JSON request-body regression suites;
 3. release ZIP build, ZIP integrity test, and SHA-256 generation;
+   the `.sha256` file references the plain ZIP filename so verification works alongside the downloaded ZIP without recreating a `dist/` directory;
 4. extraction of the built ZIP;
 5. extracted legacy, parity, reference, routing benchmark, and focused Abilities raw-JSON regression suites;
 6. extracted PHP syntax validation;
