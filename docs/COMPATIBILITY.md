@@ -2,14 +2,14 @@
 
 ## Audited baseline
 
-WPVibe Direct MCP 1.4.1 remains audited against:
+WPVibe Direct MCP 1.5.0 retains the verified baseline of 1.4.1 against:
 
 - official WPVibe WordPress plugin **1.20.3**;
 - upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6` from 2026-10-06;
 - WordPress 6.0+ and PHP 7.4+ as the plugin floor;
 - WordPress 6.9 + Elementor Core 4.3.4 for the disposable Abilities/Elementor acceptance lane.
 
-Release **1.4.1** packages the verified security hardening accumulated after immutable release 1.4.0. Older tags remain unchanged.
+Release **1.5.0** adds further security, skills, and compatibility hardening since immutable release 1.4.1. Older tags remain unchanged.
 
 ## Feature detection first
 

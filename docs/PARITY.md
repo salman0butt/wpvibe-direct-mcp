@@ -1,12 +1,12 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-12**. Direct MCP release target: **1.4.1**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-12**. Direct MCP release target: **1.5.0**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
-Provider-backed parity is also bounded on output in current unreleased source: local and hosted/reference provider callbacks share one recursive sanitizer for credential-key redaction plus string/collection/depth/total-size limits, including provider `WP_Error` data. Sanitizer metadata is explicit when a result is changed; this is a Direct safety boundary, not evidence that the underlying hosted WPVibe infrastructure has been cloned.
+Provider-backed parity is also bounded on output in release 1.5.0: local and hosted/reference provider callbacks share one recursive sanitizer for credential-key redaction plus string/collection/depth/total-size limits, including provider `WP_Error` data. Sanitizer metadata is explicit when a result is changed; this is a Direct safety boundary, not evidence that the underlying hosted WPVibe infrastructure has been cloned.
 
-Provider-backed tool definitions also carry non-secret current registration metadata in unreleased source. Required external capabilities remain listed for exact-name parity with `configured: false` when absent; `get_page_html` advertises its optional browser provider plus same-site native fallback. Discovery never invokes the provider while computing this metadata.
+Provider-backed tool definitions also carry non-secret current registration metadata in release 1.5.0. Required external capabilities remain listed for exact-name parity with `configured: false` when absent; `get_page_html` advertises its optional browser provider plus same-site native fallback. Discovery never invokes the provider while computing this metadata.
 
 Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Works-with-AI playbook refresh while preserving the immutable history of earlier releases.
 

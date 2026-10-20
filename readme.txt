@@ -2,7 +2,7 @@
 Contributors: community
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.5.0
 License: GPLv2 or later
 
 Adds a self-hosted MCP transport to the WPVibe WordPress plugin.
@@ -27,5 +27,5 @@ It dynamically exposes only the WPVibe routes available on the site, including t
 * Each token belongs to one WordPress administrator.
 * All tool calls run as that user and still pass WordPress/WPVibe capability checks.
 * Application-password management routes and this plugin's own endpoint are blocked from the generic REST tool.
-* Bearer and `X-WPVibe-Direct-Token` headers are available by default. On current unreleased `main`, URL query tokens are disabled unless the site owner explicitly enables query-token compatibility; keep it off unless a client cannot send authentication headers.
+* Bearer and `X-WPVibe-Direct-Token` headers are available by default. Since 1.5.0, URL query tokens are disabled unless the site owner explicitly enables query-token compatibility; keep it off unless a client cannot send authentication headers.
 * Activity logs do not store file contents or request bodies.

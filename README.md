@@ -6,14 +6,22 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## Release
 
-- Direct MCP: **1.4.1**
+- Direct MCP: **1.5.0**
 - Audited WPVibe release/source: **1.20.3**
 - Audited upstream commit: **`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`** (2026-10-06)
 - WordPress: 6.0+; Abilities tools require WordPress 6.9+
 - PHP: 7.4+
 - MCP: modern `2026-07-28` plus legacy 2025/2024 compatibility
 
-## What 1.4.1 adds and verifies
+## What’s new in 1.5.0
+
+- Security: bearer-authenticated MCP Apps can no longer self-approve mutations; only a capability- and nonce-checked WordPress admin can approve them.
+- Security: upload tickets are bound to the live token/owner; malformed or missing JSON-RPC request IDs are rejected before side effects.
+- Workflow discovery: 67 skills have intent metadata; matching recognizes named WordPress integrations while avoiding offsite false positives. CI enforces a 174-request curated benchmark.
+- Query-string authentication is disabled by default; migrate clients to an authorization header or explicitly enable the compatibility option in WP admin.
+- PHP release verification now includes **53 core/legacy + 20 parity + 196 reference = 269 suite cases**, the routing benchmark and focused Abilities request-body regression.
+
+## What 1.4.1 added (previous release)
 
 - MCP 2025-06-18 and newer reject JSON-RPC batches before tool execution. Retained pre-2025-06-18 legacy batching sanitizes MCP Apps metadata per result so inline approval-panel tokens cannot leak into model-visible content.
 - One-time approvals now use an atomic claim before protected execution; concurrent reuse, ambiguous claims, and persistence uncertainty fail closed.
@@ -23,7 +31,7 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 - The 2026-10-12 Works-with-AI/Cookbook refresh adds dedicated ACF, Ultimate Addons for Elementor, and Disable Comments safety playbooks over the existing WordPress Abilities execution surface.
 - Release CI contains 35 core/legacy + 14 parity + 70 reference cases = **119 suite cases**, plus the focused Abilities raw-JSON regression, on PHP 7.4, 8.2, and 8.4.
 
-The real disposable acceptance lane remains bounded to WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4. It verifies authenticated MCP discovery, runtime Elementor Ability discovery, approval/replay protection, draft page creation, Atomic composition, page-structure read, publish, rendered frontend output, PHP-fatal checks, Atomic-OFF fallback behavior, and the live WPVibe route-classification inventory. Elementor Pro Theme Builder, broader global-style/element mutations, other page builders, provider-backed browser/audit/image services, WPCode live runtime behavior, media edge cases, and production/client sites are not claimed as E2E-verified by this release.
+The real disposable acceptance lane remains bounded to WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4. It verifies authenticated MCP discovery, runtime Elementor Ability discovery, approval/replay protection, draft page creation, Atomic composition, shared global-style/element updates, page-structure read, publish, rendered frontend output, PHP-fatal checks, Atomic-OFF fallback behavior, and the live WPVibe route-classification inventory. Elementor Pro Theme Builder, other page builders, provider-backed browser/audit/image services, WPCode live runtime behavior, media edge cases, and production/client sites are not claimed as E2E-verified by this release.
 
 See `CHANGELOG.md`, `docs/PARITY.md`, and `docs/TESTING.md` for the evidence boundary.
 
@@ -62,7 +70,7 @@ See `docs/MEDIA-UPLOAD.md`.
 
 Install Direct MCP separately on each WordPress site you want to manage. A Direct MCP instance natively manages only the WordPress installation on which it is installed.
 
-Current unreleased `main` disables query-string authentication by default. If a client genuinely cannot attach authentication headers, a site owner can explicitly enable **Allow query-string token compatibility** in **WPVibe → Direct MCP → Settings**, then use `?token=YOUR_TOKEN` (or the legacy `?access_token=` alias). Query-string credentials can appear in logs, browser history, analytics, referrers, screenshots, support tooling, and proxy telemetry, so keep the option off unless required and rotate the token after suspected exposure. The published `v1.4.1` artifact predates this hardening and still accepts valid query tokens by default.
+Release 1.5.0 disables query-string authentication by default. If a client genuinely cannot attach authentication headers, a site owner can explicitly enable **Allow query-string token compatibility** in **WPVibe → Direct MCP → Settings**, then use `?token=YOUR_TOKEN` (or the legacy `?access_token=` alias). Query-string credentials can appear in logs, browser history, analytics, referrers, screenshots, support tooling, and proxy telemetry, so keep the option off unless required and rotate the token after suspected exposure. The published `v1.4.1` artifact predates this hardening and still accepts valid query tokens by default.
 
 ## Architecture
 
@@ -76,19 +84,19 @@ Direct MCP stays thin by design:
 
 Direct MCP exposes audited hosted tool names for account/site registry, fleet and usage-reset workflows, but it does not clone WPVibe's private cloud database or credentials. Those tools require a user-owned provider and otherwise return `provider_unavailable`. In particular, `connect_site`, `list_sites`, and `remove_site` are exact-name compatibility adapters only; they do not create or manage a Direct-owned remote-site registry. Stock search, browser rendering, screenshots and Lighthouse-style audits follow the same fail-closed provider model. MCP Apps approval/upload panels are implemented locally and do not require WPVibe's hosted UI.
 
-Current unreleased source keeps those exact public tool names visible in MCP discovery and adds non-secret provider readiness under each provider-backed tool's `_meta['io.wpvibe.direct/provider']`. Discovery checks only whether a callback/filter is registered; it never calls the provider. `get_page_html` is marked as a hybrid capability because same-site HTML can still fall back to WPVibe's native rendered-HTML path while external JavaScript rendering requires the configured browser provider.
+Release 1.5.0 keeps those exact public tool names visible in MCP discovery and adds non-secret provider readiness under each provider-backed tool's `_meta['io.wpvibe.direct/provider']`. Discovery checks only whether a callback/filter is registered; it never calls the provider. `get_page_html` is marked as a hybrid capability because same-site HTML can still fall back to WPVibe's native rendered-HTML path while external JavaScript rendering requires the configured browser provider.
 
-Current unreleased source also treats provider **responses** as an external trust boundary. Local and hosted/reference provider results pass through one bounded normalizer before becoming model-visible: credential-shaped keys are removed by key context, nested structures are depth/item bounded, individual strings and the overall output have explicit size limits, provider `WP_Error` data is sanitized, and any changed result carries `_wpvdmcp_provider_output` metadata. Ordinary prose containing words such as “token” is not redacted merely for using that word. The published `v1.4.1` artifact predates this hardening.
+Release 1.5.0 also treats provider **responses** as an external trust boundary. Local and hosted/reference provider results pass through one bounded normalizer before becoming model-visible: credential-shaped keys are removed by key context, nested structures are depth/item bounded, individual strings and the overall output have explicit size limits, provider `WP_Error` data is sanitized, and any changed result carries `_wpvdmcp_provider_output` metadata. Ordinary prose containing words such as “token” is not redacted merely for using that word. The published `v1.4.1` artifact predates this hardening.
 
 See `docs/PARITY.md` for the complete matrix.
 
 ## Security highlights
 
-Current unreleased `main` hardens the MCP Apps approval boundary: a bearer-authenticated client can inspect a pending approval but cannot mint an approval credential or approve its own mutation through `approval_decide`. The read-only inline app links to the separate authenticated WordPress admin form, where administrator capability and nonce checks remain mandatory. The published `v1.4.1` artifact predates this change.
+Release 1.5.0 hardens the MCP Apps approval boundary: a bearer-authenticated client can inspect a pending approval but cannot mint an approval credential or approve its own mutation through `approval_decide`. The read-only inline app links to the separate authenticated WordPress admin form, where administrator capability and nonce checks remain mandatory. The published `v1.4.1` artifact predates this change.
 
 - High-entropy access token, stored as SHA-256 only.
 - Token owner must still exist and retain `manage_options`.
-- Bearer and `X-WPVibe-Direct-Token` headers work by default; query-string credentials are an explicit site-owner opt-in on current unreleased `main`.
+- Bearer and `X-WPVibe-Direct-Token` headers work by default; query-string credentials are an explicit site-owner opt-in in release 1.5.0.
 - Every ordinary downstream WordPress route still performs its own permission checks; in-process safety bridges explicitly preserve any capability check skipped by not entering a Worker-proof REST permission callback.
 - Generic REST blocks all `/wpvibe-direct/v1/` routes, WordPress Application Password management endpoints, and audited WPVibe Worker/control-plane endpoints.
 - Generic REST writes are one-time approval-gated unless the site owner explicitly enables WPVibe's approval bypass.
@@ -113,11 +121,12 @@ Run:
 php tests/run.php
 php tests/parity-run.php
 php tests/reference-run.php
+php tests/skill-routing-benchmark.php --enforce
 php tests/abilities-json-body-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 
-Release 1.4.1 verification contains 35 core/legacy + 14 parity + 70 reference tests = **119 suite cases**, plus the focused Abilities raw-JSON request-body regression. GitHub Actions runs the source suites on PHP 7.4, 8.2, and 8.4, and the release workflow repeats the complete PHP suites plus focused regression after extracting the built ZIP.
+Release 1.5.0 verification contains 53 core/legacy + 20 parity + 196 reference tests = **269 suite cases**, plus the 174-request routing benchmark and focused Abilities raw-JSON request-body regression. GitHub Actions runs source suites on PHP 7.4, 8.2, and 8.4; the release workflow repeats them against the extracted ZIP on PHP 8.2. Historical v1.4.1 contains 119 suite cases and remains unchanged.
 
 The WPCode reviewed-write bridge is unit/reference verified against the upstream handler contract, including dormant success, review-required approval, payload drift rejection, replay rejection, approval-bypass ordering, ignored activation input, and the preserved capability gate. The disposable WordPress/Elementor lane does not install WPCode, so no live WPCode E2E claim is made.
 
