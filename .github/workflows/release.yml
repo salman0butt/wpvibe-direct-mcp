@@ -130,6 +130,7 @@ jobs:
           php tests/run.php
           php tests/parity-run.php
           php tests/reference-run.php
+          php tests/skill-routing-benchmark.php --enforce
           php tests/abilities-json-body-run.php
 
       - name: Build release archive
@@ -160,6 +161,7 @@ jobs:
           php tests/run.php
           php tests/parity-run.php
           php tests/reference-run.php
+          php tests/skill-routing-benchmark.php --enforce
           php tests/abilities-json-body-run.php
           while IFS= read -r -d '' file; do
             php -l "$file" > /dev/null
@@ -227,7 +229,7 @@ jobs:
               printing { print }
             ' CHANGELOG.md
             echo
-            echo "Verification: legacy, parity, reference, and focused Abilities request-body regression suites pass on the source checkout and extracted release ZIP; all PHP files are syntax checked before publication."
+            echo "Verification: legacy, parity, reference, the 174-request skill routing benchmark, and focused Abilities request-body regression suites pass on the source checkout and extracted release ZIP; all PHP files are syntax checked before publication."
           } > release-notes.md
 
           if gh release view "$TAG" >/dev/null 2>&1; then

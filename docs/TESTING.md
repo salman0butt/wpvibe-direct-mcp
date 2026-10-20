@@ -14,7 +14,7 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Current unreleased source additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, bringing the source suite to **53 core/legacy + 20 parity + 196 reference cases (269 suite cases)** plus the focused Abilities regression.
+Release 1.5.0 additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, bringing the source suite to **53 core/legacy + 20 parity + 196 reference cases (269 suite cases)** plus the focused Abilities regression.
 
 ### Skill-intent retrieval benchmark
 
@@ -151,7 +151,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-The current unreleased acceptance lane verifies:
+The 1.5.0 disposable acceptance lane verifies:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -185,18 +185,18 @@ This is real disposable-site E2E evidence for schema-first Elementor Core page c
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.4.1, publication requires all of the following:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.5.0, publication requires all of the following:
 
 1. source PHP syntax validation;
-2. source legacy, parity, reference, and focused Abilities raw-JSON request-body regression suites;
+2. source legacy, parity, reference, 174-request skill routing benchmark, and focused Abilities raw-JSON request-body regression suites;
 3. release ZIP build, ZIP integrity test, and SHA-256 generation;
 4. extraction of the built ZIP;
-5. extracted legacy, parity, reference, and focused Abilities raw-JSON regression suites;
+5. extracted legacy, parity, reference, routing benchmark, and focused Abilities raw-JSON regression suites;
 6. extracted PHP syntax validation;
 7. a fresh current-remote-`main` check plus the latest exact-SHA `PHP parity checks` and `WordPress Elementor E2E` runs both reporting `completed:success` immediately before tag creation;
-8. immutable `v1.4.1` tag verification/creation and release publication only after those checks pass.
+8. new immutable `v1.5.0` tag verification/creation and release publication only after those checks pass.
 
-Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0ebb428577bddf5718cef84f8a2ec3c586e` and the published `v1.4.0` tag remains unchanged; the 1.4.1 workflow must create a new tag rather than move or overwrite either release.
+Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0ebb428577bddf5718cef84f8a2ec3c586e` and the published `v1.4.0` tag remains unchanged; the 1.5.0 workflow must create a new tag rather than move or overwrite any prior release.
 
 ## Broader manual disposable WordPress integration checklist
 
@@ -222,4 +222,4 @@ Existing tags remain immutable. In particular, `v1.3.3` remains fixed at `0654f0
 
 ## Current integration status
 
-Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Current unreleased source strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, Direct-side preservation of Elementor page settings, two-page shared global-class/global-variable application, one-write propagation, rendered local-over-global cascade verification, in-use class dependency cleanup, native variable tombstones, reversible default-style coverage, and actual generated Elementor CSS refresh verification. No production PHP change was required for the shared-style phase: the verified public Elementor contracts already behaved correctly once the E2E used the full public structure serializer and generated Atomic CSS assets. The 2026-10-13 full-code audit additionally hardens approval/upload/app/CLI transient persistence, malformed approval-receipt and upload-ticket record rejection, validated Gutenberg writes, saved-skill/editable-definition persistence, malformed saved-skill record discovery, malformed editable-definition replay, wp-admin credential/settings state, malformed activity-log recovery in tool logging and wp-admin rendering, UTF-8 PDF/rendered-HTML bounds, and release-asset immutability. The subsequent transport audit fixes known-method JSON-RPC notifications so they still execute but never emit result objects, including retained legacy mixed batches. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
+Published release 1.4.1 retains the original bounded disposable WordPress/Elementor Core CI target and route-classification gate. Release 1.5.0 strengthens that same lane with schema-first multi-section composition, strict lossy-warning rejection after approval, fresh-ID element updates, partial-batch recovery, Direct-side preservation of Elementor page settings, two-page shared global-class/global-variable application, one-write propagation, rendered local-over-global cascade verification, in-use class dependency cleanup, native variable tombstones, reversible default-style coverage, and actual generated Elementor CSS refresh verification. No production PHP change was required for the shared-style phase: the verified public Elementor contracts already behaved correctly once the E2E used the full public structure serializer and generated Atomic CSS assets. The 2026-10-13 full-code audit additionally hardens approval/upload/app/CLI transient persistence, malformed approval-receipt and upload-ticket record rejection, validated Gutenberg writes, saved-skill/editable-definition persistence, malformed saved-skill record discovery, malformed editable-definition replay, wp-admin credential/settings state, malformed activity-log recovery in tool logging and wp-admin rendering, UTF-8 PDF/rendered-HTML bounds, and release-asset immutability. The subsequent transport audit fixes known-method JSON-RPC notifications so they still execute but never emit result objects, including retained legacy mixed batches. WPCode reviewed-write behavior is covered by PHP/reference tests but still awaits a disposable site with WPCode for live E2E. The rest of the broader manual checklist remains intentionally unmarked until executed. No production or customer WordPress site was used for destructive verification.
