@@ -57,7 +57,7 @@ final class WPVDMCP_Skill_Compat {
 		if ( '' === $q ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
-			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
+			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'email', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
 			foreach ( preg_split( '/[^a-z0-9]+/', substr( $q, 0, 256 ), -1, PREG_SPLIT_NO_EMPTY ) as $term ) {
 				if ( strlen( $term ) < 3 || isset( $stop_words[ $term ] ) ) { continue; }
 				$terms[ $term ] = $term;
@@ -69,6 +69,7 @@ final class WPVDMCP_Skill_Compat {
 			$slug = strtolower( (string) ( $row['slug'] ?? '' ) );
 			$title = strtolower( (string) ( $row['title'] ?? '' ) );
 			$description = strtolower( (string) ( $row['description'] ?? '' ) );
+			$slug_phrase = str_replace( '-', ' ', $slug );
 			$tag_match = false;
 			if ( isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
 				foreach ( $row['tags'] as $tag ) {
@@ -82,10 +83,21 @@ final class WPVDMCP_Skill_Compat {
 			if ( $slug === $q ) { $score = 100; }
 			elseif ( $title === $q ) { $score = 95; }
 			elseif ( $tag_match ) { $score = 90; }
+			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) && false !== strpos( $slug_phrase, ' ' ) ) { $score = 92; }
+			elseif ( $terms && reset( $terms ) === $slug && 'merchant' !== $slug ) { $score = 89; }
+			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) ) { $score = 80 + min( 9, (int) floor( strlen( $slug ) / 2 ) ); }
+			elseif ( $terms && self::has_phrase( $q, $title ) ) { $score = false !== strpos( $title, ' ' ) ? 87 : 79; }
 			elseif ( 0 === strpos( $slug, $q ) ) { $score = 85; }
 			elseif ( false !== strpos( $slug, $q ) ) { $score = 75; }
 			elseif ( false !== strpos( $title, $q ) ) { $score = 65; }
 			elseif ( '' !== $description && false !== strpos( $description, $q ) ) { $score = 45; }
+			if ( $terms && $score < 87 && isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
+				foreach ( $row['tags'] as $tag ) {
+					if ( is_string( $tag ) && false !== strpos( trim( $tag ), ' ' ) && self::has_phrase( $q, strtolower( $tag ) ) ) {
+						$score = max( $score, 86 );
+					}
+				}
+			}
 			if ( ! $score && $terms ) { $score = self::term_score( $terms, $slug, $title, $description, $row['tags'] ?? array() ); }
 			if ( ! $score ) { continue; }
 			$copy = $row;
@@ -104,17 +116,31 @@ final class WPVDMCP_Skill_Compat {
 	private static function term_score( $terms, $slug, $title, $description, $tags ) {
 		$best = 0;
 		$matched = 0;
+		$discriminative = 0;
+		$ambiguous_terms = array_flip( array( 'api', 'image', 'images', 'live', 'saved', 'search', 'server', 'stock', 'video' ) );
 		foreach ( $terms as $term ) {
 			$score = 0;
 			foreach ( is_array( $tags ) ? $tags : array() as $tag ) {
-				if ( is_string( $tag ) && self::has_word( strtolower( $tag ), $term ) ) { $score = 40; break; }
+				if ( ! is_string( $tag ) ) { continue; }
+				$normalized_tag = strtolower( $tag );
+				if ( self::has_word( $normalized_tag, $term ) && ( false === strpos( trim( $normalized_tag ), ' ' ) || self::has_phrase( implode( ' ', $terms ), $normalized_tag ) ) ) { $score = 40; break; }
 			}
 			if ( ! $score && self::has_word( $slug, $term ) ) { $score = 38; }
 			if ( ! $score && self::has_word( $title, $term ) ) { $score = 36; }
 			if ( ! $score && self::has_word( $description, $term ) ) { $score = 22; }
-			if ( $score ) { $best = max( $best, $score ); ++$matched; }
+			if ( $score ) {
+				$best = max( $best, $score );
+				++$matched;
+				if ( ! isset( $ambiguous_terms[ $term ] ) ) { ++$discriminative; }
+			}
 		}
-		return $best >= 36 ? min( 44, $best + 2 * ( $matched - 1 ) ) : 0;
+		return $best >= 36 && $discriminative ? min( 44, $best + 2 * ( $matched - 1 ) ) : 0;
+	}
+
+	private static function has_phrase( $query, $phrase ) {
+		$normalized_query = ' ' . trim( preg_replace( '/[^a-z0-9]+/', ' ', $query ) ) . ' ';
+		$normalized_phrase = trim( preg_replace( '/[^a-z0-9]+/', ' ', $phrase ) );
+		return '' !== $normalized_phrase && false !== strpos( $normalized_query, ' ' . $normalized_phrase . ' ' );
 	}
 
 	/** Match a standalone task word, never an accidental substring like form in performance. */
