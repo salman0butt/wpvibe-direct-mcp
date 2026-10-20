@@ -1,6 +1,6 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-12**. Direct MCP release target: **1.5.0**. Official WordPress-side baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`.
+Audit date: **2026-10-20** (unreleased upstream compatibility review). Direct MCP release target: **1.5.0** (published and immutable). Previous WordPress-side live baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`. New upstream comparison: WPVibe **1.20.5**, commit `62bc77ccd1c15faf766f527a7935fe32f1b227d3`.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
@@ -12,7 +12,7 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.4.1 |
+| Reference tool | Direct MCP 1.5.0 + unreleased compatibility work |
 |---|---|
 | `connect_site` | External-provider-backed exact name; current auth options normalized; no Direct local registry is created and no fake WPVibe cloud registry is synthesized |
 | `list_sites` | External-provider-backed exact name; Direct does not fabricate the current site as a one-item hosted registry |

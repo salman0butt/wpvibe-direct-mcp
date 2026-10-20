@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Audited official WPVibe 1.20.4 (2026-10-13) and 1.20.5 (2026-10-14) against the last v1.5.0 upstream baseline. The Direct WPCode safety bridge now exposes upstream `deactivate` and approval-gated `delete` only when the native handler supports them, binds deletion to its exact ID/action, and fails closed rather than claim the snippet stopped when WPCode's execution cache still contains it.
+- Added Bricks template `template_type` (header/footer and supported template subtypes) and Beaver Builder's optional schema slug; refreshed native WPCode, Bricks, Beaver, and SeedProd skill guidance. Generic route discovery now respects upstream's `show_in_index=false` endpoints while trusted server-side route checks continue to work.
+- Extended PHP regression coverage to 201 reference cases and added disposable WordPress 6.9 / Elementor 4.3.4 CI lanes for both pinned WPVibe 1.20.3 and 1.20.5, with an additional disposable WPCode Lite create/deactivate/approval-gated-trash check on the newer lane. These checks do not certify licensed Bricks/Beaver Builder, SeedProd Pro, all WordPress plugins, or hosted provider services.
 
 ## 1.5.0 - 2026-10-20
 - **Security:** Removed bearer-controlled MCP Apps approval decisions: read-only app panels cannot self-approve model mutations; only an authenticated WordPress administrator with nonce/capability checks can approve them.

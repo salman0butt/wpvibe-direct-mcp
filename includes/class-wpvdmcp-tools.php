@@ -134,8 +134,8 @@ final class WPVDMCP_Tools {
 
 			// Beaver Builder native routes.
 			self::route_tool( 'beaver_modules', 'List Beaver Builder modules available to native WPVibe saves.', 'GET', '/wpvibe/v1/beaver/modules', array() ),
-			self::route_tool( 'beaver_schema', 'Inspect one Beaver Builder module schema.', 'GET', '/wpvibe/v1/beaver/schema', array(
-				'slug' => self::string_prop( 'Beaver Builder module slug.', true ),
+			self::route_tool( 'beaver_schema', 'Inspect one Beaver Builder module schema or list all modules when the slug is omitted. Row/column-group/column are layout nodes and do not require module settings.', 'GET', '/wpvibe/v1/beaver/schema', array(
+				'slug' => self::string_prop( 'Optional Beaver Builder module slug; omit to list modules. For row, column-group, or column, the native response identifies optional layout settings.' ),
 			) ),
 			self::route_tool( 'beaver_save_page', 'Create or update a Beaver Builder page through WPVibe’s native Beaver save path.', 'POST', '/wpvibe/v1/beaver/save-page', array(
 				'id' => self::integer_prop( 'Existing post ID; omit to create.' ),
@@ -153,11 +153,12 @@ final class WPVDMCP_Tools {
 				'id' => self::integer_prop( 'Post ID.', true ),
 			) ),
 			self::route_tool( 'bricks_elements', 'List available Bricks element types.', 'GET', '/wpvibe/v1/bricks/elements', array() ),
-			self::route_tool( 'bricks_save_page', 'Create or update a Bricks page through WPVibe’s native save/cache path.', 'POST', '/wpvibe/v1/bricks/save-page', array(
+			self::route_tool( 'bricks_save_page', 'Create or update a Bricks page or header/footer template through WPVibe’s native save/cache path. For Bricks templates on WPVibe 1.20.4+, provide post_type bricks_template and template_type to select the correct Bricks storage area.', 'POST', '/wpvibe/v1/bricks/save-page', array(
 				'id' => self::integer_prop( 'Existing post ID; omit to create.' ),
 				'title' => self::string_prop( 'Title for a new post.' ),
 				'post_type' => self::string_prop( 'Target post type.' ),
 				'status' => self::enum_prop( array( 'draft', 'pending', 'private', 'publish' ), 'Target status.' ),
+				'template_type' => self::string_prop( 'Optional Bricks template subtype for post_type bricks_template, e.g. header, footer, content, section, or popup. Supported on WPVibe 1.20.4+; required when creating a Bricks template.' ),
 				'elements' => self::array_prop( 'Flat Bricks element array.', array(), true ),
 			) ),
 
@@ -176,7 +177,7 @@ final class WPVDMCP_Tools {
 				'template' => self::enum_prop( array( 'blank_canvas', 'theme' ), 'Optional Breakdance page template.' ),
 			) ),
 
-			self::route_tool( 'code_snippet', 'Create or update a WPCode snippet through WPVibe’s dormant safety route. Executable snippets remain disabled; activation is human-only in wp-admin unless a genuine approved upstream flow is used.', 'POST', '/wpvibe/v1/code-snippet/dormant', self::snippet_props() ),
+			self::route_tool( 'code_snippet', 'Create/update a WPCode snippet; WPVibe 1.20.4+ also supports deactivating a WPVibe-created snippet without approval and trashing unchanged WPVibe-created code with one-time human approval. Activation remains human-only.', 'POST', '/wpvibe/v1/code-snippet/dormant', self::snippet_props() ),
 
 
 			array(
@@ -511,9 +512,18 @@ final class WPVDMCP_Tools {
 			}
 			$methods = array();
 			foreach ( $handlers as $handler ) {
+				// WPVibe 1.20.4+ hides builder-login from the REST index:
+				// discovery must honor that signal without unregistering the
+				// route trusted in-process providers still need.
+				if ( is_array( $handler ) && array_key_exists( 'show_in_index', $handler ) && false === $handler['show_in_index'] ) {
+					continue;
+				}
 				if ( ! empty( $handler['methods'] ) && is_array( $handler['methods'] ) ) {
 					$methods = array_merge( $methods, array_keys( array_filter( $handler['methods'] ) ) );
 				}
+			}
+			if ( ! $methods ) {
+				continue;
 			}
 			$out[] = array( 'route' => $route, 'methods' => array_values( array_unique( $methods ) ) );
 			if ( count( $out ) >= $max ) {
@@ -591,12 +601,12 @@ final class WPVDMCP_Tools {
 
 	private static function snippet_props() {
 		return array(
-			'action' => self::enum_prop( array( 'create', 'update' ), 'Create or update a dormant WPCode snippet.' ),
-			'id' => self::integer_prop( 'Existing snippet ID for update.' ),
-			'code' => self::string_prop( 'Exact snippet source code.', true ),
-			'title' => self::string_prop( 'Snippet title.', true ),
-			'code_type' => self::string_prop( 'WPCode code type.', true ),
-			'location' => self::string_prop( 'WPCode location.', true ),
+			'action' => self::enum_prop( array( 'create', 'update', 'deactivate', 'delete' ), 'Create/update a snippet; on WPVibe 1.20.4+, deactivate owned snippets without approval or delete unchanged owned snippets after human approval.' ),
+			'id' => self::integer_prop( 'Existing snippet ID for update, deactivate or delete.' ),
+			'code' => self::string_prop( 'Exact snippet source code (required for create/update; omit for deactivate/delete).' ),
+			'title' => self::string_prop( 'Snippet title (required for create/update; omit for deactivate/delete).' ),
+			'code_type' => self::string_prop( 'WPCode code type (required for create/update; omit for deactivate/delete).' ),
+			'location' => self::string_prop( 'WPCode location (required for create/update; omit for deactivate/delete).' ),
 			'insert_method' => self::string_prop( 'WPCode insert method, default auto.' ),
 		);
 	}

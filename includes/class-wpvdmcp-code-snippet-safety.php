@@ -20,7 +20,13 @@ final class WPVDMCP_Code_Snippet_Safety {
 			if ( 'code_snippet' !== ( $definition['name'] ?? '' ) ) {
 				continue;
 			}
-			$definition['description'] = 'Create or update a WPCode snippet through WPVibe. Qualifying dormant writes stay on WPVibe\'s no-approval disabled path; review-required writes pause for one-time Direct browser approval and then reuse WPVibe\'s approved in-process handler. Activation remains human-only in wp-admin.';
+			$retirement_supported = class_exists( 'WPVibe_Code_Snippet' ) && method_exists( 'WPVibe_Code_Snippet', 'proof_subject' );
+			$definition['description'] = 'Create/update WPCode snippets through WPVibe. Eligible dormant writes remain disabled; review-required writes use exact-payload one-time administrator approval. Activation remains human-only in wp-admin.';
+			if ( $retirement_supported ) {
+				$definition['description'] .= ' This WPVibe version also allows deactivating a WPVibe-created snippet without approval or trashing unchanged WPVibe-created code with one-time administrator approval.';
+			} elseif ( isset( $definition['inputSchema']['properties'] ) && is_object( $definition['inputSchema']['properties'] ) ) {
+				$definition['inputSchema']['properties']->action['enum'] = array( 'create', 'update' );
+			}
 			if ( isset( $definition['inputSchema']['properties'] ) && is_object( $definition['inputSchema']['properties'] ) ) {
 				$definition['inputSchema']['properties']->approval_id = array(
 					'type' => 'string',
@@ -50,6 +56,24 @@ final class WPVDMCP_Code_Snippet_Safety {
 		}
 		if ( ! class_exists( 'WPVibe_Code_Snippet' ) || ! method_exists( 'WPVibe_Code_Snippet', 'handle' ) ) {
 			return new WP_Error( 'tool_unavailable', 'The installed WPVibe version does not expose the native code-snippet handler.', array( 'status' => 501 ) );
+		}
+
+		$action = isset( $args['action'] ) ? sanitize_key( (string) $args['action'] ) : 'create';
+		if ( ! in_array( $action, array( 'create', 'update', 'deactivate', 'delete' ), true ) ) {
+			return new WP_Error( 'invalid_snippet_action', 'The snippet action must be create, update, deactivate, or delete.', array( 'status' => 400 ) );
+		}
+		if ( in_array( $action, array( 'deactivate', 'delete' ), true ) ) {
+			if ( ! method_exists( 'WPVibe_Code_Snippet', 'proof_subject' ) ) {
+				return new WP_Error( 'snippet_action_unavailable', 'Deactivation and trashing require WPVibe 1.20.4 or a newer upstream code-snippet handler.', array( 'status' => 501 ) );
+			}
+			if ( ! isset( $args['id'] ) || absint( $args['id'] ) < 1 ) {
+				return new WP_Error( 'invalid_snippet_id', 'Deactivation and trashing require an existing positive snippet ID.', array( 'status' => 400 ) );
+			}
+			foreach ( array( 'code', 'title', 'code_type', 'location', 'insert_method' ) as $source_field ) {
+				if ( isset( $args[ $source_field ] ) ) {
+					return new WP_Error( 'unexpected_snippet_field', 'Retire actions accept only action, id, and an optional approval_id; omit snippet source fields.', array( 'status' => 400 ) );
+				}
+			}
 		}
 
 		$approval_id = isset( $args['approval_id'] ) ? (string) $args['approval_id'] : '';
@@ -86,8 +110,12 @@ final class WPVDMCP_Code_Snippet_Safety {
 	}
 
 	private static function normalize_payload( $args ) {
+		$action = isset( $args['action'] ) ? sanitize_key( (string) $args['action'] ) : 'create';
+		if ( in_array( $action, array( 'deactivate', 'delete' ), true ) ) {
+			return array( 'action' => $action, 'id' => absint( $args['id'] ) );
+		}
 		return array(
-			'action' => isset( $args['action'] ) && 'update' === sanitize_key( (string) $args['action'] ) ? 'update' : 'create',
+			'action' => $action,
 			'id' => isset( $args['id'] ) ? absint( $args['id'] ) : 0,
 			'code' => isset( $args['code'] ) ? (string) $args['code'] : '',
 			'title' => isset( $args['title'] ) ? sanitize_text_field( $args['title'] ) : '',
@@ -107,9 +135,31 @@ final class WPVDMCP_Code_Snippet_Safety {
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
+		if ( in_array( $payload['action'], array( 'deactivate', 'delete' ), true ) ) {
+			$id = (int) $payload['id'];
+			if ( self::still_in_wpcode_cache( $id ) || ( function_exists( 'get_post_status' ) && 'publish' === get_post_status( $id ) ) ) {
+				return new WP_Error(
+					'snippet_cache_still_active',
+					'The upstream retirement operation returned, but the snippet still appears enabled or present in WPCode\'s execution cache. It may still run. Ask an administrator to inspect the snippet and WPCode cache in wp-admin; read the state back before any retry.',
+					array( 'status' => 500, 'id' => $id, 'may_still_execute' => true )
+				);
+			}
+		}
 		if ( $result instanceof WP_REST_Response ) {
 			return array( 'status' => $result->get_status(), 'data' => $result->get_data() );
 		}
 		return array( 'status' => 200, 'data' => $result );
+	}
+
+	/** A snippet left in WPCode's execution option may still run after its post is disabled. */
+	private static function still_in_wpcode_cache( $id ) {
+		foreach ( (array) get_option( 'wpcode_snippets', array() ) as $group ) {
+			foreach ( (array) $group as $entry ) {
+				if ( is_array( $entry ) && isset( $entry['id'] ) && (int) $entry['id'] === $id ) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 }

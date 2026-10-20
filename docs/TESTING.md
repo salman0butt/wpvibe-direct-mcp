@@ -14,7 +14,9 @@ php tests/abilities-json-body-run.php
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
 
-Release 1.5.0 additionally contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, bringing the source suite to **53 core/legacy + 20 parity + 196 reference cases (269 suite cases)** plus the focused Abilities regression.
+Published release 1.5.0 contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, with **53 core/legacy + 20 parity + 196 reference cases (269 suite cases)** plus the focused Abilities regression.
+
+Current **unreleased** source adds upstream WPVibe 1.20.4/1.20.5 compatibility assertions for WPCode retirement, Bricks template types, optional Beaver schema slugs, index-hidden REST routes and WPCode cache false-success. Source totals are **53 core/legacy + 20 parity + 201 reference cases (274 suite cases)** plus the existing 174-request intent benchmark and focused Abilities regression.
 
 ### Skill-intent retrieval benchmark
 
@@ -144,7 +146,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 `.github/workflows/wordpress-elementor-e2e.yml` provisions an isolated WordPress environment and never accepts a production/customer URL. The verified lane pins:
 
 - WordPress **6.9**;
-- official WPVibe **1.20.3** at exact upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`;
+- official WPVibe **1.20.3** at exact upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`; and, in the new unreleased CI matrix, **1.20.5** at `62bc77ccd1c15faf766f527a7935fe32f1b227d3`;
 - Elementor Core **4.3.4**;
 - PHP **8.2** / Apache and MySQL 8;
 - the exact Direct MCP pull-request/main checkout under test.
