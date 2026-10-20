@@ -79,3 +79,63 @@ parity_test('word variants of built-in workflows remain discoverable', function(
         assert_same($expected, $result['matches'][0]['slug'] ?? null, 'workflow variant: '.$query);
     }
 });
+
+parity_test('WordPress integrations with external platforms are not mistaken for offsite requests', function() {
+    foreach (array(
+        'Fix an Instagram feed on our website using Smash Balloon' => 'smash-balloon',
+        'Integrate Facebook social feed into Elementor homepage' => 'elementor',
+        'Add a LinkedIn share button to my WooCommerce product page' => 'woocommerce',
+        'Embed a YouTube video in my homepage Gutenberg block' => 'gutenberg',
+        'Need hotel room reservations with Amelia on my website' => 'amelia',
+        'Not WordPress.com, this is my self-hosted WordPress site; fix Yoast SEO titles' => 'yoast-seo',
+        'My website is not WordPress.com; update a WPForms contact form' => 'wpforms',
+		'Configure Smash Balloon Facebook feed' => 'smash-balloon',
+		'Fix Elementor Instagram feed' => 'elementor',
+    ) as $query => $expected) {
+        $response = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same($expected, $response['matches'][0]['slug'] ?? null,
+            'named WordPress plugin should override offsite context: '.$query);
+    }
+});
+
+parity_test('explicit not-a-WordPress site scope and single-token vendor alias', function() {
+    $offsite = WPVDMCP_Parity::execute('load_skill', array('query' => 'This is not a WordPress site; set up WooCommerce'));
+    assert_same(array(), $offsite['matches'] ?? null, 'explicit not a WordPress site must abstain despite plugin name');
+    $named = WPVDMCP_Parity::execute('load_skill', array('query' => 'RankMath'));
+    assert_same('rank-math', $named['matches'][0]['slug'] ?? null,
+        'single-token concatenated plugin brand should be discoverable');
+});
+
+parity_test('exact user saved skill overrides external-platform abstention', function() {
+    $before = $GLOBALS['wp_options'];
+    try {
+        $GLOBALS['wp_options'][WPVDMCP_Parity_Skills::OPTION] = array(
+            'instagram' => array(
+                'slug' => 'instagram',
+                'title' => 'Instagram workflow',
+                'description' => 'User-owned social media workflow for a connected WordPress site.',
+                'instructions' => 'PRIVATE USER SKILL BODY',
+                'version' => 1,
+                'reference_files' => array(),
+            ),
+        );
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => 'instagram'));
+        assert_same('instagram', $result['matches'][0]['slug'] ?? null,
+            'exact locally saved skill slug must outrank external-platform abstention');
+        assert_same(100, $result['matches'][0]['score'] ?? null,
+            'exact local skill retains score 100');
+        assert_true(!isset($result['matches'][0]['instructions']), 'search must not expose private body');
+    } finally { $GLOBALS['wp_options'] = $before; }
+});
+
+parity_test('longer WordPress and competing-plugin negations are respected', function() {
+    foreach (array(
+        'I do not use WordPress; fix Facebook comments',
+        'This is a website outside of WordPress, fix Instagram feed',
+    ) as $query) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same(array(), $result['matches'] ?? null, 'non-WordPress scope must abstain: '.$query);
+    }
+    $result = WPVDMCP_Parity::execute('load_skill', array('query' => 'Please do not use Rank Math; update the Yoast SEO canonical'));
+    assert_same('yoast-seo', $result['matches'][0]['slug'] ?? null, 'negated Rank Math should not outrank requested Yoast SEO');
+});

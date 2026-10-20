@@ -55,13 +55,28 @@ final class WPVDMCP_Skill_Compat {
 	private static function search( $query ) {
 		$q = strtolower( substr( trim( (string) $query ), 0, 256 ) );
 		if ( '' === $q ) { return array(); }
+		$catalog = WPVDMCP_Parity_Skills::metadata();
+		// Explicit identifiers and user-owned titles always take priority over
+		// inferred task scope, including a saved skill named after a platform.
+		$exact_identifier = false;
+		foreach ( $catalog as $candidate ) {
+			if ( strtolower( (string) ( $candidate['slug'] ?? '' ) ) === $q || strtolower( (string) ( $candidate['title'] ?? '' ) ) === $q ) {
+				$exact_identifier = true;
+				break;
+			}
+		}
 		// Avoid routing explicitly offsite work into a WordPress-only tool catalog.
-		$not_wordpress = 1 === preg_match( '/\b(?:not|no|non|outside|without)[\s-]+wordpress\b/', $q );
-		$wordpress_scope = ! $not_wordpress && self::has_phrase( $q, 'wordpress' );
+		// A WordPress.com exclusion is not a denial that a self-hosted site uses WordPress.
+		$scope_query = preg_replace( '/\b(?:not|no|non|outside|without)[\s-]+wordpress\.com\b/', ' ', $q );
+		$not_wordpress = 1 === preg_match( '/\b(?:not|no|non|outside|without)(?:[\s-]+(?:a|an|use|using|of|on|the|is|built)){0,4}[\s-]+wordpress\b/', $scope_query );
+		// Third-party services can also be CONTENT on WordPress pages. Named WP
+		// integrations are positive context even when the query omits 'WordPress'.
+		$wp_integration = 1 === preg_match( '/\b(?:woocommerce|elementor|gutenberg|amelia|wpforms|yoast|smash[\s-]+balloon|beaver[\s-]+builder|breakdance|bricks|divi|seedprod|wpbakery|kadence|generatepress|generateblocks|fluentcart|fluentcrm|cartflows|rank[\s-]*math|lifterlms|memberpress|duplicator|wpcode|seopress|aioseo|botiga|optinmonster|adtribes|pagelayer|elementskit)\b/', $scope_query );
+		$wordpress_scope = ! $not_wordpress && ( self::has_phrase( $scope_query, 'wordpress' ) || $wp_integration );
 		$external_platform = 1 === preg_match( '/\b(?:youtube|shopify|instagram|tiktok|facebook|linkedin|discord|slack)\b/', $q );
 		$external_booking = 1 === preg_match( '/\b(?:hotel|conference)\b/', $q ) &&
 			1 === preg_match( '/\b(?:booking|appointments?|reservations?|rooms?)\b/', $q );
-		if ( $not_wordpress || ( ! $wordpress_scope && ( $external_platform || $external_booking ) ) ) { return array(); }
+		if ( ! $exact_identifier && ( $not_wordpress || ( ! $wordpress_scope && ( $external_platform || $external_booking ) ) ) ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
 			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'email', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
@@ -72,12 +87,13 @@ final class WPVDMCP_Skill_Compat {
 			}
 		}
 		$matches = array();
-		foreach ( WPVDMCP_Parity_Skills::metadata() as $row ) {
+		$normalized_query = trim( preg_replace( '/[^a-z0-9]+/', ' ', $q ) );
+		foreach ( $catalog as $row ) {
 			$slug = strtolower( (string) ( $row['slug'] ?? '' ) );
 			$title = strtolower( (string) ( $row['title'] ?? '' ) );
 			$description = strtolower( (string) ( $row['description'] ?? '' ) );
 			$slug_phrase = str_replace( '-', ' ', $slug );
-			if ( $terms && self::has_phrase( $q, 'not ' . $slug_phrase ) ) { continue; }
+			if ( $terms && 1 === preg_match( '/\b(?:not|no|without|avoid)(?:\s+(?:use|using|choose|install|enable|select|a|an|the|plugin)){0,3}\s+' . preg_quote( $slug_phrase, '/' ) . '\b/', $normalized_query ) ) { continue; }
 			$tag_match = false;
 			if ( isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
 				foreach ( $row['tags'] as $tag ) {
@@ -91,6 +107,7 @@ final class WPVDMCP_Skill_Compat {
 			if ( $slug === $q ) { $score = 100; }
 			elseif ( $title === $q ) { $score = 95; }
 			elseif ( $tag_match ) { $score = 90; }
+			elseif ( false !== strpos( $slug, '-' ) && $q === str_replace( '-', '', $slug ) ) { $score = 93; }
 			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) && false !== strpos( $slug_phrase, ' ' ) ) { $score = 92; }
 			elseif ( $terms && reset( $terms ) === $slug && 'merchant' !== $slug ) { $score = 89; }
 			elseif ( $terms && false !== strpos( $slug, '-' ) && self::has_phrase( $q, str_replace( '-', '', $slug ) ) ) { $score = 88; }
