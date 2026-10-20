@@ -165,37 +165,63 @@ final class WPVDMCP_Code_Snippet_Safety {
 		return self::cache_contains_or_unknown( get_option( 'wpcode_snippets', array() ), $id, 0 );
 	}
 
+	/** Distinguish list positions from snippet-ID keys without PHP 8.1 array_is_list(). */
+	private static function cache_is_sequential_list( $entries ) {
+		$expected = 0;
+		foreach ( $entries as $key => $_entry ) {
+			if ( $key !== $expected ) {
+				return false;
+			}
+			$expected++;
+		}
+		return true;
+	}
+
 	/** Treat unknown shapes as potentially executing, never as evidence of successful deactivation. */
-	private static function cache_contains_or_unknown( $value, $id, $depth ) {
+	private static function cache_contains_or_unknown( $value, $id, $depth, $known_record = false ) {
 		if ( $depth > 12 ) {
 			return true;
 		}
 		if ( is_object( $value ) ) {
 			$properties = get_object_vars( $value );
-			return empty( $properties ) ? true : self::cache_contains_or_unknown( $properties, $id, $depth + 1 );
+			return empty( $properties ) ? true : self::cache_contains_or_unknown( $properties, $id, $depth + 1, $known_record );
 		}
 		if ( is_array( $value ) ) {
 			$has_record_id = array_key_exists( 'id', $value );
 			if ( $has_record_id && ( ! self::valid_retire_id( $value['id'] ) || (int) $value['id'] === $id ) ) {
 				return true;
 			}
+			$record_context = $known_record || $has_record_id;
+			$is_list = self::cache_is_sequential_list( $value );
 			foreach ( $value as $key => $entry ) {
 				if ( 'id' === $key ) {
 					continue;
 				}
-				// Some caches key records by snippet ID instead of storing an id property.
-				if ( is_int( $key ) && $key === $id ) {
-					return true;
-				}
-				// Scalars within a known different-ID record are ordinary fields such as code/type.
-				// Nested containers must still be checked; another snippet may be inside them.
-				if ( $has_record_id && ! is_array( $entry ) && ! is_object( $entry ) ) {
+				// Numeric associative keys can be snippet IDs. Sequential list indices are not.
+				if ( is_int( $key ) && ! $is_list ) {
+					if ( $key === $id ) {
+						return true;
+					}
+					if ( ! is_array( $entry ) && ! is_object( $entry ) ) {
+						return true; // Cannot inspect an unusual ID-keyed scalar entry.
+					}
+					if ( self::cache_contains_or_unknown( $entry, $id, $depth + 1, true ) ) {
+						return true;
+					}
 					continue;
 				}
-				if ( self::cache_contains_or_unknown( $entry, $id, $depth + 1 ) ) {
+				// Scalars within a recognized other-ID record are ordinary fields such as code/type.
+				// Nested containers must still be checked for explicit IDs and ID-keyed snippets.
+				if ( $record_context && ! is_array( $entry ) && ! is_object( $entry ) ) {
+					continue;
+				}
+				if ( self::cache_contains_or_unknown( $entry, $id, $depth + 1, $record_context ) ) {
 					return true;
 				}
 			}
+			return false;
+		}
+		if ( $known_record ) {
 			return false;
 		}
 		if ( self::valid_retire_id( $value ) ) {

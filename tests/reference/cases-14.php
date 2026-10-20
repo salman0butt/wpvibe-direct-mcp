@@ -237,6 +237,24 @@ parity_test('WPCode retirement fails closed for object, flat or uninspectable ca
         $GLOBALS['wp_options']['wpcode_snippets']=array('global'=>array(array('id'=>92)));
         $clear=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
         assert_same(200,$clear['status']??null,'valid cache containing only other IDs does not falsely block retirement');
+        foreach(array(
+            array('global'=>array(92=>array('code'=>'x'))),
+            array('global'=>array(92=>array('settings'=>array('status'=>'draft')))),
+            array('global'=>array(92=>array('conditions'=>array('device'=>'mobile')))),
+        ) as $other_cache){
+            $GLOBALS['wp_options']['wpcode_snippets']=$other_cache;
+            $clear=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+            assert_true(!is_wp_error($clear),'other-ID keyed record must not return a cache conflict');
+            assert_same(200,$clear['status']??null,'other-ID keyed records with ordinary metadata should not falsely block retirement');
+        }
+        foreach(array(1,2) as $target_id){
+            $GLOBALS['wp_options']['wpcode_snippets']=array('global'=>array(
+                array('id'=>92,'code'=>'x'),array('id'=>93,'code'=>'y'),array('id'=>94,'code'=>'z'),
+            ));
+            $clear=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>$target_id));
+            assert_true(!is_wp_error($clear),'zero-based list indices must not be mistaken for snippet IDs');
+            assert_same(200,$clear['status']??null,'indexed list of other snippet IDs must permit retirement');
+        }
     } finally {
         $GLOBALS['wp_options']=$before;
         WPVibe_Code_Snippet::$mode='review';
