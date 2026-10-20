@@ -235,8 +235,8 @@ final class WPVDMCP_Admin {
 		$capabilities = WPVDMCP_Compatibility::capability_summary();
 		$wpvibe       = WPVDMCP_Compatibility::wpvibe_version();
 		$warning      = '';
-		if ( $wpvibe && version_compare( $wpvibe, '1.20.3', '>' ) ) {
-			$warning = 'Installed WPVibe is newer than the latest version verified by this Direct MCP release (1.20.3). Feature detection remains active, but review compatibility documentation after upgrading.';
+		if ( $wpvibe && version_compare( $wpvibe, '1.20.5', '>' ) ) {
+			$warning = 'Installed WPVibe is newer than the latest version verified by this Direct MCP source (1.20.5). Feature detection remains active, but review compatibility documentation after upgrading.';
 		}
 		return array(
 			'direct_version'        => defined( 'WPVDMCP_VERSION' ) ? WPVDMCP_VERSION : '',

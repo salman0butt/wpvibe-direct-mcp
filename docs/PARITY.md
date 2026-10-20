@@ -2,6 +2,8 @@
 
 Audit date: **2026-10-20** (unreleased upstream compatibility review). Direct MCP release target: **1.5.0** (published and immutable). Previous WordPress-side live baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`. New upstream comparison: WPVibe **1.20.5**, commit `62bc77ccd1c15faf766f527a7935fe32f1b227d3`.
 
+The unreleased source's machine-readable `reference_parity_manifest` now pins WPVibe 1.20.5 after independent upstream source review and the two-version disposable WordPress/Elementor E2E matrix passed (including a live WPCode Lite retirement test on the 1.20.5 lane). Historical v1.5.0 release assets remain unchanged. This validates the bounded native paths; other optional plugin skills and external providers remain outside live E2E.
+
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
 Provider-backed parity is also bounded on output in release 1.5.0: local and hosted/reference provider callbacks share one recursive sanitizer for credential-key redaction plus string/collection/depth/total-size limits, including provider `WP_Error` data. Sanitizer metadata is explicit when a result is changed; this is a Direct safety boundary, not evidence that the underlying hosted WPVibe infrastructure has been cloned.

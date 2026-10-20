@@ -33,3 +33,10 @@ parity_test('upstream routes hidden from REST index do not appear in model route
     assert_true(!in_array('/wpvibe/v1/builder-login',$paths,true),'hidden builder-login must not be advertised to generic agents');
     assert_true(in_array('/wpvibe/v1/site-info',$paths,true),'ordinary public route remains visible');
 });
+
+parity_test('unreleased upstream compatibility manifest records exact verified WPVibe 1.20.5',function(){
+    $manifest=WPVDMCP_Parity::execute('reference_parity_manifest',array());
+    assert_same('1.20.5',$manifest['upstream_version']??null,'upstream manifest version must reflect newly verified 1.20.5');
+    assert_same('62bc77ccd1c15faf766f527a7935fe32f1b227d3',$manifest['upstream_commit']??null,'upstream manifest must pin reviewed source commit');
+    assert_true(strpos($manifest['reference_sources']['upstream_github']??'','/62bc77ccd1c15faf766f527a7935fe32f1b227d3')!==false,'upstream source URL must point at audited commit');
+});
