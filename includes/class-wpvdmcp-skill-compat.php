@@ -53,8 +53,13 @@ final class WPVDMCP_Skill_Compat {
 	}
 
 	private static function search( $query ) {
-		$q = strtolower( trim( (string) $query ) );
+		$q = strtolower( substr( trim( (string) $query ), 0, 256 ) );
 		if ( '' === $q ) { return array(); }
+		// A WordPress workflow must not be inferred from an explicitly offsite request.
+		if ( ! self::has_phrase( $q, 'wordpress' ) && (
+			self::has_phrase( $q, 'youtube channel' ) ||
+			self::has_phrase( $q, 'hotel booking' )
+		) ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
 			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'email', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
@@ -70,6 +75,7 @@ final class WPVDMCP_Skill_Compat {
 			$title = strtolower( (string) ( $row['title'] ?? '' ) );
 			$description = strtolower( (string) ( $row['description'] ?? '' ) );
 			$slug_phrase = str_replace( '-', ' ', $slug );
+			if ( $terms && self::has_phrase( $q, 'not ' . $slug_phrase ) ) { continue; }
 			$tag_match = false;
 			if ( isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
 				foreach ( $row['tags'] as $tag ) {

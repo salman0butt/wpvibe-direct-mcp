@@ -30,3 +30,25 @@ parity_test('all built-in exact skill names override natural-language search heu
         assert_true(isset($loaded['instructions']) && strlen($loaded['instructions']) > 0, 'selected skill should retain full instructions: '.$slug);
     }
 });
+
+parity_test('held-out genuine WordPress requests preserve relevant workflow intent', function() {
+    $queries = array(
+        'Configure Merchant Pro discount offers in our WooCommerce store' => 'merchant',
+        'Set Yoast SEO canonical URLs, not Rank Math' => 'yoast-seo',
+        'Improve organic visibility by changing article meta descriptions' => 'seo',
+        'Speed up the site by eliminating render-blocking CSS' => 'performance',
+        'Screen-reader users cannot follow the tab order' => 'accessibility',
+        'We need a reusable playbook for onboarding new editors' => 'saved-skills',
+    );
+    foreach ($queries as $query => $expected) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same($expected, $result['matches'][0]['slug'] ?? null, 'independent held-out WordPress intent: '.$query);
+    }
+});
+
+parity_test('held-out offsite requests do not imply WordPress plugin workflows', function() {
+    foreach (array('Find hotel booking appointments for a conference', 'Disable comments on my YouTube channel') as $query) {
+        $result = WPVDMCP_Parity::execute('load_skill', array('query' => $query));
+        assert_same(array(), $result['matches'] ?? null, 'offsite intent must abstain: '.$query);
+    }
+});
