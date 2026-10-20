@@ -55,11 +55,13 @@ final class WPVDMCP_Skill_Compat {
 	private static function search( $query ) {
 		$q = strtolower( substr( trim( (string) $query ), 0, 256 ) );
 		if ( '' === $q ) { return array(); }
-		// A WordPress workflow must not be inferred from an explicitly offsite request.
-		if ( ! self::has_phrase( $q, 'wordpress' ) && (
-			self::has_phrase( $q, 'youtube channel' ) ||
-			self::has_phrase( $q, 'hotel booking' )
-		) ) { return array(); }
+		// Avoid routing explicitly offsite work into a WordPress-only tool catalog.
+		$not_wordpress = 1 === preg_match( '/\b(?:not|no|non|outside|without)[\s-]+wordpress\b/', $q );
+		$wordpress_scope = ! $not_wordpress && self::has_phrase( $q, 'wordpress' );
+		$external_platform = 1 === preg_match( '/\b(?:youtube|shopify|instagram|tiktok|facebook|linkedin|discord|slack)\b/', $q );
+		$external_booking = 1 === preg_match( '/\b(?:hotel|conference)\b/', $q ) &&
+			1 === preg_match( '/\b(?:booking|appointments?|reservations?|rooms?)\b/', $q );
+		if ( $not_wordpress || ( ! $wordpress_scope && ( $external_platform || $external_booking ) ) ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
 			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'email', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
@@ -91,6 +93,7 @@ final class WPVDMCP_Skill_Compat {
 			elseif ( $tag_match ) { $score = 90; }
 			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) && false !== strpos( $slug_phrase, ' ' ) ) { $score = 92; }
 			elseif ( $terms && reset( $terms ) === $slug && 'merchant' !== $slug ) { $score = 89; }
+			elseif ( $terms && false !== strpos( $slug, '-' ) && self::has_phrase( $q, str_replace( '-', '', $slug ) ) ) { $score = 88; }
 			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) ) { $score = 80 + min( 9, (int) floor( strlen( $slug ) / 2 ) ); }
 			elseif ( $terms && self::has_phrase( $q, $title ) ) { $score = false !== strpos( $title, ' ' ) ? 87 : 79; }
 			elseif ( 0 === strpos( $slug, $q ) ) { $score = 85; }
