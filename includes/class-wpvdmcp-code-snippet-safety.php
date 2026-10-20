@@ -66,7 +66,7 @@ final class WPVDMCP_Code_Snippet_Safety {
 			if ( ! method_exists( 'WPVibe_Code_Snippet', 'proof_subject' ) ) {
 				return new WP_Error( 'snippet_action_unavailable', 'Deactivation and trashing require WPVibe 1.20.4 or a newer upstream code-snippet handler.', array( 'status' => 501 ) );
 			}
-			if ( ! isset( $args['id'] ) || absint( $args['id'] ) < 1 ) {
+			if ( ! isset( $args['id'] ) || ! self::valid_retire_id( $args['id'] ) ) {
 				return new WP_Error( 'invalid_snippet_id', 'Deactivation and trashing require an existing positive snippet ID.', array( 'status' => 400 ) );
 			}
 			foreach ( array( 'code', 'title', 'code_type', 'location', 'insert_method' ) as $source_field ) {
@@ -112,7 +112,8 @@ final class WPVDMCP_Code_Snippet_Safety {
 	private static function normalize_payload( $args ) {
 		$action = isset( $args['action'] ) ? sanitize_key( (string) $args['action'] ) : 'create';
 		if ( in_array( $action, array( 'deactivate', 'delete' ), true ) ) {
-			return array( 'action' => $action, 'id' => absint( $args['id'] ) );
+			// Only reached after exact ID validation; never absint() an untrusted retire ID.
+			return array( 'action' => $action, 'id' => (int) $args['id'] );
 		}
 		return array(
 			'action' => $action,
@@ -123,6 +124,14 @@ final class WPVDMCP_Code_Snippet_Safety {
 			'location' => isset( $args['location'] ) ? sanitize_key( (string) $args['location'] ) : '',
 			'insert_method' => isset( $args['insert_method'] ) ? sanitize_key( (string) $args['insert_method'] ) : 'auto',
 		);
+	}
+
+	/** Accept an integer or its canonical decimal string; never coerce a different target ID. */
+	private static function valid_retire_id( $id ) {
+		if ( is_int( $id ) ) {
+			return $id > 0;
+		}
+		return is_string( $id ) && 1 === preg_match( '/^[1-9][0-9]*$/D', $id ) && (string) (int) $id === $id;
 	}
 
 	private static function run_native( $payload, $dormant ) {
@@ -140,7 +149,7 @@ final class WPVDMCP_Code_Snippet_Safety {
 			if ( self::still_in_wpcode_cache( $id ) || ( function_exists( 'get_post_status' ) && 'publish' === get_post_status( $id ) ) ) {
 				return new WP_Error(
 					'snippet_cache_still_active',
-					'The upstream retirement operation returned, but the snippet still appears enabled or present in WPCode\'s execution cache. It may still run. Ask an administrator to inspect the snippet and WPCode cache in wp-admin; read the state back before any retry.',
+					'The upstream retirement operation returned, but the snippet still appears enabled, is present in WPCode\'s execution cache, or the cache could not be verified. It may still run. Ask an administrator to inspect the snippet and WPCode cache in wp-admin; read the state back before any retry.',
 					array( 'status' => 500, 'id' => $id, 'may_still_execute' => true )
 				);
 			}
@@ -153,13 +162,32 @@ final class WPVDMCP_Code_Snippet_Safety {
 
 	/** A snippet left in WPCode's execution option may still run after its post is disabled. */
 	private static function still_in_wpcode_cache( $id ) {
-		foreach ( (array) get_option( 'wpcode_snippets', array() ) as $group ) {
-			foreach ( (array) $group as $entry ) {
-				if ( is_array( $entry ) && isset( $entry['id'] ) && (int) $entry['id'] === $id ) {
+		return self::cache_contains_or_unknown( get_option( 'wpcode_snippets', array() ), $id, 0 );
+	}
+
+	/** Treat unknown shapes as potentially executing, never as evidence of successful deactivation. */
+	private static function cache_contains_or_unknown( $value, $id, $depth ) {
+		if ( $depth > 12 ) {
+			return true;
+		}
+		if ( is_object( $value ) ) {
+			$properties = get_object_vars( $value );
+			return empty( $properties ) ? true : self::cache_contains_or_unknown( $properties, $id, $depth + 1 );
+		}
+		if ( is_array( $value ) ) {
+			if ( array_key_exists( 'id', $value ) ) {
+				return ! self::valid_retire_id( $value['id'] ) || (int) $value['id'] === $id;
+			}
+			foreach ( $value as $entry ) {
+				if ( self::cache_contains_or_unknown( $entry, $id, $depth + 1 ) ) {
 					return true;
 				}
 			}
+			return false;
 		}
-		return false;
+		if ( self::valid_retire_id( $value ) ) {
+			return (int) $value === $id;
+		}
+		return true;
 	}
 }

@@ -186,3 +186,55 @@ parity_test('WPCode retirement fails closed if the upstream execution cache stil
         WPVibe_Code_Snippet::$mode='review';
     }
 });
+
+parity_test('WPCode retirement refuses coerced or noncanonical IDs before any native call',function(){
+    set_test_routes(array('/wpvibe/v1/code-snippet/dormant'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    WPVibe_Code_Snippet::$mode='retire';
+    WPVibe_Code_Snippet::$calls=array();
+    try {
+        foreach(array(-91,'91garbage',array(123),(object)array('id'=>91),1.9,true,0,'0','091','+91',' 91','92233720368547758080',null) as $bad_id){
+            foreach(array('deactivate','delete') as $action){
+                $result=WPVDMCP_Parity::execute('code_snippet',array('action'=>$action,'id'=>$bad_id));
+                assert_true(is_wp_error($result),'malformed retirement ID must fail before native handling: '.var_export($bad_id,true));
+                assert_same('invalid_snippet_id',$result->get_error_code(),'reject malformed IDs without silently coercing to another snippet');
+                assert_same(0,count(WPVibe_Code_Snippet::$calls),'invalid ID must never call native deactivate or delete');
+            }
+        }
+        $valid=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>'91'));
+        assert_same(200,$valid['status']??null,'canonical numeric-string IDs remain valid');
+        assert_same(91,WPVibe_Code_Snippet::$calls[0]['params']['id']??null,'canonical retirement ID normalized to integer');
+    } finally {
+        WPVibe_Code_Snippet::$mode='review';
+    }
+});
+
+parity_test('WPCode retirement fails closed for object, flat or uninspectable cache formats',function(){
+    set_test_routes(array('/wpvibe/v1/code-snippet/dormant'=>array('POST')));
+    $GLOBALS['wp_current_user']=1;
+    $before=$GLOBALS['wp_options'];
+    WPVibe_Code_Snippet::$mode='retire';
+    try {
+        foreach(array(
+            array('global'=>array((object)array('id'=>91))),
+            array('id'=>91),
+            array(91),
+            array('global'=>(object)array('snippets'=>array((object)array('id'=>91)))),
+            array('global'=>'uninspectable'),
+            'uninspectable',
+        ) as $cache){
+            $GLOBALS['wp_options']['wpcode_snippets']=$cache;
+            WPVibe_Code_Snippet::$calls=array();
+            $result=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+            assert_true(is_wp_error($result),'cache present/unknown must never report verified deactivation: '.gettype($cache));
+            assert_same('snippet_cache_still_active',$result->get_error_code(),'unknown cache structure must fail closed');
+            assert_same(1,count(WPVibe_Code_Snippet::$calls),'cache check cannot cause an additional side-effecting call');
+        }
+        $GLOBALS['wp_options']['wpcode_snippets']=array('global'=>array(array('id'=>92)));
+        $clear=WPVDMCP_Parity::execute('code_snippet',array('action'=>'deactivate','id'=>91));
+        assert_same(200,$clear['status']??null,'valid cache containing only other IDs does not falsely block retirement');
+    } finally {
+        $GLOBALS['wp_options']=$before;
+        WPVibe_Code_Snippet::$mode='review';
+    }
+});

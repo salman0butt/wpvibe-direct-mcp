@@ -16,7 +16,7 @@ Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 referen
 
 Published release 1.5.0 contains the self-contained MCP Apps, query-token-default-off, provider-output-boundary, provider-readiness-discovery, last-active write-throttling, explicit single-site hosted-boundary, Elementor page-design/bulk-mutation/page-settings/global-style fidelity regressions, the 2026-10-13 fail-closed persistence/code-audit regressions, and JSON-RPC notification response suppression, with **53 core/legacy + 20 parity + 196 reference cases (269 suite cases)** plus the focused Abilities regression.
 
-Release **1.5.1** packages the WPVibe 1.20.4/1.20.5 compatibility assertions for WPCode retirement, Bricks template types, optional Beaver schema slugs, index-hidden REST routes, the exact upstream commit manifest and WPCode cache false-success. Source and release ZIP totals are **53 core/legacy + 20 parity + 202 reference cases (275 suite cases)** plus the existing 174-request intent benchmark and focused Abilities regression.
+Release **1.5.1** packages the WPVibe 1.20.4/1.20.5 compatibility assertions for WPCode retirement, strict ID validation and conservative execution-cache readback, Bricks template types, optional Beaver schema slugs, index-hidden REST routes, the exact upstream commit manifest and WPCode cache false-success. Source and release ZIP totals are **53 core/legacy + 20 parity + 204 reference cases (277 suite cases)** plus the existing 174-request intent benchmark and focused Abilities regression.
 
 ### Skill-intent retrieval benchmark
 

@@ -17,7 +17,7 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 - WPVibe 1.20.4/1.20.5 compatibility: expose native WPCode `deactivate` and approval-gated `delete` only on supported versions, preserve exact snippet/action approvals and replay rejection, and fail closed if the WPCode execution cache still references a retired snippet.
 - Builder and preview parity: Bricks `template_type` for header/footer templates, optional Beaver schema `slug`, SeedProd preview/publishing guidance, and hidden REST-index routes excluded from generic discovery.
-- CI now tests WordPress 6.9 + Elementor Core 4.3.4 with both pinned WPVibe 1.20.3 and 1.20.5; its 1.20.5 lane also performs a live disposable WPCode Lite retirement/approval/replay workflow. PHP suites have **53 core/legacy + 20 parity + 202 reference = 275 cases**, plus the 174-request skills benchmark and Abilities regression. Licensed builders, SeedProd Pro, and external providers remain outside live verification.
+- CI now tests WordPress 6.9 + Elementor Core 4.3.4 with both pinned WPVibe 1.20.3 and 1.20.5; its 1.20.5 lane also performs a live disposable WPCode Lite retirement/approval/replay workflow. PHP suites have **53 core/legacy + 20 parity + 204 reference = 277 cases**, plus the 174-request skills benchmark and Abilities regression. Licensed builders, SeedProd Pro, and external providers remain outside live verification.
 
 ## What 1.5.0 added (previous release)
 
@@ -132,7 +132,7 @@ php tests/abilities-json-body-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 
-Release 1.5.1 verification contains 53 core/legacy + 20 parity + 202 reference tests = **275 suite cases**, plus the 174-request routing benchmark and focused Abilities raw-JSON request-body regression. GitHub Actions runs source suites on PHP 7.4, 8.2, and 8.4; the release workflow repeats them against the extracted ZIP on PHP 8.2. Historical v1.5.0 contains 269 cases and v1.4.1 contains 119; both remain unchanged.
+Release 1.5.1 verification contains 53 core/legacy + 20 parity + 204 reference tests = **277 suite cases**, plus the 174-request routing benchmark and focused Abilities raw-JSON request-body regression. GitHub Actions runs source suites on PHP 7.4, 8.2, and 8.4; the release workflow repeats them against the extracted ZIP on PHP 8.2. Historical v1.5.0 contains 269 cases and v1.4.1 contains 119; both remain unchanged.
 
 The WPCode reviewed-write bridge is unit/reference verified against the upstream handler contract, including dormant success, review-required approval, payload drift rejection, replay rejection, approval-bypass ordering, ignored activation input, and the preserved capability gate. The disposable WPVibe 1.20.5 lane additionally installs WPCode Lite and verifies create/deactivate, approved trash and replay rejection. This does not certify other WPCode versions or storage/cache implementations.
 
