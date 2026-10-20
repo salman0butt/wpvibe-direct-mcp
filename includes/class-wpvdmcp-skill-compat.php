@@ -53,11 +53,33 @@ final class WPVDMCP_Skill_Compat {
 	}
 
 	private static function search( $query ) {
-		$q = strtolower( trim( (string) $query ) );
+		$q = strtolower( substr( trim( (string) $query ), 0, 256 ) );
 		if ( '' === $q ) { return array(); }
+		$catalog = WPVDMCP_Parity_Skills::metadata();
+		// Explicit identifiers and user-owned titles always take priority over
+		// inferred task scope, including a saved skill named after a platform.
+		$exact_identifier = false;
+		foreach ( $catalog as $candidate ) {
+			if ( strtolower( (string) ( $candidate['slug'] ?? '' ) ) === $q || strtolower( (string) ( $candidate['title'] ?? '' ) ) === $q ) {
+				$exact_identifier = true;
+				break;
+			}
+		}
+		// Avoid routing explicitly offsite work into a WordPress-only tool catalog.
+		// A WordPress.com exclusion is not a denial that a self-hosted site uses WordPress.
+		$scope_query = preg_replace( '/\b(?:not|no|non|outside|without)[\s-]+wordpress\.com\b/', ' ', $q );
+		$not_wordpress = 1 === preg_match( '/\b(?:not|no|non|outside|without)(?:[\s-]+(?:a|an|use|using|of|on|the|is|built)){0,4}[\s-]+wordpress\b/', $scope_query );
+		// Third-party services can also be CONTENT on WordPress pages. Named WP
+		// integrations are positive context even when the query omits 'WordPress'.
+		$wp_integration = 1 === preg_match( '/\b(?:woocommerce|elementor|gutenberg|amelia|wpforms|yoast|smash[\s-]+balloon|beaver[\s-]+builder|breakdance|bricks|divi|seedprod|wpbakery|kadence|generatepress|generateblocks|fluentcart|fluentcrm|cartflows|rank[\s-]*math|lifterlms|memberpress|duplicator|wpcode|seopress|aioseo|botiga|optinmonster|adtribes|pagelayer|elementskit)\b/', $scope_query );
+		$wordpress_scope = ! $not_wordpress && ( self::has_phrase( $scope_query, 'wordpress' ) || $wp_integration );
+		$external_platform = 1 === preg_match( '/\b(?:youtube|shopify|instagram|tiktok|facebook|linkedin|discord|slack)\b/', $q );
+		$external_booking = 1 === preg_match( '/\b(?:hotel|conference)\b/', $q ) &&
+			1 === preg_match( '/\b(?:booking|appointments?|reservations?|rooms?)\b/', $q );
+		if ( ! $exact_identifier && ( $not_wordpress || ( ! $wordpress_scope && ( $external_platform || $external_booking ) ) ) ) { return array(); }
 		$terms = array();
 		if ( preg_match( '/\s/', $q ) ) {
-			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
+			$stop_words = array_flip( array( 'a', 'all', 'an', 'and', 'are', 'at', 'by', 'can', 'change', 'configure', 'create', 'do', 'edit', 'email', 'fix', 'for', 'from', 'how', 'i', 'in', 'is', 'manage', 'me', 'my', 'of', 'on', 'page', 'please', 'plugin', 'site', 'the', 'to', 'update', 'web', 'website', 'with', 'wordpress' ) );
 			foreach ( preg_split( '/[^a-z0-9]+/', substr( $q, 0, 256 ), -1, PREG_SPLIT_NO_EMPTY ) as $term ) {
 				if ( strlen( $term ) < 3 || isset( $stop_words[ $term ] ) ) { continue; }
 				$terms[ $term ] = $term;
@@ -65,10 +87,13 @@ final class WPVDMCP_Skill_Compat {
 			}
 		}
 		$matches = array();
-		foreach ( WPVDMCP_Parity_Skills::metadata() as $row ) {
+		$normalized_query = trim( preg_replace( '/[^a-z0-9]+/', ' ', $q ) );
+		foreach ( $catalog as $row ) {
 			$slug = strtolower( (string) ( $row['slug'] ?? '' ) );
 			$title = strtolower( (string) ( $row['title'] ?? '' ) );
 			$description = strtolower( (string) ( $row['description'] ?? '' ) );
+			$slug_phrase = str_replace( '-', ' ', $slug );
+			if ( $terms && 1 === preg_match( '/\b(?:not|no|without|avoid)(?:\s+(?:use|using|choose|install|enable|select|a|an|the|plugin)){0,3}\s+' . preg_quote( $slug_phrase, '/' ) . '\b/', $normalized_query ) ) { continue; }
 			$tag_match = false;
 			if ( isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
 				foreach ( $row['tags'] as $tag ) {
@@ -82,10 +107,23 @@ final class WPVDMCP_Skill_Compat {
 			if ( $slug === $q ) { $score = 100; }
 			elseif ( $title === $q ) { $score = 95; }
 			elseif ( $tag_match ) { $score = 90; }
+			elseif ( false !== strpos( $slug, '-' ) && $q === str_replace( '-', '', $slug ) ) { $score = 93; }
+			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) && false !== strpos( $slug_phrase, ' ' ) ) { $score = 92; }
+			elseif ( $terms && reset( $terms ) === $slug && 'merchant' !== $slug ) { $score = 89; }
+			elseif ( $terms && false !== strpos( $slug, '-' ) && self::has_phrase( $q, str_replace( '-', '', $slug ) ) ) { $score = 88; }
+			elseif ( $terms && self::has_phrase( $q, $slug_phrase ) ) { $score = 80 + min( 9, (int) floor( strlen( $slug ) / 2 ) ); }
+			elseif ( $terms && self::has_phrase( $q, $title ) ) { $score = false !== strpos( $title, ' ' ) ? 87 : 79; }
 			elseif ( 0 === strpos( $slug, $q ) ) { $score = 85; }
 			elseif ( false !== strpos( $slug, $q ) ) { $score = 75; }
 			elseif ( false !== strpos( $title, $q ) ) { $score = 65; }
 			elseif ( '' !== $description && false !== strpos( $description, $q ) ) { $score = 45; }
+			if ( $terms && $score < 87 && isset( $row['tags'] ) && is_array( $row['tags'] ) ) {
+				foreach ( $row['tags'] as $tag ) {
+					if ( is_string( $tag ) && false !== strpos( trim( $tag ), ' ' ) && self::has_phrase( $q, strtolower( $tag ) ) ) {
+						$score = max( $score, 86 );
+					}
+				}
+			}
 			if ( ! $score && $terms ) { $score = self::term_score( $terms, $slug, $title, $description, $row['tags'] ?? array() ); }
 			if ( ! $score ) { continue; }
 			$copy = $row;
@@ -104,17 +142,31 @@ final class WPVDMCP_Skill_Compat {
 	private static function term_score( $terms, $slug, $title, $description, $tags ) {
 		$best = 0;
 		$matched = 0;
+		$discriminative = 0;
+		$ambiguous_terms = array_flip( array( 'api', 'image', 'images', 'live', 'saved', 'search', 'server', 'stock', 'video' ) );
 		foreach ( $terms as $term ) {
 			$score = 0;
 			foreach ( is_array( $tags ) ? $tags : array() as $tag ) {
-				if ( is_string( $tag ) && self::has_word( strtolower( $tag ), $term ) ) { $score = 40; break; }
+				if ( ! is_string( $tag ) ) { continue; }
+				$normalized_tag = strtolower( $tag );
+				if ( self::has_word( $normalized_tag, $term ) && ( false === strpos( trim( $normalized_tag ), ' ' ) || self::has_phrase( implode( ' ', $terms ), $normalized_tag ) ) ) { $score = 40; break; }
 			}
 			if ( ! $score && self::has_word( $slug, $term ) ) { $score = 38; }
 			if ( ! $score && self::has_word( $title, $term ) ) { $score = 36; }
 			if ( ! $score && self::has_word( $description, $term ) ) { $score = 22; }
-			if ( $score ) { $best = max( $best, $score ); ++$matched; }
+			if ( $score ) {
+				$best = max( $best, $score );
+				++$matched;
+				if ( ! isset( $ambiguous_terms[ $term ] ) ) { ++$discriminative; }
+			}
 		}
-		return $best >= 36 ? min( 44, $best + 2 * ( $matched - 1 ) ) : 0;
+		return $best >= 36 && $discriminative ? min( 44, $best + 2 * ( $matched - 1 ) ) : 0;
+	}
+
+	private static function has_phrase( $query, $phrase ) {
+		$normalized_query = ' ' . trim( preg_replace( '/[^a-z0-9]+/', ' ', $query ) ) . ' ';
+		$normalized_phrase = trim( preg_replace( '/[^a-z0-9]+/', ' ', $phrase ) );
+		return '' !== $normalized_phrase && false !== strpos( $normalized_query, ' ' . $normalized_phrase . ' ' );
 	}
 
 	/** Match a standalone task word, never an accidental substring like form in performance. */

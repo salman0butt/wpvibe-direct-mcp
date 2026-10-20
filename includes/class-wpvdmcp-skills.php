@@ -80,6 +80,21 @@ final class WPVDMCP_Skills {
 
 	public static function tags( $slug ) {
 		$tags = array(
+			'setup' => array( 'connect', 'site setup', 'capability discovery' ),
+			'content-editing' => array( 'rewrite', 'article editing', 'post editing' ),
+			'caching' => array( 'cache', 'object cache', 'stale cache' ),
+			'debugging' => array( 'debug', 'PHP fatal', 'server error', 'broken plugin' ),
+			'site-intelligence' => array( 'site health', 'health', 'diagnostics' ),
+			'image-search' => array( 'stock images', 'stock photos', 'royalty' ),
+			'theme-redesign' => array( 'website theme', 'full redesign' ),
+			'abilities-plugin' => array( 'abilities-first', 'abilities plugin' ),
+			'block-validation' => array( 'serialized block', 'round-trip validation' ),
+			'block-themes' => array( 'block theme', 'full site editing' ),
+			'seo' => array( 'organic visibility', 'meta descriptions' ),
+			'performance' => array( 'render-blocking CSS', 'speed up' ),
+			'accessibility' => array( 'screen reader', 'tab order', 'keyboard-only navigation' ),
+			'saved-skills' => array( 'reusable playbook', 'onboarding editors', 'repeatable runbooks' ),
+			'merchant' => array( 'Merchant WooCommerce offers', 'Merchant storefront', 'Merchant Pro' ),
 			'woocommerce' => array( 'stock', 'inventory', 'checkout', 'orders', 'product inventory' ),
 			'cartflows' => array( 'checkout', 'funnels', 'order bumps' ),
 			'amelia' => array( 'appointments', 'bookings', 'calendar' ),
