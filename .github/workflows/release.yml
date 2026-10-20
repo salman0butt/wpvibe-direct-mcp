@@ -148,7 +148,7 @@ jobs:
             --exclude 'extracted/'
           (cd build && zip -qr "../dist/$ARCHIVE" wpvibe-direct-mcp)
           unzip -t "dist/$ARCHIVE"
-          sha256sum "dist/$ARCHIVE" | tee "dist/$ARCHIVE.sha256"
+          (cd dist && sha256sum "$ARCHIVE" | tee "$ARCHIVE.sha256" && sha256sum --check "$ARCHIVE.sha256")
 
       - name: Verify extracted archive
         if: steps.meta.outputs.release_needed == 'true'

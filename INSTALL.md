@@ -48,7 +48,7 @@ Generic client shape:
 
 ## Query-token compatibility
 
-Query-string authentication is disabled by default on current unreleased `main`. For an MCP client that genuinely cannot send an `Authorization` or `X-WPVibe-Direct-Token` header:
+Query-string authentication is disabled by default since release 1.5.0. For an MCP client that genuinely cannot send an `Authorization` or `X-WPVibe-Direct-Token` header:
 
 1. Open **WPVibe → Direct MCP → Settings**.
 2. Enable **Allow query-string token compatibility** and save.
@@ -72,7 +72,7 @@ It returns Direct MCP/WPVibe versions and endpoint metadata. It never returns th
 
 ## Updating from 1.0.4
 
-1. Keep your current token if you want existing clients to continue connecting. Bearer and `X-WPVibe-Direct-Token` formats remain unchanged; on current unreleased `main`, URL-token clients must explicitly enable query-token compatibility after upgrade.
+1. Keep your current token if you want existing clients to continue connecting. Bearer and `X-WPVibe-Direct-Token` formats remain unchanged; since release 1.5.0, URL-token clients must explicitly enable query-token compatibility after upgrade.
 2. Replace the plugin folder/ZIP and reactivate if WordPress asks.
 3. Open **WPVibe → Direct MCP** and verify detected capabilities.
 4. Re-open the MCP client so it refreshes its tool list.

@@ -6,14 +6,20 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 
 ## Release
 
-- Direct MCP: **1.5.0**
-- Audited WPVibe release/source: **1.20.3**
-- Audited upstream commit: **`8f303926ae11179e38bc0ecf2a87e3cbd18984c6`** (2026-10-06)
+- Direct MCP: **1.5.1**
+- Audited WPVibe release/source: **1.20.5** (plus regression coverage for **1.20.3**)
+- Audited upstream commit: **`62bc77ccd1c15faf766f527a7935fe32f1b227d3`** (2026-10-14)
 - WordPress: 6.0+; Abilities tools require WordPress 6.9+
 - PHP: 7.4+
 - MCP: modern `2026-07-28` plus legacy 2025/2024 compatibility
 
-## What’s new in 1.5.0
+## What’s new in 1.5.1
+
+- WPVibe 1.20.4/1.20.5 compatibility: expose native WPCode `deactivate` and approval-gated `delete` only on supported versions, preserve exact snippet/action approvals and replay rejection, and fail closed if the WPCode execution cache still references a retired snippet.
+- Builder and preview parity: Bricks `template_type` for header/footer templates, optional Beaver schema `slug`, SeedProd preview/publishing guidance, and hidden REST-index routes excluded from generic discovery.
+- CI now tests WordPress 6.9 + Elementor Core 4.3.4 with both pinned WPVibe 1.20.3 and 1.20.5; its 1.20.5 lane also performs a live disposable WPCode Lite retirement/approval/replay workflow. PHP suites have **53 core/legacy + 20 parity + 204 reference = 277 cases**, plus the 174-request skills benchmark and Abilities regression. Licensed builders, SeedProd Pro, and external providers remain outside live verification.
+
+## What 1.5.0 added (previous release)
 
 - Security: bearer-authenticated MCP Apps can no longer self-approve mutations; only a capability- and nonce-checked WordPress admin can approve them.
 - Security: upload tickets are bound to the live token/owner; malformed or missing JSON-RPC request IDs are rejected before side effects.
@@ -31,7 +37,7 @@ A self-hosted MCP endpoint for WordPress that reuses the installed **WPVibe** pl
 - The 2026-10-12 Works-with-AI/Cookbook refresh adds dedicated ACF, Ultimate Addons for Elementor, and Disable Comments safety playbooks over the existing WordPress Abilities execution surface.
 - Release CI contains 35 core/legacy + 14 parity + 70 reference cases = **119 suite cases**, plus the focused Abilities raw-JSON regression, on PHP 7.4, 8.2, and 8.4.
 
-The real disposable acceptance lane remains bounded to WordPress 6.9 + exact WPVibe 1.20.3 upstream SHA + Elementor Core 4.3.4. It verifies authenticated MCP discovery, runtime Elementor Ability discovery, approval/replay protection, draft page creation, Atomic composition, shared global-style/element updates, page-structure read, publish, rendered frontend output, PHP-fatal checks, Atomic-OFF fallback behavior, and the live WPVibe route-classification inventory. Elementor Pro Theme Builder, other page builders, provider-backed browser/audit/image services, WPCode live runtime behavior, media edge cases, and production/client sites are not claimed as E2E-verified by this release.
+The real disposable acceptance matrix for 1.5.1 is bounded to WordPress 6.9 + Elementor Core 4.3.4 with pinned WPVibe 1.20.3 and 1.20.5. Both lanes verify authenticated MCP discovery, Elementor Abilities, approval/replay protection, draft pages, Atomic composition, shared global-style/element updates, read/publish/render behavior, PHP-fatal checks, Atomic-OFF fallback and live WPVibe route classification. The 1.20.5 lane additionally verifies WPCode Lite create/deactivate/approval-gated trash/replay rejection. Elementor Pro Theme Builder, licensed Bricks/Beaver, SeedProd Pro, provider-backed browser/audit/image services, other WPCode versions, media edge cases and production/client sites are not claimed E2E-certified.
 
 See `CHANGELOG.md`, `docs/PARITY.md`, and `docs/TESTING.md` for the evidence boundary.
 
@@ -126,9 +132,9 @@ php tests/abilities-json-body-run.php
 find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 ```
 
-Release 1.5.0 verification contains 53 core/legacy + 20 parity + 196 reference tests = **269 suite cases**, plus the 174-request routing benchmark and focused Abilities raw-JSON request-body regression. GitHub Actions runs source suites on PHP 7.4, 8.2, and 8.4; the release workflow repeats them against the extracted ZIP on PHP 8.2. Historical v1.4.1 contains 119 suite cases and remains unchanged.
+Release 1.5.1 verification contains 53 core/legacy + 20 parity + 204 reference tests = **277 suite cases**, plus the 174-request routing benchmark and focused Abilities raw-JSON request-body regression. GitHub Actions runs source suites on PHP 7.4, 8.2, and 8.4; the release workflow repeats them against the extracted ZIP on PHP 8.2. Historical v1.5.0 contains 269 cases and v1.4.1 contains 119; both remain unchanged.
 
-The WPCode reviewed-write bridge is unit/reference verified against the upstream handler contract, including dormant success, review-required approval, payload drift rejection, replay rejection, approval-bypass ordering, ignored activation input, and the preserved capability gate. The disposable WordPress/Elementor lane does not install WPCode, so no live WPCode E2E claim is made.
+The WPCode reviewed-write bridge is unit/reference verified against the upstream handler contract, including dormant success, review-required approval, payload drift rejection, replay rejection, approval-bypass ordering, ignored activation input, and the preserved capability gate. The disposable WPVibe 1.20.5 lane additionally installs WPCode Lite and verifies create/deactivate, approved trash and replay rejection. This does not certify other WPCode versions or storage/cache implementations.
 
 A separate disposable WordPress/Elementor CI workflow verifies the bounded Elementor Core 4.3.4 integration described above and the live WPVibe route-classification inventory. The broader manual checklist in `docs/TESTING.md` remains intentionally unmarked until those additional environments/capabilities are actually exercised; production is never used for destructive verification.
 
