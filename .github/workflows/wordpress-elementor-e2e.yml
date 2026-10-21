@@ -207,6 +207,10 @@ jobs:
         shell: bash
         run: bash tests/e2e/wpcode-retire-smoke.sh
 
+      - name: Verify approval concurrency and token rotation against MySQL
+        shell: bash
+        run: bash tests/e2e/approval-reliability-smoke.sh
+
       - name: Verify no PHP fatal errors were logged
         if: success()
         shell: bash

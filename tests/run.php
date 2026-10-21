@@ -224,7 +224,7 @@ test_case('approval decisions fail closed when decision state cannot be persiste
     $rejected=WPVDMCP_Approvals::reject($approval_id,1);
     unset($GLOBALS['set_transient_override']);
     assert_true(is_wp_error($rejected),'unpersisted rejection decision must fail closed');
-    assert_same('approval_persist_failed',$rejected->get_error_code(),'reject persistence failure code');
+    assert_same('approval_in_progress',$rejected->get_error_code(),'ambiguous approval persistence must retain the one-time claim and block a conflicting rejection');
     $status=WPVDMCP_Approvals::status($approval_id);
     assert_same('pending',$status['status']??null,'failed decision persistence leaves receipt pending');
 });
