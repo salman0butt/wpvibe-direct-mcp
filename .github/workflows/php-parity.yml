@@ -32,6 +32,8 @@ jobs:
         run: php tests/parity-run.php
       - name: Reference tests
         run: php tests/reference-run.php
+      - name: MCP App slow-upload state simulation
+        run: node tests/inline-upload-app-run.js
       - name: Skill routing benchmark
         run: php tests/skill-routing-benchmark.php --enforce
       - name: Abilities request-body regression

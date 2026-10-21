@@ -229,8 +229,115 @@ HTML;
 
 	private static function upload_html() {
 		$html = <<<'HTML'
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WPVibe upload</title><style>body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:16px;color:CanvasText;background:Canvas}main{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:12px;padding:16px}.drop{display:block;border:2px dashed color-mix(in srgb,CanvasText 28%,transparent);border-radius:10px;padding:22px;text-align:center}button{margin-top:12px;padding:9px 14px;border-radius:8px;border:1px solid currentColor;background:Canvas;font-weight:700}#status{margin-top:10px}</style></head><body><main><h2>Upload to WordPress</h2><label class="drop">Drop images here or choose files<input id="files" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" multiple></label><button id="upload" disabled>Upload to Media Library</button><p id="status" aria-live="polite">Waiting for an upload ticket…</p></main><script>/*__WPVDMCP_APP_CLIENT__*/const app=createDirectMcpApp({name:'WPVibe Direct Upload',version:'1.0.0'});let ticket=null;const files=document.getElementById('files'),button=document.getElementById('upload'),status=document.getElementById('status');app.ontoolresult=(result)=>{ticket=result.structuredContent||{};status.textContent=ticket.upload_id?'Choose images to upload.':'Upload ticket unavailable.';button.disabled=!ticket.upload_id;};files.onchange=()=>{button.disabled=!(ticket?.upload_id&&files.files.length);};button.onclick=async()=>{if(!ticket?.upload_url||!files.files.length)return;button.disabled=true;status.textContent='Uploading…';try{const form=document.createElement('form');form.method='POST';form.enctype='multipart/form-data';form.action=ticket.upload_url;form.target='wpvdmcp-upload-target';form.style.display='none';for(const file of files.files){const dt=new DataTransfer();dt.items.add(file);const input=document.createElement('input');input.type='file';input.name='files[]';input.files=dt.files;form.appendChild(input);}const frame=document.createElement('iframe');frame.name='wpvdmcp-upload-target';frame.style.display='none';document.body.append(frame,form);form.submit();await new Promise(r=>setTimeout(r,1800));const check=await app.callServerTool({name:'check_upload',arguments:{upload_id:ticket.upload_id}});const data=check?.structuredContent||{};status.textContent=data.status==='ready'?'Uploaded to the Media Library.':'Upload is still processing. Use the browser link fallback if needed.';form.remove();frame.remove();}catch(e){status.textContent='Inline upload failed. Open the browser upload link as a fallback.';}button.disabled=false;};app.connect().catch(()=>{status.textContent='Inline upload unavailable. Open the browser upload link as a fallback.';});</script></body></html>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WPVibe upload</title><style>body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:16px;color:CanvasText;background:Canvas}main{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:12px;padding:16px}.drop{display:block;border:2px dashed color-mix(in srgb,CanvasText 28%,transparent);border-radius:10px;padding:22px;text-align:center}button{margin-top:12px;padding:9px 14px;border-radius:8px;border:1px solid currentColor;background:Canvas;font-weight:700}#status{margin-top:10px}</style></head><body><main><h2>Upload to WordPress</h2><label class="drop">Drop images here or choose files<input id="files" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" multiple></label><button id="upload" disabled>Upload to Media Library</button><p id="status" aria-live="polite">Waiting for an upload ticket…</p></main><script>/*__WPVDMCP_APP_CLIENT__*//*__WPVDMCP_UPLOAD_JS__*/</script></body></html>
 HTML;
-		return str_replace( '/*__WPVDMCP_APP_CLIENT__*/', self::app_client_js(), $html );
+		$html = str_replace( '/*__WPVDMCP_APP_CLIENT__*/', self::app_client_js(), $html );
+		return str_replace( '/*__WPVDMCP_UPLOAD_JS__*/', self::upload_js(), $html );
+	}
+
+	/** An in-flight multipart POST must retain its target frame until WordPress confirms completion. */
+	private static function upload_js() {
+		return <<<'JS'
+const app=createDirectMcpApp({name:'WPVibe Direct Upload',version:'1.0.0'});
+let ticket=null;
+let activeTransfer=false;
+const files=document.getElementById('files');
+const button=document.getElementById('upload');
+const status=document.getElementById('status');
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+app.ontoolresult=result=>{
+  ticket=result.structuredContent||{};
+  status.textContent=ticket.upload_id?'Choose images to upload.':'Upload ticket unavailable.';
+  button.disabled=activeTransfer||!ticket.upload_id;
+};
+files.onchange=()=>{button.disabled=activeTransfer||!(ticket?.upload_id&&files.files.length);};
+button.onclick=async()=>{
+  if(activeTransfer||!ticket?.upload_url||!files.files.length)return;
+  const transferTicket=ticket;
+  activeTransfer=true;
+  button.disabled=true;
+  status.textContent='Uploading…';
+  let form=null,frame=null,submitted=false,terminal=false;
+  try{
+    form=document.createElement('form');
+    form.method='POST';
+    form.enctype='multipart/form-data';
+    form.action=transferTicket.upload_url;
+    form.target='wpvdmcp-upload-target';
+    form.style.display='none';
+    for(const file of files.files){
+      const dt=new DataTransfer();
+      dt.items.add(file);
+      const input=document.createElement('input');
+      input.type='file';
+      input.name='files[]';
+      input.files=dt.files;
+      form.appendChild(input);
+    }
+    frame=document.createElement('iframe');
+    frame.name='wpvdmcp-upload-target';
+    frame.style.display='none';
+    document.body.append(frame,form);
+    form.submit();
+    submitted=true;
+    // HTTP uploads can take far longer than a fixed timer. Never tear down the
+    // target frame while WordPress reports waiting/processing or is unreachable.
+    for(let attempt=0;attempt<120;attempt++){
+      await pause(2000);
+      let data={};
+      try{
+        const check=await app.callServerTool({name:'check_upload',arguments:{upload_id:transferTicket.upload_id}});
+        if(check?.isError){
+          status.textContent='Upload status unavailable. Keep this panel open or use check_upload in the MCP client.';
+          continue;
+        }
+        data=check?.structuredContent||{};
+      }catch(error){
+        status.textContent='Upload status temporarily unavailable. Keep this panel open.';
+        continue;
+      }
+      if(data.status==='ready'){
+        terminal=true;
+        status.textContent='Uploaded to the WordPress Media Library.';
+        break;
+      }
+      if(data.status==='failed'){
+        terminal=true;
+        const orphaned=Array.isArray(data.orphaned_attachment_ids)?data.orphaned_attachment_ids:[];
+        status.textContent=orphaned.length?'Upload failed; Media Library attachment IDs '+orphaned.join(', ')+' require manual cleanup before retrying.':'Upload failed. Inspect the browser upload response or WordPress Media Library before retrying.';
+        break;
+      }
+      if(data.status==='processing'){
+        status.textContent='Upload is still processing. Keep this panel open.';
+      }else if(data.status==='waiting'){
+        status.textContent='Transfer is pending. Keep this panel open.';
+      }else{
+        status.textContent='Upload state is not confirmed. Keep this panel open and check with the MCP client.';
+      }
+    }
+    if(!terminal){status.textContent='Upload may still be running. Keep this panel open; do not resubmit. Check the upload status in your MCP client.';}
+  }catch(error){
+    status.textContent='Inline upload could not be confirmed. Keep this panel open if transfer started; otherwise use the browser upload link fallback.';
+  }finally{
+    if(terminal){
+      form.remove();
+      frame.remove();
+      activeTransfer=false;
+      if(ticket===transferTicket)ticket=null; // A consumed/failed one-time ticket must never be resubmitted.
+      button.disabled=!(ticket?.upload_id&&files.files.length);
+    }else if(!submitted){
+      if(form)form.remove();
+      if(frame)frame.remove();
+      activeTransfer=false;
+      button.disabled=!(ticket?.upload_id&&files.files.length);
+    }else{
+      // A network timeout is not proof the WordPress multipart POST finished.
+      // Preserve the iframe/form and disable resubmission to avoid interruption.
+      button.disabled=true;
+    }
+  }
+};
+app.connect().catch(()=>{status.textContent='Inline upload unavailable. Open the browser upload link as a fallback.';});
+JS;
 	}
 }

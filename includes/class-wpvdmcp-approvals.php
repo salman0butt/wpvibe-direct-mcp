@@ -74,6 +74,7 @@ final class WPVDMCP_Approvals {
 				}
 			}
 			if ( ! $stored ) {
+				$release_claim = false; // A false acknowledgement may still have committed the decision.
 				return new WP_Error( 'approval_persist_failed', 'The approved state could not be verified as durable. Do not retry this receipt; an uncertain write remains locked until expiry.', array( 'status' => 503 ) );
 			}
 			return true;
@@ -125,6 +126,7 @@ final class WPVDMCP_Approvals {
 				}
 			}
 			if ( ! $stored ) {
+				$release_claim = false; // Do not release the decision claim on ambiguous false returns.
 				return new WP_Error( 'approval_persist_failed', 'The rejected state could not be verified as durable. Do not retry this receipt; an uncertain write remains locked until expiry.', array( 'status' => 503 ) );
 			}
 			return true;

@@ -54,3 +54,36 @@ parity_test('failed WordPress attachment rollback discloses orphan IDs and origi
         if($had_deleted)$GLOBALS['test_deleted_attachments']=$prior_deleted;else unset($GLOBALS['test_deleted_attachments']);
     }
 });
+
+parity_test('inline MCP App upload keeps its form and iframe until a terminal ticket state', function () {
+    $resource = WPVDMCP_MCP_Apps::read_resource('ui://wpvibe-direct/upload-panel');
+    assert_true(!is_wp_error($resource), 'upload UI resource available');
+    $html = (string) ($resource['contents'][0]['text'] ?? '');
+    assert_true(strpos($html, 'setTimeout(r,1800)') === false, 'fixed 1.8-second iframe teardown can interrupt slow uploads');
+    assert_true(strpos($html, "data.status==='processing'") !== false, 'inline uploader must explicitly handle the in-progress state');
+    assert_true(strpos($html, 'if(terminal)') !== false, 'hidden upload form/iframe cleanup must be conditional on a verified terminal outcome');
+    assert_true(strpos($html, 'form.remove()') !== false && strpos($html, 'frame.remove()') !== false, 'completed transfers should still clean up temporary elements');
+});
+
+parity_test('safe upload status exposes reconciliation IDs but not bearer or ticket secrets', function () {
+    $before=$GLOBALS['wp_options'];
+    try {
+        $ticket=WPVDMCP_Upload::request(array('title'=>'Orphan disclosure after failed rollback'));
+        assert_true(!is_wp_error($ticket),'ticket issued');
+        $parts=parse_url($ticket['upload_url']); parse_str($parts['query']??'', $query);
+        $id=$ticket['upload_id']; $secret=$query['upload_token']??'';
+        assert_same(true,WPVDMCP_Upload::begin_processing($id,$secret),'ticket reserved');
+        $reflection=new ReflectionMethod('WPVDMCP_Upload','fail_processing');
+        if(PHP_VERSION_ID<80100)$reflection->setAccessible(true);
+        $error=new WP_Error('upload_rollback_failed','Partial media cleanup failed.',array(
+            'partial_applied'=>true,'orphaned_attachment_ids'=>array(601,0,602),'original_error_code'=>'unsupported_media_type',
+        ));
+        assert_same(true,$reflection->invoke(null,$id,$secret,$error),'persist failed status');
+        $status=WPVDMCP_Upload::check($id);
+        assert_same('failed',$status['status']??null,'status is failed');
+        assert_same('upload_rollback_failed',$status['failure_code']??null,'status exposes failure code');
+        assert_same(true,$status['partial_applied']??null,'status warns of partial Media Library side effects');
+        assert_same(array(601,602),$status['orphaned_attachment_ids']??null,'status provides real IDs to manually reconcile');
+        assert_true(!isset($status['secret_hash'])&&!isset($status['token_hash_fingerprint']),'status does not disclose bearer or browser secrets');
+    }finally{$GLOBALS['wp_options']=$before;}
+});

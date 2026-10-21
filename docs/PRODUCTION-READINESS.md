@@ -8,6 +8,7 @@ This audit started from immutable published Direct MCP `v1.5.1` (`ec035e95ac62af
 - Approved receipts bind to the credential fingerprint, not just the Administrator user ID. Rotating/revoking that bearer prevents use of older receipts, and a new credential can request and consume its own independently approved receipt. Legacy unbound receipts deliberately fail closed and must be re-requested.
 - Failed upload transitions are not considered terminal unless the exact `failed` record can be read back. Uncertain state preserves the transition claim rather than enabling a second browser upload attempt.
 - A failed `wp_delete_attachment` rollback returns `upload_rollback_failed` with `partial_applied`, the affected attachment IDs and the original upload error code. The attempted cleanup covers every attachment, even after a failed deletion. The browser and activity log display a manual-reconciliation warning.
+- Authenticated `check_upload` status presents `failure_code`, `partial_applied` and surviving attachment IDs without exposing ticket secrets, so an inline MCP App can show a concrete cleanup warning. The app keeps its hidden multipart target while WordPress reports a nonterminal state or status calls are unavailable, removing it only after confirmed completion/failure. A Node-based fake MCP App host simulates slow/in-progress, failed/orphan and unresolved transfers by evaluating the exact PHP-embedded upload JavaScript. This is an application-level regression test, not browser-host certification.
 
 These tests use WordPress-function mocks to inject failures. They do **not** prove that any particular MySQL, cache, or media-storage deployment experiences these faults.
 
@@ -19,9 +20,9 @@ The `WordPress Elementor E2E` workflow already uses a real disposable WordPress 
 
 - No local Docker daemon was available during this audit, so a local MySQL or Redis instance was not run. Hosted MySQL checks are intentionally disposable; never test destructive workflows against customer sites.
 - An external Redis/Memcached object-cache drop-in, cache eviction/replication, multi-host WordPress, persistent proxy caching, and interrupted PHP processes have **not** been live-certified. Run those in a purpose-built disposable environment before claiming distributed-systems reliability.
-- Real Media Library deletion failures, short-lived upload ticket expiration under Redis, WordPress admin nonce/cookie interaction, the full active-to-inactive WPCode execution-cache purge and licensed builder workflows remain manual/extended integration scenarios.
+- Real Media Library deletion failures, short-lived upload ticket expiration under Redis, WordPress admin nonce/cookie interaction, actual slow-network browser/MCP App host behavior, the full active-to-inactive WPCode execution-cache purge and licensed builder workflows remain manual/extended integration scenarios.
 - Current plugin architecture is **single-site**, not a hosted multi-site fleet controller. Install independently per WordPress site.
 
 ## Release/operational policy
 
-Review the exact candidate diff and green PHP 7.4/8.2/8.4 matrix, both WordPress/Elementor lanes, new MySQL contention smoke and the existing 174-request skill-intent benchmark. Merge only verified fixes. Increment the plugin version before publishing a new immutable release; a merge that retains v1.5.1 metadata must not overwrite existing v1.5.1 ZIP/checksum assets.
+Review the exact candidate diff and green PHP 7.4/8.2/8.4 matrix, Node inline-app simulation, both WordPress/Elementor lanes, new MySQL contention smoke and the existing 174-request skill-intent benchmark. Merge only verified fixes. Increment the plugin version before publishing a new immutable release; a merge that retains v1.5.1 metadata must not overwrite existing v1.5.1 ZIP/checksum assets.

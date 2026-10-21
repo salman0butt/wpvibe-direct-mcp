@@ -92,3 +92,35 @@ parity_test('pre-binding legacy approval receipts fail closed after an upgrade',
         $GLOBALS['wp_options'] = $before;
     }
 });
+
+parity_test('false storage acknowledgement cannot unlock an uncertain approved receipt', function () {
+    $before=$GLOBALS['wp_options'];
+    $had_override=array_key_exists('set_transient_override',$GLOBALS);
+    $previous=$had_override?$GLOBALS['set_transient_override']:null;
+    try {
+        $payload=array('name'=>'demo/ambiguous-write','method'=>'DELETE','input'=>array('id'=>64));
+        $request=WPVDMCP_Approvals::request('run_ability',$payload,'Fail-closed false storage acknowledgement');
+        $id=$request['approval_id']??'';
+        assert_true($id!=='','approval receipt created');
+        $GLOBALS['set_transient_override']=function($key,$record,$ttl)use($id){
+            if($key==='wpvdmcp_approval_'.$id && is_array($record) && ($record['status']??'')==='approved'){
+                // A backend can commit the data yet report a false acknowledgement.
+                $GLOBALS['wp_options']['transient:'.$key]=array('value'=>$record,'expires'=>time()+$ttl);
+                return false;
+            }
+            return null;
+        };
+        $approved=WPVDMCP_Approvals::approve($id,1);
+        assert_true(is_wp_error($approved),'ambiguous approval write must not be reported successful');
+        assert_same('approval_persist_failed',$approved->get_error_code(),'storage ambiguity reported');
+        assert_same('approved',WPVDMCP_Approvals::status($id)['status']??null,'simulated backend did persist approved state');
+        $claim='wpvdmcp_approval_claim_'.hash('sha256',$id);
+        assert_true(null!==get_option($claim,null),'false acknowledgement must also retain the one-time claim');
+        $consume=WPVDMCP_Approvals::consume($id,'run_ability',$payload);
+        assert_true(is_wp_error($consume),'ambiguous persisted approval must not be executable');
+        assert_same('approval_in_progress',$consume->get_error_code(),'atomic claim protects against uncertain approval write');
+    }finally{
+        $GLOBALS['wp_options']=$before;
+        if($had_override)$GLOBALS['set_transient_override']=$previous;else unset($GLOBALS['set_transient_override']);
+    }
+});

@@ -385,12 +385,20 @@ final class WPVDMCP_Upload {
 	}
 
 	private static function safe_record( $record ) {
-		return array(
+		$safe = array(
 			'upload_id'  => $record['id'],
 			'status'     => $record['status'],
 			'expires_at' => $record['expires_at'],
 			'files'      => isset( $record['files'] ) ? array_values( $record['files'] ) : array(),
 		);
+		if ( 'failed' === $record['status'] ) {
+			$safe['failure_code'] = isset( $record['failure_code'] ) ? sanitize_key( $record['failure_code'] ) : 'upload_failed';
+			if ( ! empty( $record['orphaned_attachment_ids'] ) && is_array( $record['orphaned_attachment_ids'] ) ) {
+				$safe['partial_applied'] = true;
+				$safe['orphaned_attachment_ids'] = array_values( array_unique( array_filter( array_map( 'absint', $record['orphaned_attachment_ids'] ) ) ) );
+			}
+		}
+		return $safe;
 	}
 
 	private static function key( $id ) {
@@ -495,6 +503,10 @@ final class WPVDMCP_Upload {
 			$record['failed_at'] = time();
 			$record['secret_hash'] = '';
 			$record['failure_code'] = is_wp_error( $error ) ? sanitize_key( $error->get_error_code() ) : 'upload_failed';
+			$extra = is_wp_error( $error ) ? $error->get_error_data() : array();
+			if ( is_array( $extra ) && ! empty( $extra['partial_applied'] ) && isset( $extra['orphaned_attachment_ids'] ) && is_array( $extra['orphaned_attachment_ids'] ) ) {
+				$record['orphaned_attachment_ids'] = array_values( array_unique( array_filter( array_map( 'absint', $extra['orphaned_attachment_ids'] ) ) ) );
+			}
 			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
 			if ( $stored ) { $stored = $record === get_transient( self::key( $id ) ); }
 			if ( ! $stored ) {
