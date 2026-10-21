@@ -132,6 +132,8 @@ jobs:
           php tests/reference-run.php
           php tests/skill-routing-benchmark.php --enforce
           php tests/abilities-json-body-run.php
+          node --check tests/inline-upload-app-run.js
+          node tests/inline-upload-app-run.js
 
       - name: Build release archive
         if: steps.meta.outputs.release_needed == 'true'
@@ -163,6 +165,8 @@ jobs:
           php tests/reference-run.php
           php tests/skill-routing-benchmark.php --enforce
           php tests/abilities-json-body-run.php
+          node --check tests/inline-upload-app-run.js
+          node tests/inline-upload-app-run.js
           while IFS= read -r -d '' file; do
             php -l "$file" > /dev/null
           done < <(find . -type f -name '*.php' -print0)
@@ -229,7 +233,7 @@ jobs:
               printing { print }
             ' CHANGELOG.md
             echo
-            echo "Verification: legacy, parity, reference, the 174-request skill routing benchmark, and focused Abilities request-body regression suites pass on the source checkout and extracted release ZIP; all PHP files are syntax checked before publication."
+            echo "Verification: legacy, parity, reference, the 174-request skill routing benchmark, focused Abilities request-body regression, and the inline-upload JavaScript host simulation pass on the source checkout and extracted release ZIP; all PHP files are syntax checked before publication."
           } > release-notes.md
 
           if gh release view "$TAG" >/dev/null 2>&1; then

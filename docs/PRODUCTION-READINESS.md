@@ -1,6 +1,6 @@
 # Production readiness — bounded evidence
 
-This audit started from immutable published Direct MCP `v1.5.1` (`ec035e95ac62af1057c9b744d2f870465141a51f`). The changes below are **unreleased source** until a separate reviewed release; the existing v1.5.1 ZIP and tags remain unchanged.
+This audit started from immutable published Direct MCP `v1.5.1` (`ec035e95ac62af1057c9b744d2f870465141a51f`). The fixes were merged in PR #103 (`87307fbd8e35c5cfebe9f9f50db39aa23a33a2a4`) and packaged as **v1.5.2** after full release verification. Existing v1.5.1 ZIP, checksums and tags remain unchanged.
 
 ## Verified in PHP fault-injection tests
 

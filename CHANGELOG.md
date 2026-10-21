@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 1.5.2 - 2026-10-21
 - Production-readiness audit hardening: approval creation/approve/reject now verify exact persisted transient state, fail closed and retain one-time claims when a decision write reports success but cannot be read back. Approval receipts are bound to the live token-hash fingerprint so token rotation (even without an owner change) invalidates outstanding approvals; credential-unbound older pending receipts are rejected and must be requested again.
 - Browser media failure recovery now checks durable failed-ticket state, preserves the transition claim on uncertain persistence, and explicitly reports attachment IDs requiring manual cleanup when WordPress cannot roll back a partially completed upload. Multi-file rollback continues attempting every attachment despite individual deletion failure. Authenticated `check_upload` status includes nonsecret failure/reconciliation metadata, and inline MCP Apps uploads retain the hidden POST target until a verified terminal state rather than tearing it down after 1.8 seconds.
 - Added disposable MySQL integration checks for eight competing WordPress approval consumers and token rotation, plus nine PHP reference regressions for ambiguous successful/failed acknowledgements, upload state/rollback, credential rotation, legacy receipts and browser-status safety. CI still does not certify Redis or multi-node persistent object caches.

@@ -2,7 +2,7 @@
 
 ## Audited baseline
 
-WPVibe Direct MCP 1.5.1 extends the verified 1.5.0 compatibility baseline to:
+WPVibe Direct MCP 1.5.2 retains the verified 1.5.1 compatibility baseline for:
 
 - official WPVibe WordPress plugins **1.20.3** and **1.20.5**;
 - upstream commits `8f303926ae11179e38bc0ecf2a87e3cbd18984c6` (2026-10-06) and `62bc77ccd1c15faf766f527a7935fe32f1b227d3` (2026-10-14);
@@ -10,6 +10,8 @@ WPVibe Direct MCP 1.5.1 extends the verified 1.5.0 compatibility baseline to:
 - WordPress 6.9 + Elementor Core 4.3.4 for the disposable Abilities/Elementor acceptance lane.
 
 Release **1.5.1** adds the 1.20.4/1.20.5 WPCode retirement, builder contracts, REST discovery and skill guidance on top of 1.5.0's security hardening. Both previously published tags remain immutable.
+
+Release **1.5.2** strengthens local approval/write durability, binds outstanding approval receipts to the active token hash, reports incomplete attachment rollbacks, and avoids premature teardown of inline multipart uploads. These changes do not broaden certified upstream plugin versions or claim Redis/multi-node support. Previously published release tags/assets remain immutable.
 
 ## Feature detection first
 
@@ -23,7 +25,7 @@ This permits a reasonable version range:
 
 The wp-admin screen shows installed versions, available tool count, feature flags, and a warning when WPVibe is newer than the version last audited by Direct MCP.
 
-The disposable 1.5.1 lanes also check each site's live `/wpvibe/v1` REST registry against the machine-readable parity manifest. Parameterized runtime routes are normalized to their manifest form; WordPress core's generated namespace index is ignored; any unclassified operational WPVibe route fails the E2E gate.
+The disposable 1.5.2 lanes also check each site's live `/wpvibe/v1` REST registry against the machine-readable parity manifest. Parameterized runtime routes are normalized to their manifest form; WordPress core's generated namespace index is ignored; any unclassified operational WPVibe route fails the E2E gate. Both lanes additionally exercise competing approval consumers and same-admin bearer rotation against real disposable MySQL.
 
 ## Version-dependent behavior
 

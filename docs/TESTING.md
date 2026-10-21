@@ -10,6 +10,7 @@ php tests/parity-run.php
 php tests/reference-run.php
 php tests/skill-routing-benchmark.php --enforce
 php tests/abilities-json-body-run.php
+node tests/inline-upload-app-run.js
 ```
 
 Release **1.4.1** contains **35 legacy tests + 14 core parity tests + 70 reference parity tests (119 suite cases)** plus one focused Abilities raw-JSON request-body regression. Source CI runs those checks plus PHP syntax validation on PHP 7.4, 8.2, and 8.4.
@@ -18,7 +19,7 @@ Published release 1.5.0 contains the self-contained MCP Apps, query-token-defaul
 
 Release **1.5.1** packages the WPVibe 1.20.4/1.20.5 compatibility assertions for WPCode retirement, strict ID validation and conservative execution-cache readback, Bricks template types, optional Beaver schema slugs, index-hidden REST routes, the exact upstream commit manifest and WPCode cache false-success. Source and release ZIP totals are **53 core/legacy + 20 parity + 204 reference cases (277 suite cases)** plus the existing 174-request intent benchmark and focused Abilities regression.
 
-Current **unreleased production-readiness source** adds nine reference cases for approval create/decide storage acknowledgements without durable writes (including false-after-commit), same-owner token rotation, rejection of older unbound approval receipts, upload failed-state persistence, attachment rollback failures, credential-safe reconciliation data and inline upload lifecycle. Source now has **53 core/legacy + 20 parity + 213 reference cases (286 suite cases)**, plus the 174-request routing benchmark and focused Abilities regression. An additional `node tests/inline-upload-app-run.js` check simulates slow/in-progress/failed uploads with the exact embedded MCP App JavaScript. Outstanding approvals created before the new credential binding must be requested again after upgrading; the published 1.5.1 ZIP and its historical counts are unchanged. New disposable WordPress/MySQL E2E exercises eight competing approval consumers and token rotation; local PHP fault injection does not establish Redis or external object-cache behavior.
+Release **1.5.2** adds nine reference cases for approval create/decide storage acknowledgements without durable writes (including false-after-commit), same-owner token rotation, rejection of older unbound approval receipts, upload failed-state persistence, attachment rollback failures, credential-safe reconciliation data and inline upload lifecycle. Source and release ZIP now have **53 core/legacy + 20 parity + 213 reference cases (286 suite cases)**, plus the 174-request routing benchmark and focused Abilities regression. `node tests/inline-upload-app-run.js` additionally simulates slow/in-progress/failed uploads with the exact embedded MCP App JavaScript on both source and extracted release ZIP. Outstanding approvals created before the new credential binding must be requested again after upgrading; the published 1.5.1 ZIP and its historical counts remain unchanged. New disposable WordPress/MySQL E2E exercises eight competing approval consumers and token rotation; local PHP fault injection does not establish Redis or external object-cache behavior.
 
 ### Skill-intent retrieval benchmark
 
@@ -39,7 +40,7 @@ Run `php tests/skill-routing-benchmark.php --enforce` to verify the frozen, manu
 - successful authentication keeps the admin `last_request` diagnostic current without rewriting `wpvdmcp_last_active` more than once per 60 seconds; stale/missing and future-skewed timestamps are refreshed;
 - single-use approvals and replay rejection;
 - approval creation plus approve/reject state transitions fail closed when their transient state cannot be durably persisted; callers are never told an approval exists or changed state when storage is uncertain;
-- on current unreleased source, new approval requests and decisions also read back the exact stored record after a successful storage acknowledgement, retain the atomic decision claim if a transition write is uncertain, and reject receipts created with a different/revoked token hash even when the Administrator is the same;
+- in release 1.5.2, new approval requests and decisions also read back the exact stored record after a successful storage acknowledgement, retain the atomic decision claim if a transition write is uncertain (including false-after-commit), and reject receipts created with a different/revoked token hash even when the Administrator is the same;
 - malformed array-shaped approval receipts are rejected as `approval_corrupt` before a consume claim or payload-hash comparison can run;
 - deterministic concurrent-consumption coverage proving exactly one claimant can consume an approved receipt, old/ambiguous claims are not stolen, and persistence uncertainty fails closed;
 - generic REST mutations require approval unless the WPVibe bypass setting is explicitly enabled;
@@ -103,7 +104,7 @@ These are PHP/reference tests using a contract-faithful upstream handler double 
 - upload secret stored only as a hash, wrong secret rejected, successful tickets non-replayable;
 - browser POST atomically reserves a waiting ticket before media creation, concurrent claims cannot both create attachments, and only one finalizer can complete;
 - partial multi-file failures and finalization persistence failures roll back attachments already created by that attempt;
-- on current unreleased source, attachment-deletion failure during rollback surfaces `upload_rollback_failed` with `partial_applied` and IDs requiring manual removal, and failed-ticket transitions retain the claim if the failure state cannot be confirmed durable;
+- in release 1.5.2, attachment-deletion failure during rollback surfaces `upload_rollback_failed` with `partial_applied` and IDs requiring manual removal, and failed-ticket transitions retain the claim if the failure state cannot be confirmed durable;
 - the authenticated upload status includes a bounded list of attachment IDs needing manual reconciliation on rollback failure, and the inline MCP App does not tear down a slow multipart-upload iframe while its ticket is still waiting/processing; browser uploads are not certified on external MCP App host implementations;
 - ready results omit filesystem paths;
 - raster allowlist rejects HTML/PHP/JS/SVG from the raster path.
@@ -158,7 +159,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-Both 1.5.1 disposable WordPress/Elementor lanes verify:
+Both 1.5.2 disposable WordPress/Elementor lanes verify:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -188,23 +189,23 @@ Both 1.5.1 disposable WordPress/Elementor lanes verify:
 26. with Atomic Editor disabled, an Atomic-only mutation fails predictably while the native `elementor_save_page` fallback remains discoverable;
 27. the live installed `/wpvibe/v1` REST registry is normalized and every operational route is present in either the model-facing or infrastructure-only parity-manifest classification, ignoring only WordPress core's generated namespace index.
 
-This is real disposable-site E2E evidence for schema-first Elementor Core page composition, strict warning handling, targeted update/duplicate/move/delete element operations, partial element-batch recovery, partial page-settings preservation, shared global-class/global-variable application across two Atomic pages, one-write dependency propagation, a verified local-over-global cascade, in-use global-class dependency cleanup, native variable tombstones, one disposable site-wide default-style partial-batch/cleanup flow, actual generated Elementor CSS regeneration, publishing/rendering, and the route-classification gate. The 1.20.5 lane additionally verifies one WPCode Lite create/deactivate/approval-gated-trash/replay-rejection workflow. It is **not** evidence that Elementor Pro Theme Builder, every global-class/global-variable/default-style/page-setting path, a production-scale full-site rebrand, pixel-perfect visual equivalence, other WPCode editions or caching configurations, other page builders, provider-backed browser/screenshot/Lighthouse services, media edge cases, or production/client environments were tested.
+This is real disposable-site E2E evidence for schema-first Elementor Core page composition, strict warning handling, targeted update/duplicate/move/delete element operations, partial element-batch recovery, partial page-settings preservation, shared global-class/global-variable application across two Atomic pages, one-write dependency propagation, a verified local-over-global cascade, in-use global-class dependency cleanup, native variable tombstones, one disposable site-wide default-style partial-batch/cleanup flow, actual generated Elementor CSS regeneration, publishing/rendering, the route-classification gate, and eight-process MySQL one-time approval claim/rotated credential checks. The 1.20.5 lane additionally verifies one WPCode Lite create/deactivate/approval-gated-trash/replay-rejection workflow. It is **not** evidence that Elementor Pro Theme Builder, every global-class/global-variable/default-style/page-setting path, a production-scale full-site rebrand, pixel-perfect visual equivalence, other WPCode editions or caching configurations, other page builders, Redis/multi-node object caches, an actual slow-browser multipart transfer/attachment-deletion failure, provider-backed browser/screenshot/Lighthouse services, or production/client environments were tested.
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.5.1, publication requires all of the following:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.5.2, publication requires all of the following:
 
 1. source PHP syntax validation;
-2. source legacy, parity, reference, 174-request skill routing benchmark, and focused Abilities raw-JSON request-body regression suites;
+2. source legacy, parity, reference, 174-request skill routing benchmark, focused Abilities raw-JSON regression suites and Node inline-app upload simulation;
 3. release ZIP build, ZIP integrity test, and SHA-256 generation;
    the `.sha256` file references the plain ZIP filename so verification works alongside the downloaded ZIP without recreating a `dist/` directory;
 4. extraction of the built ZIP;
-5. extracted legacy, parity, reference, routing benchmark, and focused Abilities raw-JSON regression suites;
+5. extracted legacy, parity, reference, routing benchmark, focused Abilities raw-JSON regression suites and Node inline-app upload simulation;
 6. extracted PHP syntax validation;
 7. a fresh current-remote-`main` check plus the latest exact-SHA `PHP parity checks` and `WordPress Elementor E2E` runs both reporting `completed:success` immediately before tag creation;
-8. new immutable `v1.5.1` tag verification/creation and release publication only after those checks pass.
+8. new immutable `v1.5.2` tag verification/creation and release publication only after those checks pass.
 
-Existing tags remain immutable. In particular, published `v1.5.0` and `v1.4.1` tags and assets remain unchanged; the 1.5.1 workflow must create a new tag rather than move or overwrite any prior release.
+Existing tags remain immutable. In particular, published `v1.5.1`, `v1.5.0` and `v1.4.1` tags and assets remain unchanged; the 1.5.2 workflow must create a new tag rather than move or overwrite any prior release.
 
 ## Broader manual disposable WordPress integration checklist
 
