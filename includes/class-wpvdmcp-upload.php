@@ -222,16 +222,28 @@ final class WPVDMCP_Upload {
 
 		$result = self::handle_files( $record, isset( $_FILES['files'] ) ? $_FILES['files'] : array() ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- possession of one-time ticket is the authorization.
 		if ( is_wp_error( $result ) ) {
-			self::fail_processing( $id, $secret, $result );
-			self::audit( $id, false, $result->get_error_message(), array() );
-			self::render_page( 'Upload failed', $result->get_error_message(), false );
+			$marked = self::fail_processing( $id, $secret, $result );
+			$message = $result->get_error_message();
+			if ( is_wp_error( $marked ) && 'upload_persist_failed' === $marked->get_error_code() ) {
+				$message .= ' ' . $marked->get_error_message();
+			}
+			self::audit( $id, false, $message, array() );
+			self::render_page( 'Upload failed', $message, false );
 			return;
 		}
 		$done = self::finalize( $id, $secret, $result );
 		if ( is_wp_error( $done ) ) {
-			self::rollback_created( $result );
-			self::fail_processing( $id, $secret, $done );
-			self::render_page( 'Upload failed', $done->get_error_message(), false );
+			$orphaned = self::rollback_created( $result );
+			if ( $orphaned ) {
+				$done = self::rollback_failure( $orphaned, $done );
+			}
+			$marked = self::fail_processing( $id, $secret, $done );
+			$message = $done->get_error_message();
+			if ( is_wp_error( $marked ) && 'upload_persist_failed' === $marked->get_error_code() ) {
+				$message .= ' ' . $marked->get_error_message();
+			}
+			self::audit( $id, false, $message, array() );
+			self::render_page( 'Upload failed', $message, false );
 			return;
 		}
 		self::audit( $id, true, 'Media uploaded from browser transfer.', $result );
@@ -438,22 +450,42 @@ final class WPVDMCP_Upload {
 	}
 
 	private static function rollback_error( $created, $error ) {
-		self::rollback_created( $created );
-		return $error;
+		$orphaned = self::rollback_created( $created );
+		return $orphaned ? self::rollback_failure( $orphaned, $error ) : $error;
+	}
+
+	/** A failed cleanup means the original upload error was partially applied. */
+	private static function rollback_failure( $orphaned, $original ) {
+		return new WP_Error(
+			'upload_rollback_failed',
+			'One or more uploaded attachments could not be removed after an upload failure. An administrator must inspect and remove attachment IDs ' . implode( ', ', $orphaned ) . ' in the WordPress Media Library before retrying.',
+			array(
+				'status'                  => 500,
+				'partial_applied'         => true,
+				'orphaned_attachment_ids' => $orphaned,
+				'original_error_code'     => is_wp_error( $original ) ? sanitize_key( $original->get_error_code() ) : 'upload_failed',
+			)
+		);
 	}
 
 	private static function rollback_created( $created ) {
+		$orphaned = array();
 		foreach ( (array) $created as $file ) {
 			$id = is_array( $file ) && isset( $file['attachment_id'] ) ? absint( $file['attachment_id'] ) : 0;
-			if ( $id && function_exists( 'wp_delete_attachment' ) ) {
-				wp_delete_attachment( $id, true );
+			if ( $id ) {
+				$deleted = function_exists( 'wp_delete_attachment' ) ? wp_delete_attachment( $id, true ) : false;
+				if ( ! $deleted || is_wp_error( $deleted ) ) {
+					$orphaned[] = $id;
+				}
 			}
 		}
+		return array_values( array_unique( $orphaned ) );
 	}
 
 	private static function fail_processing( $id, $secret, $error ) {
 		$claim = self::acquire_transition_claim( $id );
 		if ( is_wp_error( $claim ) ) { return $claim; }
+		$release_claim = true;
 		try {
 			$record = self::get_record( $id );
 			if ( is_wp_error( $record ) ) { return $record; }
@@ -463,12 +495,17 @@ final class WPVDMCP_Upload {
 			$record['failed_at'] = time();
 			$record['secret_hash'] = '';
 			$record['failure_code'] = is_wp_error( $error ) ? sanitize_key( $error->get_error_code() ) : 'upload_failed';
-			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
-				return new WP_Error( 'upload_persist_failed', 'The failed upload state could not be durably recorded.', array( 'status' => 503 ) );
+			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( $stored ) { $stored = $record === get_transient( self::key( $id ) ); }
+			if ( ! $stored ) {
+				$release_claim = false;
+				return new WP_Error( 'upload_persist_failed', 'The failed upload state could not be verified as durable. The ticket is locked until expiry; inspect the Media Library before retrying.', array( 'status' => 503 ) );
 			}
 			return true;
 		} finally {
-			delete_option( self::transition_key( $id ) );
+			if ( $release_claim ) {
+				delete_option( self::transition_key( $id ) );
+			}
 		}
 	}
 

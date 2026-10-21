@@ -9,13 +9,15 @@ final class WPVDMCP_Approvals {
 
 	public static function request( $operation, $payload, $summary = '' ) {
 		$owner = (int) get_option( 'wpvdmcp_user_id', 0 );
-		if ( ! $owner ) {
-			return new WP_Error( 'approval_owner_missing', 'Direct MCP has no configured token owner.', array( 'status' => 401 ) );
+		$token_hash = get_option( 'wpvdmcp_token_hash', '' );
+		if ( ! $owner || ! is_string( $token_hash ) || 1 !== preg_match( '/^[a-f0-9]{64}$/D', $token_hash ) ) {
+			return new WP_Error( 'approval_owner_missing', 'Direct MCP has no valid Administrator token owner and credential.', array( 'status' => 401 ) );
 		}
 		$id = 'ap_' . bin2hex( random_bytes( 16 ) );
 		$record = array(
 			'id' => $id,
 			'owner_user_id' => $owner,
+			'token_hash_fingerprint' => hash( 'sha256', $token_hash ),
 			'operation' => sanitize_key( $operation ),
 			'payload_hash' => self::payload_hash( $payload ),
 			'display_payload' => self::display_payload( $payload ),
@@ -24,7 +26,7 @@ final class WPVDMCP_Approvals {
 			'created_at' => time(),
 			'expires_at' => time() + self::TTL,
 		);
-		if ( ! set_transient( self::key( $id ), $record, self::TTL ) ) {
+		if ( ! set_transient( self::key( $id ), $record, self::TTL ) || $record !== get_transient( self::key( $id ) ) ) {
 			return new WP_Error( 'approval_persist_failed', 'The approval request could not be durably persisted. No approval was created.', array( 'status' => 503 ) );
 		}
 		return self::safe_record( $record );
@@ -47,6 +49,7 @@ final class WPVDMCP_Approvals {
 		if ( is_wp_error( $claim ) ) {
 			return $claim;
 		}
+		$release_claim = true;
 		try {
 			// Re-read under the shared claim so a concurrent approve/reject/consume
 			// cannot make this decision from stale pending state.
@@ -62,12 +65,22 @@ final class WPVDMCP_Approvals {
 			}
 			$record['status'] = 'approved';
 			$record['approved_at'] = time();
-			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
-				return new WP_Error( 'approval_persist_failed', 'The approved state could not be durably persisted. The approval remains pending.', array( 'status' => 503 ) );
+			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( $stored ) {
+				$persisted = get_transient( self::key( $id ) );
+				if ( ! is_array( $persisted ) || $record !== $persisted ) {
+					$stored = false;
+					$release_claim = false; // Acknowledged but uncertain durable decision: block conflicting decisions.
+				}
+			}
+			if ( ! $stored ) {
+				return new WP_Error( 'approval_persist_failed', 'The approved state could not be verified as durable. Do not retry this receipt; an uncertain write remains locked until expiry.', array( 'status' => 503 ) );
 			}
 			return true;
 		} finally {
-			delete_option( self::claim_key( $id ) );
+			if ( $release_claim ) {
+				delete_option( self::claim_key( $id ) );
+			}
 		}
 	}
 
@@ -87,6 +100,7 @@ final class WPVDMCP_Approvals {
 		if ( is_wp_error( $claim ) ) {
 			return $claim;
 		}
+		$release_claim = true;
 		try {
 			// Re-read under the shared claim so a concurrent approve/reject/consume
 			// cannot make this decision from stale pending state.
@@ -102,12 +116,22 @@ final class WPVDMCP_Approvals {
 			}
 			$record['status'] = 'rejected';
 			$record['rejected_at'] = time();
-			if ( ! set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) ) ) {
-				return new WP_Error( 'approval_persist_failed', 'The rejected state could not be durably persisted. The approval state is unchanged.', array( 'status' => 503 ) );
+			$stored = set_transient( self::key( $id ), $record, max( 1, (int) $record['expires_at'] - time() ) );
+			if ( $stored ) {
+				$persisted = get_transient( self::key( $id ) );
+				if ( ! is_array( $persisted ) || $record !== $persisted ) {
+					$stored = false;
+					$release_claim = false; // Do not let another decision race an uncertain persisted state.
+				}
+			}
+			if ( ! $stored ) {
+				return new WP_Error( 'approval_persist_failed', 'The rejected state could not be verified as durable. Do not retry this receipt; an uncertain write remains locked until expiry.', array( 'status' => 503 ) );
 			}
 			return true;
 		} finally {
-			delete_option( self::claim_key( $id ) );
+			if ( $release_claim ) {
+				delete_option( self::claim_key( $id ) );
+			}
 		}
 	}
 
@@ -195,6 +219,10 @@ final class WPVDMCP_Approvals {
 			delete_option( self::claim_key( $id ) );
 			return new WP_Error( 'approval_expired', 'Approval has expired.', array( 'status' => 410 ) );
 		}
+		$live_hash = get_option( 'wpvdmcp_token_hash', '' );
+		if ( (int) get_option( 'wpvdmcp_user_id', 0 ) !== (int) $record['owner_user_id'] || ! is_string( $live_hash ) || 1 !== preg_match( '/^[a-f0-9]{64}$/D', $live_hash ) || ! hash_equals( $record['token_hash_fingerprint'], hash( 'sha256', $live_hash ) ) ) {
+			return new WP_Error( 'approval_credential_changed', 'The token owner or credential changed. Request a new approval with the current Direct MCP token.', array( 'status' => 409 ) );
+		}
 		return $record;
 	}
 
@@ -202,6 +230,7 @@ final class WPVDMCP_Approvals {
 		return isset( $record['id'], $record['owner_user_id'], $record['operation'], $record['payload_hash'], $record['summary'], $record['status'], $record['expires_at'] )
 			&& $record['id'] === $id
 			&& is_int( $record['owner_user_id'] ) && $record['owner_user_id'] > 0
+			&& isset( $record['token_hash_fingerprint'] ) && is_string( $record['token_hash_fingerprint'] ) && 1 === preg_match( '/^[a-f0-9]{64}$/D', $record['token_hash_fingerprint'] )
 			&& is_string( $record['operation'] )
 			&& is_string( $record['payload_hash'] ) && 1 === preg_match( '/^[a-f0-9]{64}$/', $record['payload_hash'] )
 			&& is_string( $record['summary'] )

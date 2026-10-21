@@ -93,7 +93,14 @@ function wp_get_attachment_metadata($id){return array('width'=>64,'height'=>64);
 function get_attached_file($id){return '/tmp/attachment-'.$id.'.png';}
 function get_post_mime_type($id){return 'image/png';}
 function wp_get_attachment_url($id){return 'https://example.test/uploads/attachment-'.$id.'.png';}
-function wp_delete_attachment($id,$force=false){$GLOBALS['test_deleted_attachments'][]=(int)$id;return true;}
+function wp_delete_attachment($id,$force=false){
+    $GLOBALS['test_deleted_attachments'][]=(int)$id;
+    if(isset($GLOBALS['delete_attachment_override'])&&is_callable($GLOBALS['delete_attachment_override'])){
+        $result=call_user_func($GLOBALS['delete_attachment_override'],(int)$id,$force);
+        if($result!==null)return $result;
+    }
+    return true;
+}
 function wp_max_upload_size(){return 10485760;}
 function get_option($k,$default=false){return array_key_exists($k,$GLOBALS['wp_options'])?$GLOBALS['wp_options'][$k]:$default;}
 function update_option($k,$v,$autoload=null){if(isset($GLOBALS['update_option_override'])&&is_callable($GLOBALS['update_option_override'])){$override=call_user_func($GLOBALS['update_option_override'],$k,$v,$autoload);if($override!==null)return (bool)$override;}$GLOBALS['wp_options'][$k]=$v;return true;} function add_option($k,$v='',$deprecated='',$autoload=null){if(array_key_exists($k,$GLOBALS['wp_options']))return false;$GLOBALS['wp_options'][$k]=$v;return true;} function delete_option($k){if(isset($GLOBALS['delete_option_override'])&&is_callable($GLOBALS['delete_option_override'])){$override=call_user_func($GLOBALS['delete_option_override'],$k);if($override!==null)return (bool)$override;}unset($GLOBALS['wp_options'][$k]);return true;}

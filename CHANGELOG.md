@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Production-readiness audit hardening: approval creation/approve/reject now verify exact persisted transient state, fail closed and retain one-time claims when a decision write reports success but cannot be read back. Approval receipts are bound to the live token-hash fingerprint so token rotation (even without an owner change) invalidates outstanding approvals; credential-unbound older pending receipts are rejected and must be requested again.
+- Browser media failure recovery now checks durable failed-ticket state, preserves the transition claim on uncertain persistence, and explicitly reports attachment IDs requiring manual cleanup when WordPress cannot roll back a partially completed upload. Multi-file rollback continues attempting every attachment despite individual deletion failure.
+- Added disposable MySQL integration checks for eight competing WordPress approval consumers and token rotation, and six extra PHP reference regressions using failing-persistence and attachment-rollback injection. CI still does not certify Redis or multi-node persistent object caches.
 
 ## 1.5.1 - 2026-10-20
 - Hardened WPCode retirement against ambiguous IDs and cache readbacks before release: deactivation/trashing now reject negative, fractional, array, prefixed, noncanonical and overflowing IDs instead of silently targeting another snippet. Post-retirement checks recognize object/flat/nested or ID-keyed cache entries and fail closed when WPCode's execution option cannot be inspected; two regression cases cover these boundaries without changing native approval/capability rules.
