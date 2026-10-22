@@ -10,6 +10,7 @@ Direct MCP 1.3.0 serves modern and legacy MCP clients from one stateless WordPre
 - Supports `tools/list`, `tools/call`, `prompts/list`, `prompts/get`, `resources/list`, and `resources/read`.
 - Advertises the MCP Apps extension `io.modelcontextprotocol/ui` with MIME `text/html;profile=mcp-app`.
 - Inline approval and upload apps are served as `ui://wpvibe-direct/approval-panel` and `ui://wpvibe-direct/upload-panel`.
+- Modern `resources/read` returns the required `resultType: complete`, `ttlMs: 0`, and `cacheScope: private` alongside `contents`. The zero TTL and private scope prevent reuse of stale or cross-user MCP App HTML. Modern request results such as `prompts/get` also include `resultType`; legacy response shapes remain unchanged.
 - Modern `initialize` and legacy `ping` are not exposed as modern methods.
 
 ## Legacy protocols
