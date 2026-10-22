@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.5.4 - 2026-10-22
+- Fixed ChatGPT MCP connector `apps_sdk_error` / `mcp_validation` rejecting `_meta.ui.csp` because the empty approval-panel CSP was serialized as JSON `[]` rather than an object `{}`.
+- MCP Apps approval and upload resources now serialize CSP as an object, preserving the upload panel's site-origin-only `connectDomains` allowlist and existing admin-only approval boundary.
+- Added two JSON wire-format regression tests for both UI resources, and updated existing CSP resource-domain safety assertions (53 core + 20 parity + 218 reference = 291 suite cases).
+
+
 ## 1.5.3 - 2026-10-22
 - Fixed ChatGPT custom MCP connector registration failing with HTTP 424 `invalid_response` when reading the inline approval or upload MCP App resources. MCP 2026-07-28 `resources/read` results now include `resultType: complete`, `ttlMs: 0`, and `cacheScope: private` alongside the resource contents.
 - Added the required `resultType: complete` discriminator to other successful modern per-request responses, while preserving legacy protocol response shapes and authorization/approval safeguards.
