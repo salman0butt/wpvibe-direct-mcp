@@ -2,7 +2,7 @@
 Contributors: community
 Requires at least: 6.0
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.5.3
 License: GPLv2 or later
 
 Adds a self-hosted MCP transport to the WPVibe WordPress plugin.

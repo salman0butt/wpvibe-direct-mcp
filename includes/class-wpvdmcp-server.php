@@ -466,6 +466,9 @@ final class WPVDMCP_Server {
 
 	private function rpc_result( $id, $result ) {
 		if ( $this->modern_request && is_array( $result ) ) {
+			if ( ! isset( $result['resultType'] ) ) {
+				$result['resultType'] = 'complete';
+			}
 			if ( ! isset( $result['_meta'] ) || ! is_array( $result['_meta'] ) ) {
 				$result['_meta'] = array();
 			}

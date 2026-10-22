@@ -1,10 +1,10 @@
 # WPVibe Reference Parity Matrix
 
-Audit date: **2026-10-21**. Direct MCP release target: **1.5.2**. Previous WordPress-side live baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`. Newer audited upstream: WPVibe **1.20.5**, commit `62bc77ccd1c15faf766f527a7935fe32f1b227d3`.
+Audit date: **2026-10-22**. Direct MCP release target: **1.5.3**. Previous WordPress-side live baseline: WPVibe **1.20.3**, upstream commit `8f303926ae11179e38bc0ecf2a87e3cbd18984c6`. Newer audited upstream: WPVibe **1.20.5**, commit `62bc77ccd1c15faf766f527a7935fe32f1b227d3`.
 
 Release 1.5.1's machine-readable `reference_parity_manifest` pins WPVibe 1.20.5 after independent upstream source review and the two-version disposable WordPress/Elementor E2E matrix passed (including a live WPCode Lite retirement test on the 1.20.5 lane). Historical v1.5.0 release assets remain unchanged. This validates the bounded native paths; other optional plugin skills and external providers remain outside live E2E.
 
-Release 1.5.2 retains this upstream manifest and adds evidence for real disposable-MySQL approval concurrency and same-admin token rotation. The additional 286-case PHP suite and simulated inline-upload host cover reliability failure boundaries, but do not certify a live Redis/Memcached cluster, browser slow-network transfers, or actual Media Library deletion failures.
+Release 1.5.2 retains this upstream manifest and adds evidence for real disposable-MySQL approval concurrency and same-admin token rotation. The 286-case PHP suite and simulated inline-upload host cover reliability failure boundaries, but do not certify a live Redis/Memcached cluster, browser slow-network transfers, or actual Media Library deletion failures. Release 1.5.3 adds the modern MCP `resources/read` caching hints required by ChatGPT custom MCP connectors and validates them with three additional reference cases.
 
 This audit compares the live WPVibe Features page, public Tools Reference, current Works-with-AI/Cookbook guidance, and the official WordPress-side source. “Covered” never means a fabricated cloud response: hosted account/fleet state and external browser/audit/image infrastructure remain user-provider-backed and fail closed when no provider is configured.
 
@@ -16,7 +16,7 @@ Release 1.4.1 packages the post-1.4.0 security hardening and the 2026-10-12 Work
 
 ## Public MCP tool-name parity
 
-| Reference tool | Direct MCP 1.5.2 |
+| Reference tool | Direct MCP 1.5.3 |
 |---|---|
 | `connect_site` | External-provider-backed exact name; current auth options normalized; no Direct local registry is created and no fake WPVibe cloud registry is synthesized |
 | `list_sites` | External-provider-backed exact name; Direct does not fabricate the current site as a one-item hosted registry |
@@ -119,7 +119,7 @@ These are infrastructure/control-plane primitives, not model tools: `/wpvibe/v1/
 
 ## Validation boundary
 
-Release **1.4.1** runs **119 suite cases (35 core/legacy + 14 parity + 70 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. Release **1.5.0** runs **269 suite cases (53 core/legacy + 20 parity + 196 reference)**. Release **1.5.1** runs **277 suite cases (53 core/legacy + 20 parity + 204 reference)**. Release **1.5.2** runs **286 suite cases (53 core/legacy + 20 parity + 213 reference)** plus the 174-request routing benchmark, focused Abilities regression and inline-upload Node host simulations. The release workflow repeats the source and extracted-ZIP PHP/Node suites before publication, is gated to the current `main` SHA after exact-SHA PHP parity and disposable WordPress/Elementor/MySQL E2E succeed, and preserves already published immutable tag/release assets.
+Release **1.4.1** runs **119 suite cases (35 core/legacy + 14 parity + 70 reference)** on PHP 7.4, 8.2 and 8.4 plus the focused Abilities raw-JSON request-body regression. Release **1.5.0** runs **269 suite cases (53 core/legacy + 20 parity + 196 reference)**. Release **1.5.1** runs **277 suite cases (53 core/legacy + 20 parity + 204 reference)**. Release **1.5.2** runs **286 suite cases (53 core/legacy + 20 parity + 213 reference)**. Release **1.5.3** runs **289 suite cases (53 core/legacy + 20 parity + 216 reference)** plus the 174-request routing benchmark, focused Abilities regression and inline-upload Node host simulations. The release workflow repeats the source and extracted-ZIP PHP/Node suites before publication, is gated to the current `main` SHA after exact-SHA PHP parity and disposable WordPress/Elementor/MySQL E2E succeed, and preserves already published immutable tag/release assets.
 
 The WPCode bridge is reference/unit verified for dormant-first classification, approval binding, drift/replay rejection, bypass ordering, capability preservation, and ignored activation input. The WPVibe 1.20.5 disposable lane also installs WPCode Lite and verifies native create/deactivate/approval-gated trash/replay rejection, without certifying other WPCode editions or caches. Both lanes verify the live WPVibe REST route-classification inventory together with the bounded Elementor Core acceptance.
 

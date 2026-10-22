@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.5.3 - 2026-10-22
+- Fixed ChatGPT custom MCP connector registration failing with HTTP 424 `invalid_response` when reading the inline approval or upload MCP App resources. MCP 2026-07-28 `resources/read` results now include `resultType: complete`, `ttlMs: 0`, and `cacheScope: private` alongside the resource contents.
+- Added the required `resultType: complete` discriminator to other successful modern per-request responses, while preserving legacy protocol response shapes and authorization/approval safeguards.
+- Added three reference parity regressions covering modern approval/upload UI resources, legacy read compatibility, and modern `prompts/get` metadata (53 core + 20 parity + 216 reference = 289 suite cases).
+
 ## 1.5.2 - 2026-10-21
 - Production-readiness audit hardening: approval creation/approve/reject now verify exact persisted transient state, fail closed and retain one-time claims when a decision write reports success but cannot be read back. Approval receipts are bound to the live token-hash fingerprint so token rotation (even without an owner change) invalidates outstanding approvals; credential-unbound older pending receipts are rejected and must be requested again.
 - Browser media failure recovery now checks durable failed-ticket state, preserves the transition claim on uncertain persistence, and explicitly reports attachment IDs requiring manual cleanup when WordPress cannot roll back a partially completed upload. Multi-file rollback continues attempting every attachment despite individual deletion failure. Authenticated `check_upload` status includes nonsecret failure/reconciliation metadata, and inline MCP Apps uploads retain the hidden POST target until a verified terminal state rather than tearing it down after 1.8 seconds.

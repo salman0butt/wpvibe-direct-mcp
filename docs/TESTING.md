@@ -23,6 +23,8 @@ Release **1.5.2** adds nine reference cases for approval create/decide storage a
 
 ### Skill-intent retrieval benchmark
 
+Release **1.5.3** adds three reference cases for MCP 2026-07-28 per-request result metadata: the two declared MCP App UI resources now provide `resultType: complete`, `ttlMs: 0`, and `cacheScope: private` under `resources/read`, while legacy responses remain unchanged. Modern `prompts/get` similarly carries a result discriminator. Source and release ZIP contain **53 core/legacy + 20 parity + 216 reference cases (289 suite cases)**. These regressions address ChatGPT's reported HTTP 424 validator failure; production ChatGPT registration still requires an actual client retest after installation.
+
 Run `php tests/skill-routing-benchmark.php --enforce` to verify the frozen, manually labeled requests in `tests/fixtures/skill-routing-goldens.php`. The source benchmark covers **all 67 built-in skills** (two positive task phrasings each, 134 total) and **40 hard negative/no-match requests**, including generic WordPress requests and unrelated security-sensitive or misleading keywords. The guard enforces at least 95% top-1 accuracy, 97% top-3 recall, and 100% no-match specificity for this fixed corpus. Use `--json` for detailed metrics and misses. Many initial positive prompts explicitly name a target plugin; an independent held-out evaluation found gaps in offsite intent, vendor-name conflicts, and vocabulary, so additional held-out assertions for offsite platforms, named WordPress integrations, local saved-skill precedence, negation, variant names, and synonyms are enforced through `tests/reference/cases-59.php`. Context disambiguation is conservative, heuristic and not a general-purpose natural-language understanding system. This is an internal regression dataset, not evidence of accuracy on unknown live requests or of the availability of optional site plugins. Exact/saved-skill precedence and instruction confidentiality have separate reference parity tests; routing never implies permission to execute a mutation.
 
 ### MCP transport
@@ -159,7 +161,7 @@ Before packaging, inspect the tree for plaintext passwords/tokens/private keys a
 
 The lane enables Elementor's own site-level MCP opt-in and Atomic feature flags, then exercises the real Direct MCP HTTP endpoint. WP-CLI is used only to prepare the disposable site and simulate the administrator approving a pending Direct MCP operation.
 
-Both 1.5.2 disposable WordPress/Elementor lanes verify:
+Both 1.5.3 disposable WordPress/Elementor lanes verify:
 
 1. authenticated Direct MCP health;
 2. MCP `2026-07-28` `server/discover` and routing headers;
@@ -193,7 +195,7 @@ This is real disposable-site E2E evidence for schema-first Elementor Core page c
 
 ## Release-package verification
 
-The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.5.2, publication requires all of the following:
+The release workflow first resolves plugin-header/version/stable-tag consistency and refuses to reuse an immutable version tag for a different commit. It also treats an already published release at the verified tag as a terminal no-op: existing ZIP/checksum assets are never uploaded with `--clobber`, and a release that appears during a build makes publication fail closed rather than overwrite it. For 1.5.3, publication requires all of the following:
 
 1. source PHP syntax validation;
 2. source legacy, parity, reference, 174-request skill routing benchmark, focused Abilities raw-JSON regression suites and Node inline-app upload simulation;
@@ -203,9 +205,9 @@ The release workflow first resolves plugin-header/version/stable-tag consistency
 5. extracted legacy, parity, reference, routing benchmark, focused Abilities raw-JSON regression suites and Node inline-app upload simulation;
 6. extracted PHP syntax validation;
 7. a fresh current-remote-`main` check plus the latest exact-SHA `PHP parity checks` and `WordPress Elementor E2E` runs both reporting `completed:success` immediately before tag creation;
-8. new immutable `v1.5.2` tag verification/creation and release publication only after those checks pass.
+8. new immutable `v1.5.3` tag verification/creation and release publication only after those checks pass.
 
-Existing tags remain immutable. In particular, published `v1.5.1`, `v1.5.0` and `v1.4.1` tags and assets remain unchanged; the 1.5.2 workflow must create a new tag rather than move or overwrite any prior release.
+Existing tags remain immutable. In particular, published `v1.5.2`, `v1.5.1`, `v1.5.0` and `v1.4.1` tags and assets remain unchanged; the 1.5.3 workflow must create a new tag rather than move or overwrite any prior release.
 
 ## Broader manual disposable WordPress integration checklist
 
