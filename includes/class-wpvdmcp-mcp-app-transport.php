@@ -21,12 +21,12 @@ final class WPVDMCP_MCP_App_Transport {
 				if ( ! is_array( $item ) ) { continue; }
 				$item = self::move_app_meta( $item );
 				$matched = self::batch_request_for_response( $rpc, $item );
-				$data[ $index ] = null === $matched ? $item : self::filter_data( $item, $matched );
+				$data[ $index ] = null === $matched ? $item : self::filter_data( $item, $matched, $request );
 			}
 			$response->set_data( $data );
 			return $response;
 		}
-		$response->set_data( self::filter_data( $data, $rpc ) );
+		$response->set_data( self::filter_data( $data, $rpc, $request ) );
 		return $response;
 	}
 
@@ -47,7 +47,7 @@ final class WPVDMCP_MCP_App_Transport {
 		return null;
 	}
 
-	private static function filter_data( $data, $rpc ) {
+	private static function filter_data( $data, $rpc, $request ) {
 		$data = self::move_app_meta( $data );
 		$method = isset( $rpc['method'] ) ? (string) $rpc['method'] : '';
 		$id = array_key_exists( 'id', $rpc ) ? $rpc['id'] : null;
@@ -65,6 +65,20 @@ final class WPVDMCP_MCP_App_Transport {
 			if ( is_wp_error( $result ) ) {
 				$data = array( 'jsonrpc' => '2.0', 'id' => $id, 'error' => array( 'code' => -32602, 'message' => $result->get_error_message(), 'data' => $result->get_error_data() ) );
 			} else {
+				// MCP 2026-07-28 resource reads require cache hints and a
+				// result discriminator. Keep older clients' wire format unchanged.
+				$protocol = trim( (string) $request->get_header( 'mcp-protocol-version' ) );
+				$meta = isset( $params['_meta'] ) && is_array( $params['_meta'] ) ? $params['_meta'] : array();
+				if ( isset( $meta['io.modelcontextprotocol/protocolVersion'] ) ) {
+					$protocol = (string) $meta['io.modelcontextprotocol/protocolVersion'];
+				}
+				if ( WPVDMCP_Server::MODERN_PROTOCOL === $protocol ) {
+					$result = array_merge( array(
+						'resultType' => 'complete',
+						'ttlMs' => 0,
+						'cacheScope' => 'private',
+					), $result );
+				}
 				$data = array( 'jsonrpc' => '2.0', 'id' => $id, 'result' => $result );
 			}
 		}
