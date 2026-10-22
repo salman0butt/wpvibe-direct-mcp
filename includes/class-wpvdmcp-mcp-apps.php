@@ -64,13 +64,16 @@ final class WPVDMCP_MCP_Apps {
 				'uri' => self::APPROVAL_URI,
 				'mimeType' => self::MIME_TYPE,
 				'text' => self::approval_html(),
-				'_meta' => array( 'ui' => array( 'csp' => array() ) ),
+				'_meta' => array( 'ui' => array( 'csp' => (object) array() ) ),
 			) ) );
 		}
 		if ( self::UPLOAD_URI === $uri ) {
-			$ui = array( 'csp' => array() );
+			// An empty PHP array encodes as JSON [], but the MCP Apps CSP
+			// contract requires a dictionary/object even with no domains.
+			$csp = (object) array();
 			$origin = self::site_origin();
-			if ( $origin ) { $ui['csp']['connectDomains'] = array( $origin ); }
+			if ( $origin ) { $csp->connectDomains = array( $origin ); }
+			$ui = array( 'csp' => $csp );
 			return array( 'contents' => array( array(
 				'uri' => self::UPLOAD_URI,
 				'mimeType' => self::MIME_TYPE,
