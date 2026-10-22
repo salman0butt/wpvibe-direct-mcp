@@ -45,7 +45,9 @@ parity_test('MCP Apps are self-contained and load no external runtime code',func
         assert_true(!is_wp_error($resource),'MCP App resource must load: '.$uri);
         $content=$resource['contents'][0]??array();
         $html=(string)($content['text']??'');
-        $domains=$content['_meta']['ui']['csp']['resourceDomains']??array();
+        $csp=$content['_meta']['ui']['csp']??null;
+        assert_true(is_object($csp),'MCP App CSP must be a JSON dictionary: '.$uri);
+        $domains=$csp->resourceDomains??array();
         assert_same(array(),array_values((array)$domains),'MCP App resourceDomains must not allow external code: '.$uri);
         assert_true(!preg_match('/(?:src|href)\\s*=\\s*["\\\']https?:\\/\\/|(?:from|import)\\s*["\\\']https?:\\/\\//i',$html),'MCP App must not load or import external HTTP(S) runtime code: '.$uri);
         assert_true(strpos($html,"'ui/initialize'")!==false,'MCP App keeps the UI initialize handshake: '.$uri);
